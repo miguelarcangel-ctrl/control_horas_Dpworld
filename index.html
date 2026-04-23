@@ -18,11 +18,11 @@
 body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;font-size:14px}
 
 /* LOGIN */
-.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--bg)}
-.login-card{background:#fff;border-radius:16px;padding:32px 24px;width:100%;max-width:380px;box-shadow:0 4px 24px rgba(0,0,0,.1);display:flex;flex-direction:column;gap:20px;text-align:center}
-.login-logo img{height:52px;margin:0 auto}
-.login-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.3rem;text-transform:uppercase;letter-spacing:.06em;color:var(--indigo)}
-.login-sub{font-size:.8rem;color:var(--mid)}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--indigo)}
+.login-card{background:#fff;border-radius:20px;padding:36px 28px;width:100%;max-width:360px;box-shadow:0 8px 40px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:22px;text-align:center}
+.login-logo img{height:80px;margin:0 auto;display:block}
+.login-logo-text{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.6rem;letter-spacing:.08em;color:var(--indigo);margin-top:4px}
+.login-sub{font-size:.75rem;color:var(--mid);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
 .login-fields{display:flex;flex-direction:column;gap:10px;text-align:left}
 .login-err{background:#FEE2E2;border-left:3px solid var(--red);border-radius:0 7px 7px 0;padding:9px 12px;font-size:.78rem;color:#991B1B;display:none}
 
@@ -201,18 +201,16 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
   <div class="login-card">
     <div class="login-logo">
       <img src="https://raw.githubusercontent.com/miguelarcangel-ctrl/cotizador-dpworld/main/logo_white.png" alt="DP World">
-    </div>
-    <div>
-      <div class="login-title">Control de Horas</div>
-      <div class="login-sub">DP World Panamá · DAL Colón Logistics Park</div>
+      <div class="login-logo-text">DP WORLD</div>
+      <div class="login-sub">3PL PANAMÁ · CONTROL DE HORAS</div>
     </div>
     <div class="login-fields">
       <div class="field"><label>Usuario</label><input type="text" id="loginUser" placeholder="Tu usuario" autocomplete="username"></div>
       <div class="field"><label>Contraseña</label><input type="password" id="loginPass" placeholder="••••••" autocomplete="current-password"></div>
       <div class="login-err" id="loginErr">Usuario o contraseña incorrectos</div>
-      <button class="btn btn-green btn-full" onclick="doLogin()">Ingresar →</button>
+      <button class="btn btn-indigo btn-full" style="padding:13px;font-size:.85rem;border-radius:10px;letter-spacing:.08em" onclick="doLogin()">INICIAR SESIÓN</button>
     </div>
-    <div style="font-size:.68rem;color:var(--mid)">🔒 Uso interno exclusivo · DP World Panamá</div>
+    <div style="font-size:.65rem;color:var(--mid);letter-spacing:.04em">🔒 USO INTERNO EXCLUSIVO · DP WORLD PANAMÁ</div>
   </div>
 </div>
 
