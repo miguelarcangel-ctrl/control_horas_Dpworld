@@ -361,6 +361,33 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
   </div>
 </div>
 
+<div class="overlay hidden" id="modalConfig">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title">⚙️ Configuración de Horas</span><span class="modal-close" onclick="hideModal('modalConfig')">✕</span></div>
+    <div class="info-box">Estos valores aplican a todos los cálculos de horas, costos y sobretiempo.</div>
+    <div class="field-row">
+      <div class="field"><label>Hora inicio turno</label><input type="time" id="cfgHoraInicio"></div>
+      <div class="field"><label>Hora fin turno</label><input type="time" id="cfgHoraFin"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Horas almuerzo</label><input type="number" id="cfgAlmuerzo" min="0" max="4" step="0.5"></div>
+      <div class="field"><label>Mult. sobretiempo (x)</label><input type="number" id="cfgMultSobre" min="1" max="3" step="0.25"></div>
+    </div>
+    <hr style="margin:4px 0">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid)">📅 Días Especiales</div>
+    <div class="field-row">
+      <div class="field"><label>Horas sábado</label><input type="number" id="cfgHorasSab" min="0" max="8" step="0.5"></div>
+      <div class="field"><label>Mult. sábado (x)</label><input type="number" id="cfgMultSab" min="1" max="3" step="0.25"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Horas domingo</label><input type="number" id="cfgHorasDom" min="0" max="8" step="0.5"></div>
+      <div class="field"><label>Mult. domingo (x)</label><input type="number" id="cfgMultDom" min="1" max="3" step="0.25"></div>
+    </div>
+    <div class="info-box" id="cfgResumen"></div>
+    <button class="btn btn-green btn-full" onclick="guardarConfig()">💾 Guardar Configuración</button>
+  </div>
+</div>
+
 <div class="overlay hidden" id="modalSolReap">
   <div class="modal">
     <div class="modal-hdr"><span class="modal-title">🔓 Solicitar Reapertura</span><span class="modal-close" onclick="hideModal('modalSolReap')">✕</span></div>
@@ -455,11 +482,52 @@ let S={
   turno:null,tareasActivas:[],historial:[],
   turnosHistorial:[],solicitudes:[],
   cerrandoId:null,reabriendoId:null,editingId:null,
+  config:{
+    horaInicio:'08:00',
+    horaFin:'17:00',
+    horasAlmuerzo:1,
+    multSobretiempo:1.5,
+    horasSabado:4,
+    multSabado:1.0,
+    horasDomingo:0,
+    multDomingo:2.0,
+  },
 };
 let currentUser=null;
 
 // ═══ COSTOS ═══
-const costoCargo=c=>{const base=c==='operador'?50:36;const dia=base*1.07;return{dia,hora:dia/8};};
+function getConfig(){return S.config||{horaInicio:'08:00',horaFin:'17:00',horasAlmuerzo:1,multSobretiempo:1.5,horasSabado:4,multSabado:1.0,horasDomingo:0,multDomingo:2.0};}
+function horasProductivas(fecha){
+  const cfg=getConfig();
+  if(fecha){
+    const d=new Date(fecha+'T12:00:00');
+    const dow=d.getDay();
+    if(dow===0) return cfg.horasDomingo||0; // domingo
+    if(dow===6) return cfg.horasSabado||4;  // sabado
+  }
+  // Regular: fin - inicio - almuerzo
+  const [hi,hm]=cfg.horaInicio.split(':').map(Number);
+  const [hf,fm]=cfg.horaFin.split(':').map(Number);
+  const totalH=(hf*60+fm-hi*60-hm)/60;
+  return Math.max(0, totalH - (cfg.horasAlmuerzo||1));
+}
+function costoCargo(c, fecha){
+  const base=c==='operador'?50:36;
+  const dia=base*1.07;
+  const hp=horasProductivas(fecha||null);
+  const horaBase=hp>0?dia/hp:dia/8;
+  return{dia,hora:horaBase,horasProductivas:hp};
+}
+function costoConSobretiempo(cargo, durH, fecha){
+  const cfg=getConfig();
+  const co=costoCargo(cargo, fecha);
+  const hp=co.horasProductivas;
+  const horasNorm=Math.min(durH, hp);
+  const horasExtra=Math.max(0, durH - hp);
+  const costoNorm=horasNorm * co.hora;
+  const costoExtra=horasExtra * co.hora * (cfg.multSobretiempo||1.5);
+  return{costoNorm, costoExtra, total:costoNorm+costoExtra, horasNorm, horasExtra};
+}
 
 // ═══ DB ═══
 async function dbGet(k){try{const{data}=await db.from('kv_store').select('value').eq('key',k).single();return data?JSON.parse(data.value):null;}catch{return null;}}
@@ -573,13 +641,21 @@ function updateTurnoResumen(){
   const el=document.getElementById('turnoResumen');
   if(!eq.length){el.textContent='Selecciona colaboradores para ver el resumen';return;}
   const ops=eq.filter(c=>c.cargo==='operador').length,ags=eq.filter(c=>c.cargo==='ag').length;
-  el.innerHTML=`<b>${eq.length} persona(s)</b> — ${ops} Operador(es) + ${ags} AG<br>📅 Horas brutas: <b>${eq.length*8}h</b> · Productivas: <b>${eq.length*8-eq.length}h</b> (−${eq.length}h almuerzo)`;
+  const cfg=getConfig();
+  const hpPP=horasProductivas(document.getElementById('tFecha').value);
+  const costo=eq.reduce((s,c)=>s+costoCargo(c.cargo,document.getElementById('tFecha').value).dia,0);
+  el.innerHTML=`<b>${eq.length} persona(s)</b> — ${ops} Operador(es) + ${ags} AG<br>
+  📅 Horas productivas/persona: <b>${hpPP}h</b> · Total equipo: <b>${(eq.length*hpPP).toFixed(1)}h</b><br>
+  🍽 Almuerzo: ${cfg.horasAlmuerzo}h/persona · ⏰ ${cfg.horaInicio} → ${cfg.horaFin}<br>
+  💰 Costo estimado: <b>$${costo.toFixed(2)}</b>`;
 }
 async function abrirTurno(){
   const ids=[...document.querySelectorAll('#colabChips .chip.selected')].map(c=>c.dataset.id);
   if(!ids.length){alert('Selecciona al menos un colaborador');return;}
   const eq=S.colaboradores.filter(c=>ids.includes(c.id));
-  S.turno={id:uid(),fecha:document.getElementById('tFecha').value,hora:document.getElementById('tHora').value,inicio:Date.now(),equipo:eq,horasProd:eq.length*8-eq.length};
+  const fecha=document.getElementById('tFecha').value;
+  const hpPorPersona=horasProductivas(fecha);
+  S.turno={id:uid(),fecha,hora:document.getElementById('tHora').value,inicio:Date.now(),equipo:eq,horasProd:eq.length*hpPorPersona,hpPorPersona};
   S.tareasActivas=[];S.historial=[];
   await save();hideModal('modalAbrirTurno');renderAll();
 }
@@ -668,10 +744,14 @@ function renderHistorial(){
   if(!S.historial.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Sin tareas completadas</div></div>`;return;}
   el.innerHTML=[...S.historial].reverse().map(t=>{
     const eb=t.efic!=null?`<span class="badge ${t.efic>=90?'bg':t.efic>=70?'ba':'br'}">${Math.round(t.efic)}%</span>`:'';
+    const cfg=getConfig();
+    const hp=horasProductivas(S.turno?.fecha);
+    const esExtra=t.durH>hp;
+    const extraBadge=esExtra?`<span class="badge br">+${(t.durH-hp).toFixed(1)}h ST</span>`:'';
     return `<div class="task-card"><div class="task-card-hdr is-done">
       <div><div class="task-name">${t.tarea}</div><div class="task-meta">${t.cliente} · ${t.colaboradores.map(c=>c.nombre.split(' ')[0]).join(', ')}</div></div>
       <div style="text-align:right;display:flex;flex-direction:column;gap:3px;align-items:flex-end">
-        <span class="badge bgy">${t.durH.toFixed(1)}h</span>${eb}
+        <span class="badge bgy">${t.durH.toFixed(1)}h</span>${eb}${extraBadge}
       </div></div>
       ${t.cant?`<div class="task-card-body"><div class="task-meta">✅ ${t.cant} ${t.unidad}s${t.realProd?' · '+t.realProd.toFixed(1)+' '+t.unidad+'s/h':''}</div></div>`:''}
     </div>`;
@@ -800,10 +880,11 @@ function exportExcel(turnoId){
   let turnos=turnoId?S.turnosHistorial.filter(t=>t.id===turnoId):[...S.turnosHistorial];
   if(S.turno&&!turnoId)turnos=[...turnos,{...S.turno,historial:[...S.historial],fin:null,estado:'activo'}];
 
-  const detRows=[['Turno','Fecha','Hora Inicio','Tarea','Cliente','Colaboradores','Inicio Tarea','Fin Tarea','Duración (h)','Cantidad Ejecutada','Unidad','Prod. Esperada','Prod. Real','Eficiencia (%)','Costo ($)','Notas']];
+  const detRows=[['Turno','Fecha','Hora Inicio','Tarea','Cliente','Colaboradores','Inicio Tarea','Fin Tarea','Duración (h)','Horas Normales','Horas Sobretiempo','Cantidad Ejecutada','Unidad','Prod. Esperada','Prod. Real','Eficiencia (%)','Costo ($)','Notas']];
   turnos.forEach(t=>(t.historial||[]).forEach(ta=>{
     const costo=(ta.colaboradores||[]).reduce((s,c)=>{const co=S.colaboradores.find(x=>x.id===c.id)||c;return s+costoCargo(co.cargo||'operador').hora*((ta.durH||0)/Math.max(1,ta.colaboradores.length));},0);
-    detRows.push([t.id,t.fecha,t.hora,ta.tarea,ta.cliente,(ta.colaboradores||[]).map(c=>c.nombre).join(', '),ta.inicio?new Date(ta.inicio).toLocaleTimeString():'',ta.fin?new Date(ta.fin).toLocaleTimeString():'',(ta.durH||0).toFixed(2),ta.cant||0,ta.unidad||'',ta.prod||0,(ta.realProd||0).toFixed(2),ta.efic!=null?Math.round(ta.efic):'',costo.toFixed(2),ta.nota||'']);
+    const st=costoConSobretiempo((ta.colaboradores||[])[0]?.cargo||'operador',ta.durH||0,t.fecha);
+    detRows.push([t.id,t.fecha,t.hora,ta.tarea,ta.cliente,(ta.colaboradores||[]).map(c=>c.nombre).join(', '),ta.inicio?new Date(ta.inicio).toLocaleTimeString():'',ta.fin?new Date(ta.fin).toLocaleTimeString():'',(ta.durH||0).toFixed(2),st.horasNorm.toFixed(2),st.horasExtra.toFixed(2),ta.cant||0,ta.unidad||'',ta.prod||0,(ta.realProd||0).toFixed(2),ta.efic!=null?Math.round(ta.efic):'',costo.toFixed(2),ta.nota||'']);
   }));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(detRows),'Detalle Tareas');
 
@@ -833,6 +914,58 @@ function exportExcel(turnoId){
   XLSX.writeFile(wb,turnoId?`Turno_${turnos[0]?.fecha||'N/A'}.xlsx`:`Control_Horas_DPWorld_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
+// ═══ CONFIG ═══
+function openConfig(){
+  const cfg=getConfig();
+  document.getElementById('cfgHoraInicio').value=cfg.horaInicio||'08:00';
+  document.getElementById('cfgHoraFin').value=cfg.horaFin||'17:00';
+  document.getElementById('cfgAlmuerzo').value=cfg.horasAlmuerzo||1;
+  document.getElementById('cfgMultSobre').value=cfg.multSobretiempo||1.5;
+  document.getElementById('cfgHorasSab').value=cfg.horasSabado||4;
+  document.getElementById('cfgMultSab').value=cfg.multSabado||1.0;
+  document.getElementById('cfgHorasDom').value=cfg.horasDomingo||0;
+  document.getElementById('cfgMultDom').value=cfg.multDomingo||2.0;
+  updateCfgResumen();
+  document.getElementById('cfgHoraInicio').oninput=updateCfgResumen;
+  document.getElementById('cfgHoraFin').oninput=updateCfgResumen;
+  document.getElementById('cfgAlmuerzo').oninput=updateCfgResumen;
+  document.getElementById('cfgMultSobre').oninput=updateCfgResumen;
+  showModal('modalConfig');
+}
+function updateCfgResumen(){
+  const hi=document.getElementById('cfgHoraInicio').value||'08:00';
+  const hf=document.getElementById('cfgHoraFin').value||'17:00';
+  const alm=parseFloat(document.getElementById('cfgAlmuerzo').value)||1;
+  const mult=parseFloat(document.getElementById('cfgMultSobre').value)||1.5;
+  const [hih,him]=hi.split(':').map(Number);
+  const [hfh,hfm]=hf.split(':').map(Number);
+  const totalH=(hfh*60+hfm-hih*60-him)/60;
+  const prodH=Math.max(0,totalH-alm);
+  const costoOpNorm=(50*1.07/prodH).toFixed(2);
+  const costoOpExtra=(50*1.07/prodH*mult).toFixed(2);
+  const costoAgNorm=(36*1.07/prodH).toFixed(2);
+  const costoAgExtra=(36*1.07/prodH*mult).toFixed(2);
+  document.getElementById('cfgResumen').innerHTML=
+    `Turno: <b>${hi} → ${hf}</b> = ${totalH}h brutas − ${alm}h almuerzo = <b>${prodH}h productivas</b><br>
+    Operador: <b>$${costoOpNorm}/h</b> normal · <b>$${costoOpExtra}/h</b> sobretiempo (${mult}x)<br>
+    Ayudante: <b>$${costoAgNorm}/h</b> normal · <b>$${costoAgExtra}/h</b> sobretiempo (${mult}x)`;
+}
+async function guardarConfig(){
+  if(!S.config) S.config={};
+  S.config.horaInicio=document.getElementById('cfgHoraInicio').value;
+  S.config.horaFin=document.getElementById('cfgHoraFin').value;
+  S.config.horasAlmuerzo=parseFloat(document.getElementById('cfgAlmuerzo').value)||1;
+  S.config.multSobretiempo=parseFloat(document.getElementById('cfgMultSobre').value)||1.5;
+  S.config.horasSabado=parseFloat(document.getElementById('cfgHorasSab').value)||4;
+  S.config.multSabado=parseFloat(document.getElementById('cfgMultSab').value)||1.0;
+  S.config.horasDomingo=parseFloat(document.getElementById('cfgHorasDom').value)||0;
+  S.config.multDomingo=parseFloat(document.getElementById('cfgMultDom').value)||2.0;
+  await save();
+  hideModal('modalConfig');
+  renderInsights();
+  alert('✅ Configuración guardada');
+}
+
 // ═══ INSIGHTS RENDER ═══
 function renderInsights(){
   const el=document.getElementById('insightsContent');
@@ -849,6 +982,28 @@ function renderInsights(){
     <div class="stat-card"><div class="stat-label">Tareas</div><div class="stat-val">${allT.length+(S.historial||[]).length}</div></div>
     <div class="stat-card"><div class="stat-label">Costo Total</div><div class="stat-val g" style="font-size:.95rem">$${totC.toFixed(0)}</div></div>
   </div>`;
+
+  // Config button (admin only)
+  if(isAdmin){
+    const cfg=getConfig();
+    const [hi,him]=cfg.horaInicio.split(':').map(Number);
+    const [hf,hfm]=cfg.horaFin.split(':').map(Number);
+    const totalH=(hf*60+hfm-hi*60-him)/60;
+    const prodH=Math.max(0,totalH-(cfg.horasAlmuerzo||1));
+    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sCfg','cCfg')">
+      <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">⚙️ Configuración de Horas</span></div>
+      <div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openConfig()">✏️ Editar</button>
+      <span class="chevron open" id="cCfg">▼</span></div></div><div class="sec-body" id="sCfg">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="stat-card"><div class="stat-label">Turno</div><div class="stat-val" style="font-size:1rem">${cfg.horaInicio}–${cfg.horaFin}</div></div>
+        <div class="stat-card"><div class="stat-label">Horas Productivas</div><div class="stat-val g">${prodH}h</div></div>
+        <div class="stat-card"><div class="stat-label">Almuerzo</div><div class="stat-val" style="font-size:1rem">${cfg.horasAlmuerzo}h</div></div>
+        <div class="stat-card"><div class="stat-label">Mult. Sobretiempo</div><div class="stat-val a">${cfg.multSobretiempo}x</div></div>
+        <div class="stat-card"><div class="stat-label">Sábado</div><div class="stat-val" style="font-size:1rem">${cfg.horasSabado}h · ${cfg.multSabado}x</div></div>
+        <div class="stat-card"><div class="stat-label">Domingo</div><div class="stat-val" style="font-size:1rem">${cfg.horasDomingo}h · ${cfg.multDomingo}x</div></div>
+      </div>
+    </div></div>`;
+  }
 
   // Solicitudes pendientes
   if(isAdmin&&pend.length){
