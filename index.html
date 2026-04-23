@@ -966,6 +966,20 @@ async function guardarConfig(){
   alert('✅ Configuración guardada');
 }
 
+// ═══ FILTROS HISTORIAL ═══
+function filtrarHist(mes, desde, hasta){
+  window._histFiltroMes = mes;
+  window._histFiltroDesde = desde;
+  window._histFiltroHasta = hasta;
+  renderInsights();
+}
+function filtrarHistRango(){
+  window._histFiltroMes = '';
+  window._histFiltroDesde = document.getElementById('filtroDesde')?.value||'';
+  window._histFiltroHasta = document.getElementById('filtroHasta')?.value||'';
+  renderInsights();
+}
+
 // ═══ INSIGHTS RENDER ═══
 function renderInsights(){
   const el=document.getElementById('insightsContent');
@@ -1046,14 +1060,75 @@ function renderInsights(){
 
   // Histórico turnos
   if(S.turnosHistorial.length){
-    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sHist','cHist')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">📅 Histórico de Turnos</span></div><span class="chevron open" id="cHist">▼</span></div><div class="sec-body" id="sHist">`;
-    [...S.turnosHistorial].reverse().forEach(t=>{
+    // Get unique months for filter
+    const meses=[...new Set(S.turnosHistorial.map(t=>t.fecha?t.fecha.slice(0,7):''))].filter(Boolean).sort().reverse();
+    const mesActivo=window._histFiltroMes||meses[0]||'';
+    const fechaDesde=window._histFiltroDesde||'';
+    const fechaHasta=window._histFiltroHasta||'';
+
+    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sHist','cHist')">
+      <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">📅 Histórico de Turnos</span></div>
+      <span class="chevron open" id="cHist">▼</span></div><div class="sec-body" id="sHist">`;
+
+    // Filter controls
+    h+=`<div style="display:flex;flex-direction:column;gap:8px;background:var(--bg);border-radius:8px;padding:10px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.68rem;text-transform:uppercase;color:var(--mid)">Filtrar por período</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm ${!fechaDesde&&!fechaHasta?'btn-indigo':'btn-ghost'}" onclick="filtrarHist('','','')">Todos</button>
+        ${meses.map(m=>`<button class="btn btn-sm ${mesActivo===m&&!fechaDesde?'btn-indigo':'btn-ghost'}" onclick="filtrarHist('${m}','','')">${m}</button>`).join('')}
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <div class="field" style="flex:1;margin:0"><label>Desde</label><input type="date" id="filtroDesde" value="${fechaDesde}" onchange="filtrarHistRango()"></div>
+        <div class="field" style="flex:1;margin:0"><label>Hasta</label><input type="date" id="filtroHasta" value="${fechaHasta}" onchange="filtrarHistRango()"></div>
+      </div>
+    </div>`;
+
+    // Apply filter
+    let turnosFilt=[...S.turnosHistorial].reverse();
+    if(fechaDesde||fechaHasta){
+      turnosFilt=turnosFilt.filter(t=>{
+        if(fechaDesde&&t.fecha<fechaDesde) return false;
+        if(fechaHasta&&t.fecha>fechaHasta) return false;
+        return true;
+      });
+    } else if(mesActivo){
+      turnosFilt=turnosFilt.filter(t=>t.fecha&&t.fecha.startsWith(mesActivo));
+    }
+
+    // Summary for filtered period
+    const totTareas=turnosFilt.reduce((s,t)=>s+(t.historial||[]).length,0);
+    const totCosto=turnosFilt.reduce((s,t)=>(t.historial||[]).reduce((ss,ta)=>(ta.colaboradores||[]).reduce((sss,c)=>{const co=S.colaboradores.find(x=>x.id===c.id)||c;return sss+costoCargo(co.cargo||'operador').hora*((ta.durH||0)/Math.max(1,ta.colaboradores.length));},ss),s),0);
+    const totHoras=turnosFilt.reduce((s,t)=>(t.historial||[]).reduce((ss,ta)=>ss+(ta.durH||0),ss),0);
+
+    if(turnosFilt.length){
+      h+=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+        <div class="stat-card"><div class="stat-label">Turnos</div><div class="stat-val">${turnosFilt.length}</div></div>
+        <div class="stat-card"><div class="stat-label">Horas</div><div class="stat-val g">${totHoras.toFixed(0)}h</div></div>
+        <div class="stat-card"><div class="stat-label">Costo</div><div class="stat-val" style="font-size:.9rem;color:var(--indigo)">$${totCosto.toFixed(0)}</div></div>
+      </div>`;
+    }
+
+    if(!turnosFilt.length){
+      h+=`<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Sin turnos en este período</div></div>`;
+    }
+
+    turnosFilt.forEach(t=>{
       const costo=(t.historial||[]).reduce((s,ta)=>(ta.colaboradores||[]).reduce((ss,c)=>{const co=S.colaboradores.find(x=>x.id===c.id)||c;return ss+costoCargo(co.cargo||'operador').hora*((ta.durH||0)/Math.max(1,ta.colaboradores.length));},s),0);
       const eb=t.estado==='solicitud_pendiente'?`<span class="badge ba">Sol. Pendiente</span>`:t.estado==='cerrado'?`<span class="badge bgy">Cerrado</span>`:`<span class="badge bg">Reabierto</span>`;
       h+=`<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:6px">
-        <div style="display:flex;justify-content:space-between;width:100%"><div><div class="li-name">${t.fecha} — ${t.hora}</div><div class="li-sub">${(t.equipo||[]).map(c=>c.nombre.split(' ')[0]).join(', ')}</div></div>${eb}</div>
-        <div style="display:flex;gap:5px;flex-wrap:wrap"><span class="badge bgy">${(t.historial||[]).length} tareas</span><span class="badge bi">$${costo.toFixed(2)}</span>${t.justCausa?`<span class="badge ba">${t.justCausa}</span>`:''}</div>
-        <div class="btn-row"><button class="btn btn-ghost btn-sm" onclick="exportExcel('${t.id}')">📥 Excel</button>${t.estado==='cerrado'?`<button class="btn btn-amber btn-sm" onclick="prepSolReap('${t.id}')">🔓 Solicitar Reapertura</button>`:''}</div>
+        <div style="display:flex;justify-content:space-between;width:100%">
+          <div><div class="li-name">${t.fecha} — ${t.hora}</div>
+          <div class="li-sub">${(t.equipo||[]).map(c=>c.nombre.split(' ')[0]).join(', ')}</div></div>${eb}
+        </div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          <span class="badge bgy">${(t.historial||[]).length} tareas</span>
+          <span class="badge bi">$${costo.toFixed(2)}</span>
+          ${t.justCausa?`<span class="badge ba">${t.justCausa}</span>`:''}
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-ghost btn-sm" onclick="exportExcel('${t.id}')">📥 Excel</button>
+          ${t.estado==='cerrado'?`<button class="btn btn-amber btn-sm" onclick="prepSolReap('${t.id}')">🔓 Reapertura</button>`:''}
+        </div>
       </div>`;
     });
     h+=`</div></div>`;
