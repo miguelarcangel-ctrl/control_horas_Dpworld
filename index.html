@@ -896,7 +896,7 @@ function exportExcel(turnoId){
   const turRows=[['Fecha','Hora Inicio','Hora Fin','Equipo','Personas','Horas Productivas','Tareas','Costo ($)','Horas Libres','Causa','Detalle','Estado']];
   turnos.forEach(t=>{
     const usH=(t.historial||[]).reduce((s,ta)=>s+(ta.durH||0),0),libH=Math.max(0,(t.horasProd||0)-usH);
-    const costo=(t.historial||[]).reduce((s,ta)=>(ta.colaboradores||[]).reduce((ss,c)=>{const co=S.colaboradores.find(x=>x.id===c.id)||c;return ss+costoCargo(co.cargo||'operador').hora*((ta.durH||0)/Math.max(1,ta.colaboradores.length));},s),0);
+    const costo=calcTotalCosto(t.historial||[]);
     turRows.push([t.fecha,t.hora,t.fin?new Date(t.fin).toLocaleTimeString():'En curso',(t.equipo||[]).map(c=>c.nombre).join(', '),(t.equipo||[]).length,t.horasProd||0,(t.historial||[]).length,costo.toFixed(2),libH.toFixed(2),t.justCausa||'',t.justNota||'',t.estado||'']);
   });
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(turRows),'Resumen Turnos');
@@ -986,6 +986,24 @@ function filtrarHistRango(){
 }
 
 // ═══ INSIGHTS RENDER ═══
+// Helper: calculate cost of a single task
+function calcTaskCosto(ta){
+  return (ta.colaboradores||[]).reduce((s,c)=>{
+    const co=S.colaboradores.find(x=>x.id===c.id)||c;
+    const cargo=co.cargo||'operador';
+    const durH=(ta.durH||0)/Math.max(1,(ta.colaboradores||[]).length);
+    return s+costoCargo(cargo).hora*durH;
+  },0);
+}
+// Helper: calculate total cost of array of tasks
+function calcTotalCosto(tareas){
+  return (tareas||[]).reduce((s,ta)=>s+calcTaskCosto(ta),0);
+}
+// Helper: calculate total hours of array of tasks  
+function calcTotalHoras(tareas){
+  return (tareas||[]).reduce((s,ta)=>s+(ta.durH||0),0);
+}
+
 function renderInsights(){
   const el=document.getElementById('insightsContent');
   if(!el) return;
@@ -997,7 +1015,7 @@ function renderInsights(){
 
   // Stats
   const allT=S.turnosHistorial.flatMap(t=>t.historial||[]);
-  const totC=allT.reduce((s,t)=>(t.colaboradores||[]).reduce((ss,c)=>{const co=S.colaboradores.find(x=>x.id===c.id)||c;return ss+costoCargo(co.cargo||'operador').hora*((t.durH||0)/Math.max(1,t.colaboradores.length));},s),0);
+  const totC=calcTotalCosto(allT);
   h+=`<div class="stat-row">
     <div class="stat-card"><div class="stat-label">Turnos</div><div class="stat-val">${S.turnosHistorial.length}</div></div>
     <div class="stat-card"><div class="stat-label">Tareas</div><div class="stat-val">${allT.length+(S.historial||[]).length}</div></div>
@@ -1039,7 +1057,7 @@ function renderInsights(){
   if(S.turno){
     let usMs=0;S.historial.forEach(t=>usMs+=(t.fin-t.inicio));S.tareasActivas.forEach(t=>usMs+=(Date.now()-t.inicio));
     const usH=msH(usMs),libH=Math.max(0,S.turno.horasProd-usH),pct=Math.min(100,(usH/S.turno.horasProd)*100);
-    const costo=S.historial.reduce((s,t)=>(t.colaboradores||[]).reduce((ss,c)=>{const co=S.colaboradores.find(x=>x.id===c.id)||c;return ss+costoCargo(co.cargo||'operador').hora*((t.durH||0)/Math.max(1,t.colaboradores.length));},s),0);
+    const costo=calcTotalCosto(S.historial);
     h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sLive','cLive')">
       <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title"><span class="live-dot" style="margin-right:5px"></span>Turno en Tiempo Real</span></div>
       <span class="chevron open" id="cLive">▼</span></div><div class="sec-body" id="sLive">
@@ -1052,7 +1070,7 @@ function renderInsights(){
   }
 
   // Costos por cliente
-  const cliMap={};[...allT,...(S.historial||[])].forEach(t=>{const cli=t.cliente||'N/A';if(!cliMap[cli])cliMap[cli]={tareas:0,horas:0,costo:0};cliMap[cli].tareas++;cliMap[cli].horas+=(t.durH||0);cliMap[cli].costo+=(t.colaboradores||[]).reduce((s,c)=>{const co=S.colaboradores.find(x=>x.id===c.id)||c;return s+costoCargo(co.cargo||'operador').hora*((t.durH||0)/Math.max(1,t.colaboradores.length));},0);});
+  const cliMap={};[...allT,...(S.historial||[])].forEach(t=>{const cli=t.cliente||'N/A';if(!cliMap[cli])cliMap[cli]={tareas:0,horas:0,costo:0};cliMap[cli].tareas++;cliMap[cli].horas+=(t.durH||0);cliMap[cli].costo+=calcTaskCosto(t);});
   if(Object.keys(cliMap).length){
     h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sCli','cCli')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">💰 Costo por Cliente</span></div><span class="chevron open" id="cCli">▼</span></div><div class="sec-body" id="sCli">`;
     Object.entries(cliMap).forEach(([cli,d])=>{h+=`<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:5px"><div style="display:flex;justify-content:space-between;width:100%"><span class="li-name">${cli}</span><span class="badge bi">$${d.costo.toFixed(2)}</span></div><div style="display:flex;gap:5px"><span class="badge bgy">${d.tareas} tareas</span><span class="badge bgy">${d.horas.toFixed(1)}h</span></div></div>`;});
@@ -1104,8 +1122,8 @@ function renderInsights(){
 
     // Summary for filtered period
     const totTareas=turnosFilt.reduce((s,t)=>s+(t.historial||[]).length,0);
-    const totCosto=turnosFilt.reduce((s,t)=>(t.historial||[]).reduce((ss,ta)=>(ta.colaboradores||[]).reduce((sss,c)=>{const co=S.colaboradores.find(x=>x.id===c.id)||c;return sss+costoCargo(co.cargo||'operador').hora*((ta.durH||0)/Math.max(1,ta.colaboradores.length));},ss),s),0);
-    const totHoras=turnosFilt.reduce((s,t)=>(t.historial||[]).reduce((ss,ta)=>ss+(ta.durH||0),ss),0);
+    const totCosto=turnosFilt.reduce((s,t)=>s+calcTotalCosto(t.historial||[]),0);
+    const totHoras=turnosFilt.reduce((s,t)=>s+calcTotalHoras(t.historial||[]),0);
 
     if(turnosFilt.length){
       h+=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
@@ -1120,7 +1138,7 @@ function renderInsights(){
     }
 
     turnosFilt.forEach(t=>{
-      const costo=(t.historial||[]).reduce((s,ta)=>(ta.colaboradores||[]).reduce((ss,c)=>{const co=S.colaboradores.find(x=>x.id===c.id)||c;return ss+costoCargo(co.cargo||'operador').hora*((ta.durH||0)/Math.max(1,ta.colaboradores.length));},s),0);
+      const costo=calcTotalCosto(t.historial||[]);
       const eb=t.estado==='solicitud_pendiente'?`<span class="badge ba">Sol. Pendiente</span>`:t.estado==='cerrado'?`<span class="badge bgy">Cerrado</span>`:`<span class="badge bg">Reabierto</span>`;
       h+=`<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:6px">
         <div style="display:flex;justify-content:space-between;width:100%">
