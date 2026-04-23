@@ -971,6 +971,16 @@ async function guardarConfig(){
   alert('✅ Configuración guardada');
 }
 
+// ═══ ELIMINAR TURNO ═══
+async function eliminarTurno(id){
+  if(!confirm('¿Eliminar este turno y toda su data? Esta acción no se puede deshacer.')) return;
+  S.turnosHistorial = S.turnosHistorial.filter(t=>t.id!==id);
+  // Also remove any solicitudes linked to this turno
+  S.solicitudes = (S.solicitudes||[]).filter(s=>s.turnoId!==id);
+  await save();
+  renderInsights();
+}
+
 // ═══ FILTROS HISTORIAL ═══
 function filtrarHist(mes, desde, hasta){
   window._histFiltroMes = mes;
@@ -1156,6 +1166,7 @@ function renderInsights(){
           <div class="btn-row">
             <button class="btn btn-ghost btn-sm" onclick="exportExcel('${t.id}')">📥 Excel</button>
             ${t.estado==='cerrado'?`<button class="btn btn-amber btn-sm" onclick="prepSolReap('${t.id}')">🔓 Reapertura</button>`:''}
+            <button class="btn btn-red btn-sm" onclick="eliminarTurno('${t.id}')">🗑 Eliminar</button>
           </div>
         </div>`;
       });
