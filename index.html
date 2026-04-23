@@ -496,7 +496,11 @@ let S={
 let currentUser=null;
 
 // ═══ COSTOS ═══
-function getConfig(){return S.config||{horaInicio:'08:00',horaFin:'17:00',horasAlmuerzo:1,multSobretiempo:1.5,horasSabado:4,multSabado:1.0,horasDomingo:0,multDomingo:2.0};}
+function getConfig(){
+  const defaults={horaInicio:'08:00',horaFin:'17:00',horasAlmuerzo:1,multSobretiempo:1.5,horasSabado:4,multSabado:1.0,horasDomingo:0,multDomingo:2.0};
+  if(!S.config) return defaults;
+  return Object.assign({},defaults,S.config);
+}
 function horasProductivas(fecha){
   const cfg=getConfig();
   if(fecha){
@@ -590,6 +594,7 @@ async function init(){
   if(!S.turnosHistorial)S.turnosHistorial=[];
   if(!S.tareasActivas)S.tareasActivas=[];
   if(!S.historial)S.historial=[];
+  if(!S.config)S.config={horaInicio:'08:00',horaFin:'17:00',horasAlmuerzo:1,multSobretiempo:1.5,horasSabado:4,multSabado:1.0,horasDomingo:0,multDomingo:2.0};
   // NEVER save() on init — only read. Save only when user makes changes.
   const now=new Date();
   document.getElementById('tFecha').value=now.toISOString().split('T')[0];
@@ -983,6 +988,8 @@ function filtrarHistRango(){
 // ═══ INSIGHTS RENDER ═══
 function renderInsights(){
   const el=document.getElementById('insightsContent');
+  if(!el) return;
+  try {
   const isAdmin=currentUser?.rol==='admin';
   const pend=(S.solicitudes||[]).filter(x=>x.estado==='pendiente');
   updateNotifBadge();
@@ -1162,6 +1169,13 @@ function renderInsights(){
 
   h+=`</div>`;
   el.innerHTML=h;
+  } catch(err) {
+    console.error('renderInsights error:', err);
+    el.innerHTML=`<div style="padding:20px;background:#FEE2E2;border-radius:10px;color:#991B1B;font-size:.85rem">
+      <b>Error cargando Insights:</b><br>${err.message}<br><br>
+      <button onclick="location.reload()" style="padding:8px 16px;background:#991B1B;color:#fff;border:none;border-radius:6px;cursor:pointer">Recargar</button>
+    </div>`;
+  }
 }
 
 // ═══ RENDER ALL ═══
