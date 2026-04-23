@@ -567,12 +567,12 @@ async function startApp(){
   document.getElementById('appScreen').classList.remove('hidden');
   document.getElementById('hdrUser').textContent=currentUser.nombre+' · Salir';
   // Supervisors only see Turno tab
+  setNav('supervisor');
   if(currentUser.rol==='supervisor'){
     document.getElementById('navInsBtn').classList.add('hidden');
   } else {
     document.getElementById('navInsBtn').classList.remove('hidden');
   }
-  setNav('supervisor');
   renderAll();
 }
 
@@ -603,12 +603,12 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 function setNav(nav){
   document.getElementById('viewSupervisor').classList.toggle('hidden',nav!=='supervisor');
   document.getElementById('viewInsights').classList.toggle('hidden',nav!=='insights');
-  document.getElementById('navSupBtn').className='nav-btn '+(nav==='supervisor'?'active':'ghost');
-  document.getElementById('navInsBtn').className='nav-btn '+(nav==='insights'?'active':'ghost');
-  // re-add notif badge
-  const nb=document.getElementById('notifBadge');
-  document.getElementById('navInsBtn').appendChild(nb);
-  if(nav==='insights')renderInsights();
+  document.getElementById('navSupBtn').classList.toggle('active',nav==='supervisor');
+  document.getElementById('navSupBtn').classList.toggle('ghost',nav!=='supervisor');
+  const insBtn=document.getElementById('navInsBtn');
+  insBtn.classList.toggle('active',nav==='insights');
+  insBtn.classList.toggle('ghost',nav!=='insights');
+  if(nav==='insights') renderInsights();
 }
 function toggleSec(b,c){
   const body=document.getElementById(b),chev=document.getElementById(c);
