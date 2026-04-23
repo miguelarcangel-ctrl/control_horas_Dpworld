@@ -1087,7 +1087,7 @@ function renderInsights(){
   if(S.turnosHistorial.length){
     // Get unique months for filter
     const meses=[...new Set(S.turnosHistorial.map(t=>t.fecha?t.fecha.slice(0,7):''))].filter(Boolean).sort().reverse();
-    const mesActivo=window._histFiltroMes||meses[0]||'';
+    const mesActivo=window._histFiltroMes!==undefined?window._histFiltroMes:'';
     const fechaDesde=window._histFiltroDesde||'';
     const fechaHasta=window._histFiltroHasta||'';
 
@@ -1099,7 +1099,7 @@ function renderInsights(){
     h+=`<div style="display:flex;flex-direction:column;gap:8px;background:var(--bg);border-radius:8px;padding:10px">
       <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.68rem;text-transform:uppercase;color:var(--mid)">Filtrar por período</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn btn-sm ${!fechaDesde&&!fechaHasta?'btn-indigo':'btn-ghost'}" onclick="filtrarHist('','','')">Todos</button>
+        <button class="btn btn-sm ${!mesActivo&&!fechaDesde&&!fechaHasta?'btn-indigo':'btn-ghost'}" onclick="filtrarHist('','','')">Todos</button>
         ${meses.map(m=>`<button class="btn btn-sm ${mesActivo===m&&!fechaDesde?'btn-indigo':'btn-ghost'}" onclick="filtrarHist('${m}','','')">${m}</button>`).join('')}
       </div>
       <div style="display:flex;gap:6px;align-items:center">
@@ -1133,29 +1133,33 @@ function renderInsights(){
       </div>`;
     }
 
-    if(!turnosFilt.length){
-      h+=`<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Sin turnos en este período</div></div>`;
-    }
+    const filtroActivo = fechaDesde || fechaHasta || (mesActivo && mesActivo !== '');
 
-    turnosFilt.forEach(t=>{
-      const costo=calcTotalCosto(t.historial||[]);
-      const eb=t.estado==='solicitud_pendiente'?`<span class="badge ba">Sol. Pendiente</span>`:t.estado==='cerrado'?`<span class="badge bgy">Cerrado</span>`:`<span class="badge bg">Reabierto</span>`;
-      h+=`<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:6px">
-        <div style="display:flex;justify-content:space-between;width:100%">
-          <div><div class="li-name">${t.fecha} — ${t.hora}</div>
-          <div class="li-sub">${(t.equipo||[]).map(c=>c.nombre.split(' ')[0]).join(', ')}</div></div>${eb}
-        </div>
-        <div style="display:flex;gap:5px;flex-wrap:wrap">
-          <span class="badge bgy">${(t.historial||[]).length} tareas</span>
-          <span class="badge bi">$${costo.toFixed(2)}</span>
-          ${t.justCausa?`<span class="badge ba">${t.justCausa}</span>`:''}
-        </div>
-        <div class="btn-row">
-          <button class="btn btn-ghost btn-sm" onclick="exportExcel('${t.id}')">📥 Excel</button>
-          ${t.estado==='cerrado'?`<button class="btn btn-amber btn-sm" onclick="prepSolReap('${t.id}')">🔓 Reapertura</button>`:''}
-        </div>
-      </div>`;
-    });
+    if(!filtroActivo){
+      h+=`<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">Selecciona un período o rango de fechas para ver los turnos</div></div>`;
+    } else if(!turnosFilt.length){
+      h+=`<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Sin turnos en este período</div></div>`;
+    } else {
+      turnosFilt.forEach(t=>{
+        const costo=calcTotalCosto(t.historial||[]);
+        const eb=t.estado==='solicitud_pendiente'?`<span class="badge ba">Sol. Pendiente</span>`:t.estado==='cerrado'?`<span class="badge bgy">Cerrado</span>`:`<span class="badge bg">Reabierto</span>`;
+        h+=`<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:6px">
+          <div style="display:flex;justify-content:space-between;width:100%">
+            <div><div class="li-name">${t.fecha} — ${t.hora}</div>
+            <div class="li-sub">${(t.equipo||[]).map(c=>c.nombre.split(' ')[0]).join(', ')}</div></div>${eb}
+          </div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            <span class="badge bgy">${(t.historial||[]).length} tareas</span>
+            <span class="badge bi">$${costo.toFixed(2)}</span>
+            ${t.justCausa?`<span class="badge ba">${t.justCausa}</span>`:''}
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-ghost btn-sm" onclick="exportExcel('${t.id}')">📥 Excel</button>
+            ${t.estado==='cerrado'?`<button class="btn btn-amber btn-sm" onclick="prepSolReap('${t.id}')">🔓 Reapertura</button>`:''}
+          </div>
+        </div>`;
+      });
+    }
     h+=`</div></div>`;
   }
 
