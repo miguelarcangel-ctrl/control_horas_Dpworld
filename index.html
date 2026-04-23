@@ -468,6 +468,16 @@ const costoCargo=c=>{const base=c==='operador'?50:36;const dia=base*1.07;return{
 async function dbGet(k){try{const{data}=await db.from('kv_store').select('value').eq('key',k).single();return data?JSON.parse(data.value):null;}catch{return null;}}
 async function dbSet(k,v){await db.from('kv_store').upsert({key:k,value:JSON.stringify(v)},{onConflict:'key'});}
 async function save(){await dbSet('ctrl_horas',S);}
+async function reload(){
+  const saved=await dbGet('ctrl_horas');
+  if(saved){
+    // Preserve runtime-only fields, reload catalog data
+    const keep={turno:S.turno,tareasActivas:S.tareasActivas,historial:S.historial};
+    Object.assign(S,saved);
+    // If we have an active turno in memory, keep it
+    if(keep.turno&&!S.turno){S.turno=keep.turno;S.tareasActivas=keep.tareasActivas;S.historial=keep.historial;}
+  }
+}
 
 // ═══ LOGIN ═══
 async function doLogin(){
@@ -478,15 +488,16 @@ async function doLogin(){
   // Default admin if no users yet
   if((!S.usuarios||!S.usuarios.length)&&user==='admin'&&pass==='admin123'){
     currentUser={nombre:'Administrador',username:'admin',rol:'admin'};
-    startApp();return;
+    await startApp();return;
   }
   const found=(S.usuarios||[]).find(u=>u.username===user&&u.pass===pass);
   if(!found){errEl.style.display='block';return;}
   currentUser=found;
-  startApp();
+  await startApp();
 }
 function doLogout(){currentUser=null;document.getElementById('loginScreen').style.display='flex';document.getElementById('appScreen').classList.add('hidden');}
-function startApp(){
+async function startApp(){
+  await reload();
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appScreen').classList.remove('hidden');
   document.getElementById('hdrUser').textContent=currentUser.nombre+' · Salir';
@@ -504,26 +515,17 @@ function startApp(){
 async function init(){
   const saved=await dbGet('ctrl_horas');
   if(saved)Object.assign(S,saved);
-  if(!S.clientes?.length)S.clientes=[{id:uid(),nombre:'CNP',desc:''},{id:uid(),nombre:'Kangroos',desc:''}];
-  if(!S.tareasCat?.length)S.tareasCat=[
-    {id:uid(),nombre:'Descarga de Sider',desc:'Montacargas 4H',prod:72,unidad:'pallet'},
-    {id:uid(),nombre:'Almacenaje en Racks',desc:'Reach truck doble prof.',prod:20,unidad:'pallet'},
-    {id:uid(),nombre:'Maquila 6-pack',desc:'Armado 6 pack',prod:120,unidad:'pallet'},
-    {id:uid(),nombre:'Maquila 12-pack',desc:'Armado 12 pack',prod:55,unidad:'pallet'},
-    {id:uid(),nombre:'Despacho',desc:'Carga de contenedores',prod:40,unidad:'pallet'},
-    {id:uid(),nombre:'Almuerzo',desc:'Pausa de almuerzo',prod:0,unidad:'unidad'},
-  ];
-  if(!S.colaboradores?.length)S.colaboradores=[
-    {id:uid(),nombre:'Carlos Mendoza',cargo:'operador'},
-    {id:uid(),nombre:'Luis Pérez',cargo:'operador'},
-    {id:uid(),nombre:'Ana González',cargo:'ag'},
-  ];
+  // No defaults — admin configures everything from Insights
+  // Only initialize empty arrays if missing
+  if(!S.clientes) S.clientes=[];
+  if(!S.tareasCat) S.tareasCat=[];
+  if(!S.colaboradores) S.colaboradores=[];
   if(!S.usuarios)S.usuarios=[];
   if(!S.solicitudes)S.solicitudes=[];
   if(!S.turnosHistorial)S.turnosHistorial=[];
   if(!S.tareasActivas)S.tareasActivas=[];
   if(!S.historial)S.historial=[];
-  await save();
+  // NEVER save() on init — only read. Save only when user makes changes.
   const now=new Date();
   document.getElementById('tFecha').value=now.toISOString().split('T')[0];
   document.getElementById('tHora').value=now.toTimeString().slice(0,5);
@@ -548,7 +550,12 @@ function toggleSec(b,c){
   const h=body.classList.toggle('collapsed');
   if(chev)chev.classList.toggle('open',!h);
 }
-function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='modalAbrirTurno')prepModalTurno();if(id==='modalNuevaTarea')prepModalTarea();if(id==='modalColab')updateColabCosto();}
+async function showModal(id){
+  document.getElementById(id).classList.remove('hidden');
+  if(id==='modalAbrirTurno'){await reload();prepModalTurno();}
+  else if(id==='modalNuevaTarea'){await reload();prepModalTarea();}
+  else if(id==='modalColab') updateColabCosto();
+}
 function hideModal(id){document.getElementById(id).classList.add('hidden');}
 
 // ═══ CLOCK ═══
@@ -754,9 +761,9 @@ async function guardarColab(){
   const nombre=document.getElementById('cNombre').value.trim();if(!nombre){alert('Ingresa un nombre');return;}
   if(S.editingId){const c=S.colaboradores.find(x=>x.id===S.editingId);c.nombre=nombre;c.cargo=document.getElementById('cCargo').value;}
   else S.colaboradores.push({id:uid(),nombre,cargo:document.getElementById('cCargo').value});
-  await save();hideModal('modalColab');renderInsights();
+  await save();hideModal('modalColab');renderInsights();renderAll();
 }
-async function eliminarColab(id){if(!confirm('¿Eliminar colaborador?'))return;S.colaboradores=S.colaboradores.filter(x=>x.id!==id);await save();renderInsights();}
+async function eliminarColab(id){if(!confirm('¿Eliminar colaborador?'))return;S.colaboradores=S.colaboradores.filter(x=>x.id!==id);await save();renderInsights();renderAll();}
 
 // ═══ CRUD TAREAS ═══
 function openModalTareaCat(id){
@@ -770,7 +777,7 @@ async function guardarTareaCat(){
   const nombre=document.getElementById('tcNombre').value.trim();if(!nombre){alert('Ingresa un nombre');return;}
   if(S.editingId){const t=S.tareasCat.find(x=>x.id===S.editingId);t.nombre=nombre;t.desc=document.getElementById('tcDesc').value;t.prod=parseFloat(document.getElementById('tcProd').value)||0;t.unidad=document.getElementById('tcUnidad').value;}
   else S.tareasCat.push({id:uid(),nombre,desc:document.getElementById('tcDesc').value,prod:parseFloat(document.getElementById('tcProd').value)||0,unidad:document.getElementById('tcUnidad').value});
-  await save();hideModal('modalTareaCat');renderInsights();
+  await save();hideModal('modalTareaCat');renderInsights();renderAll();
 }
 async function eliminarTarea(id){if(!confirm('¿Eliminar tarea?'))return;S.tareasCat=S.tareasCat.filter(x=>x.id!==id);await save();renderInsights();}
 
@@ -786,7 +793,7 @@ async function guardarCliente(){
   const nombre=document.getElementById('clNombre').value.trim();if(!nombre){alert('Ingresa un nombre');return;}
   if(S.editingId){const c=S.clientes.find(x=>x.id===S.editingId);c.nombre=nombre;c.desc=document.getElementById('clDesc').value;}
   else S.clientes.push({id:uid(),nombre,desc:document.getElementById('clDesc').value});
-  await save();hideModal('modalCliente');renderInsights();
+  await save();hideModal('modalCliente');renderInsights();renderAll();
 }
 async function eliminarCliente(id){if(!confirm('¿Eliminar cliente?'))return;S.clientes=S.clientes.filter(x=>x.id!==id);await save();renderInsights();}
 
@@ -940,7 +947,14 @@ function renderAll(){
   if(!document.getElementById('viewInsights').classList.contains('hidden'))renderInsights();
 }
 
-init().then(startClock);
+init().then(()=>{
+  startClock();
+  // Sync from DB every 30s to reflect admin changes in supervisor view
+  setInterval(async()=>{
+    await reload();
+    renderAll();
+  }, 30000);
+});
 </script>
 </body>
 </html>
