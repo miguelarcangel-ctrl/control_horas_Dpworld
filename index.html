@@ -1378,7 +1378,17 @@ function renderDashboard(){
   const ops=equipo.filter(c=>c.cargo==='operador').length;
   const ags=equipo.filter(c=>c.cargo==='ag').length;
 
+  // Hours breakdown for donut
+  const histH=hist.reduce((s,t)=>s+(t.durH||0),0);
+  const activasH=tareas.reduce((s,t)=>s+tvMsH(Date.now()-t.inicio),0);
+  const libreH=Math.max(0,dispH-histH-activasH);
+
+  // Avg efficiency
+  const tareasConEfic=hist.filter(t=>t.efic!=null);
+  const avgEfic=tareasConEfic.length>0?tareasConEfic.reduce((s,t)=>s+t.efic,0)/tareasConEfic.length:null;
+
   let h=`<div class="tv-wrap">
+  <!-- HEADER -->
   <div class="tv-hdr">
     <div class="tv-hdr-logo"><img src="https://raw.githubusercontent.com/miguelarcangel-ctrl/cotizador-dpworld/main/logo_white.png" alt="DP World"></div>
     <div class="tv-hdr-center">
@@ -1394,83 +1404,160 @@ function renderDashboard(){
         <button class="tv-close" onclick="closeDashboard()">✕ Cerrar</button>
       </div>
     </div>
-  </div>
-  <div class="tv-body">`;
+  </div>`;
 
   if(!turno){
-    h+=`<div class="tv-no-turno">
+    h+=`<div class="tv-body"><div class="tv-no-turno">
       <div class="tv-no-icon">🏭</div>
       <div class="tv-no-title">Sin Turno Activo</div>
-      <div style="font-size:.9rem">El dashboard se actualiza automáticamente cada 15 segundos</div>
-    </div>`;
-  } else {
-    // Stats
-    h+=`<div class="tv-stats">
-      <div class="tv-stat"><div class="tv-stat-label">Turno Activo</div><div class="tv-stat-val" id="tvElapsed">${tvMsHMS(Date.now()-turno.inicio)}</div><div class="tv-stat-sub">${turno.fecha} · ${turno.hora}</div></div>
-      <div class="tv-stat"><div class="tv-stat-label">Equipo</div><div class="tv-stat-val">${equipo.length}</div><div class="tv-stat-sub">${ops} Op · ${ags} AG</div></div>
-      <div class="tv-stat"><div class="tv-stat-label">Activos</div><div class="tv-stat-val g">${activos}</div><div class="tv-stat-sub">de ${equipo.length} personas</div></div>
-      <div class="tv-stat"><div class="tv-stat-label">Horas Usadas</div><div class="tv-stat-val ${pct>90?'r':pct>70?'a':'g'}">${usH.toFixed(1)}h</div><div class="tv-stat-sub">de ${dispH}h disponibles</div></div>
-      <div class="tv-stat"><div class="tv-stat-label">Horas Libres</div><div class="tv-stat-val ${libH<1?'r':libH<3?'a':'g'}">${libH.toFixed(1)}h</div><div class="tv-stat-sub">${turno.jornada==='media'?'🕐 Media Jornada':'☀️ Jornada Completa'}</div></div>
-      <div class="tv-stat"><div class="tv-stat-label">Completadas</div><div class="tv-stat-val">${hist.length}</div><div class="tv-stat-sub">${tareas.length} en curso</div></div>
-    </div>`;
-
-    // Hora bar
-    h+=`<div class="tv-hora-bar">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:#8B8FAD;display:flex;align-items:center;gap:6px"><span class="tv-live-dot"></span>Ocupación del Turno</div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1rem;color:#F0F0F5"><span id="tvBarUsadas">${usH.toFixed(1)}h</span> / ${dispH}h · <span id="tvBarPct">${Math.round(pct)}%</span></div>
-      </div>
-      <div class="tv-bar-wrap"><div class="tv-bar-fill" id="tvBarFill" style="width:${pct}%;background:${pct>90?'#E8003D':pct>70?'#F59E0B':'#00C389'}"></div></div>
-      <div class="tv-bar-legend"><span>${turno.fecha} · ${turno.hora}</span><span>Libres: ${libH.toFixed(1)}h</span></div>
-    </div>`;
-
-    // Equipo
-    h+=`<div class="tv-sec"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">👥 Equipo del Turno</span></div><div class="tv-sec-body">`;
-    equipo.forEach((c,i)=>{
-      const act=tareas.find(t=>(t.colaboradores||[]).some(x=>x.id===c.id));
-      const init=c.nombre.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
-      const sp=act?(act.tarea==='Almuerzo'?`<span class="tv-sp tv-sp-lunch">🍽 Almuerzo</span>`:`<span class="tv-sp tv-sp-active">▶ ${act.tarea.substring(0,16)}</span>`):`<span class="tv-sp tv-sp-idle">⏸ Disponible</span>`;
-      h+=`<div class="tv-op-row">
-        <div style="display:flex;align-items:center;gap:8px">
-          <div class="tv-op-av" style="background:${TVCOLORS[i%TVCOLORS.length]}">${init}</div>
-          <div><div class="tv-op-name">${c.nombre}</div><div class="tv-op-role">${c.cargo==='operador'?'Operador':'Ayudante General'}${act?' · '+act.cliente:''}</div></div>
-        </div>
-        ${sp}
-      </div>`;
-    });
-    h+=`</div></div>`;
-
-    // Tareas activas
-    h+=`<div class="tv-sec"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">⚡ Tareas Activas (${tareas.length})</span></div><div class="tv-sec-body">`;
-    if(!tareas.length){
-      h+=`<div style="text-align:center;color:#8B8FAD;padding:14px;font-size:.82rem">Sin tareas activas en este momento</div>`;
-    } else {
-      tareas.forEach(t=>{
-        h+=`<div class="tv-task">
-          <div><div class="tv-task-name">${t.tarea}</div><div class="tv-task-meta">${t.cliente} · ${(t.colaboradores||[]).map(c=>c.nombre.split(' ')[0]).join(', ')}</div></div>
-          <div class="tv-task-timer" id="tvt_${t.id}">${tvMsHMS(Date.now()-t.inicio)}</div>
-        </div>`;
-      });
-    }
-    h+=`</div></div>`;
-
-    // Historial
-    h+=`<div class="tv-sec"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">📋 Completadas Hoy (${hist.length})</span></div><div class="tv-sec-body">`;
-    if(!hist.length){
-      h+=`<div style="text-align:center;color:#8B8FAD;padding:14px;font-size:.82rem">Sin tareas completadas aún</div>`;
-    } else {
-      [...hist].reverse().forEach(t=>{
-        const eb=t.efic!=null?`<span class="tv-badge ${t.efic>=90?'tv-bg':t.efic>=70?'tv-ba':'tv-br'}">${Math.round(t.efic)}%</span>`:'';
-        h+=`<div class="tv-hist-item">
-          <div><div class="tv-hist-name">${t.tarea}</div><div class="tv-hist-meta">${t.cliente} · ${(t.colaboradores||[]).map(c=>c.nombre.split(' ')[0]).join(', ')}</div></div>
-          <div style="display:flex;gap:4px;align-items:center"><span class="tv-badge tv-bgy">${t.durH.toFixed(1)}h</span>${eb}${t.cant?`<span class="tv-badge tv-bi">${t.cant} ${t.unidad}s</span>`:''}</div>
-        </div>`;
-      });
-    }
-    h+=`</div></div>`;
+      <div style="font-size:.9rem">Actualización automática cada 15 segundos</div>
+    </div></div></div>`;
+    document.getElementById('dashboardContent').innerHTML=h;
+    return;
   }
 
+  // BARRA SUPERIOR — full width
+  h+=`<div style="padding:10px 20px 0">
+    <div class="tv-hora-bar" style="margin-bottom:0">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:#8B8FAD;display:flex;align-items:center;gap:6px">
+          <span class="tv-live-dot"></span>OCUPACIÓN DEL TURNO · ${turno.fecha} · ${turno.jornada==='media'?'🕐 Media Jornada':'☀️ Jornada Completa'}
+        </div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1rem;color:#F0F0F5">
+          <span id="tvBarUsadas">${usH.toFixed(1)}h</span> / ${dispH}h · <span id="tvBarPct">${Math.round(pct)}%</span> · Libres: ${libH.toFixed(1)}h
+        </div>
+      </div>
+      <div class="tv-bar-wrap"><div class="tv-bar-fill" id="tvBarFill" style="width:${pct}%;background:${pct>90?'#E8003D':pct>70?'#F59E0B':'#00C389'}"></div></div>
+    </div>
+  </div>`;
+
+  // 3-COLUMN GRID
+  h+=`<div style="padding:12px 20px;display:grid;grid-template-columns:220px 1fr 1fr;gap:14px;flex:1;overflow:hidden">`;
+
+  // ── COL 1: Stats + Donut ──
+  h+=`<div style="display:flex;flex-direction:column;gap:8px;overflow-y:auto">`;
+
+  // Stat cards vertical
+  const stats=[
+    {label:'Turno Activo',val:`<span id="tvElapsed">${tvMsHMS(Date.now()-turno.inicio)}</span>`,sub:`${turno.hora}`,cls:''},
+    {label:'Equipo',val:equipo.length,sub:`${ops} Op · ${ags} AG`,cls:''},
+    {label:'Activos Ahora',val:activos,sub:`de ${equipo.length} personas`,cls:'g'},
+    {label:'Horas Usadas',val:`${usH.toFixed(1)}h`,sub:`de ${dispH}h`,cls:pct>90?'r':pct>70?'a':'g'},
+    {label:'Horas Libres',val:`${libH.toFixed(1)}h`,sub:'disponibles',cls:libH<1?'r':libH<2?'a':'g'},
+    {label:'Completadas',val:hist.length,sub:`${tareas.length} en curso`,cls:''},
+  ];
+  if(avgEfic!=null) stats.push({label:'Efic. Promedio',val:`${Math.round(avgEfic)}%`,sub:'del turno',cls:avgEfic>=90?'g':avgEfic>=70?'a':'r'});
+
+  stats.forEach(s=>{
+    h+=`<div class="tv-stat" style="padding:10px 12px;text-align:left;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div class="tv-stat-label">${s.label}</div>
+        <div class="tv-stat-sub">${s.sub}</div>
+      </div>
+      <div class="tv-stat-val ${s.cls}" style="font-size:1.4rem">${s.val}</div>
+    </div>`;
+  });
+
+  // Donut chart
+  const total=dispH>0?dispH:1;
+  const pctHist=(histH/total)*100;
+  const pctActivas=(activasH/total)*100;
+  const pctLibre=(libreH/total)*100;
+  // SVG donut
+  function donutSegment(pct, offset, color){
+    const r=40, cx=50, cy=50;
+    const circ=2*Math.PI*r;
+    const dash=(pct/100)*circ;
+    const gap=circ-dash;
+    const rot=-90+(offset/100)*360;
+    return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="14"
+      stroke-dasharray="${dash} ${gap}" stroke-dashoffset="0"
+      transform="rotate(${rot} ${cx} ${cy})"/>`;
+  }
+  h+=`<div class="tv-sec" style="padding:14px;text-align:center">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:#8B8FAD;margin-bottom:10px">Distribución de Horas</div>
+    <svg viewBox="0 0 100 100" width="100" height="100" style="display:block;margin:0 auto">
+      <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="14"/>
+      ${donutSegment(pctHist,0,'#00C389')}
+      ${donutSegment(pctActivas,pctHist,'#F59E0B')}
+      ${donutSegment(pctLibre,pctHist+pctActivas,'rgba(255,255,255,.15)')}
+      <text x="50" y="46" text-anchor="middle" fill="#F0F0F5" font-size="10" font-family="Barlow Condensed" font-weight="900">${Math.round(pct)}%</text>
+      <text x="50" y="57" text-anchor="middle" fill="#8B8FAD" font-size="6" font-family="Barlow Condensed">OCUPADO</text>
+    </svg>
+    <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px;font-size:.68rem">
+      <div style="display:flex;justify-content:space-between"><span style="color:#00C389">● Completadas</span><span style="color:#F0F0F5">${histH.toFixed(1)}h</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:#F59E0B">● En curso</span><span style="color:#F0F0F5">${activasH.toFixed(1)}h</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:#4B5563">● Libres</span><span style="color:#F0F0F5">${libreH.toFixed(1)}h</span></div>
+    </div>
+  </div>`;
+
+  h+=`</div>`; // end col 1
+
+  // ── COL 2: Equipo + Tareas activas ──
+  h+=`<div style="display:flex;flex-direction:column;gap:12px;overflow:hidden">`;
+
+  // Equipo
+  h+=`<div class="tv-sec"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">👥 Equipo del Turno</span></div><div class="tv-sec-body" style="overflow-y:auto">`;
+  equipo.forEach((c,i)=>{
+    const act=tareas.find(t=>(t.colaboradores||[]).some(x=>x.id===c.id));
+    const init=c.nombre.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
+    const sp=act?(act.tarea==='Almuerzo'?`<span class="tv-sp tv-sp-lunch">🍽 Almuerzo</span>`:`<span class="tv-sp tv-sp-active">▶ ${act.tarea.substring(0,18)}</span>`):`<span class="tv-sp tv-sp-idle">⏸ Disponible</span>`;
+    h+=`<div class="tv-op-row">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="tv-op-av" style="background:${TVCOLORS[i%TVCOLORS.length]}">${init}</div>
+        <div><div class="tv-op-name">${c.nombre}</div><div class="tv-op-role">${c.cargo==='operador'?'Operador':'Ayudante General'}${act?' · '+act.cliente:''}</div></div>
+      </div>${sp}
+    </div>`;
+  });
   h+=`</div></div>`;
+
+  // Tareas activas
+  h+=`<div class="tv-sec" style="flex:1"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">⚡ Tareas Activas (${tareas.length})</span></div><div class="tv-sec-body" style="overflow-y:auto">`;
+  if(!tareas.length){
+    h+=`<div style="text-align:center;color:#8B8FAD;padding:20px;font-size:.82rem">Sin tareas activas en este momento</div>`;
+  } else {
+    tareas.forEach(t=>{
+      h+=`<div class="tv-task">
+        <div><div class="tv-task-name">${t.tarea}</div><div class="tv-task-meta">${t.cliente} · ${(t.colaboradores||[]).map(c=>c.nombre.split(' ')[0]).join(', ')}</div></div>
+        <div class="tv-task-timer" id="tvt_${t.id}">${tvMsHMS(Date.now()-t.inicio)}</div>
+      </div>`;
+    });
+  }
+  h+=`</div></div></div>`; // end col 2
+
+  // ── COL 3: Historial ──
+  h+=`<div style="display:flex;flex-direction:column;gap:12px;overflow:hidden">`;
+  h+=`<div class="tv-sec" style="flex:1"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">📋 Completadas Hoy (${hist.length})</span></div><div class="tv-sec-body" style="overflow-y:auto;max-height:calc(100vh - 280px)">`;
+  if(!hist.length){
+    h+=`<div style="text-align:center;color:#8B8FAD;padding:20px;font-size:.82rem">Sin tareas completadas aún</div>`;
+  } else {
+    [...hist].reverse().forEach(t=>{
+      const eb=t.efic!=null?`<span class="tv-badge ${t.efic>=90?'tv-bg':t.efic>=70?'tv-ba':'tv-br'}">${Math.round(t.efic)}%</span>`:'';
+      const dur=t.durH||0;
+      // mini bar
+      const hp=turno.hpPorPersona||8;
+      const barW=Math.min(100,(dur/hp)*100);
+      const barCol=dur>hp?'#E8003D':dur>hp*0.7?'#F59E0B':'#00C389';
+      h+=`<div class="tv-hist-item">
+        <div style="flex:1;min-width:0">
+          <div class="tv-hist-name">${t.tarea}</div>
+          <div class="tv-hist-meta">${t.cliente} · ${(t.colaboradores||[]).map(c=>c.nombre.split(' ')[0]).join(', ')}</div>
+          <div style="background:rgba(255,255,255,.06);border-radius:3px;height:4px;margin-top:4px;overflow:hidden">
+            <div style="width:${barW}%;height:100%;background:${barCol};border-radius:3px"></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end;margin-left:8px;flex-shrink:0">
+          <span class="tv-badge tv-bgy">${dur.toFixed(1)}h</span>
+          ${eb}
+          ${t.cant?`<span class="tv-badge tv-bi">${t.cant} ${t.unidad}s</span>`:''}
+        </div>
+      </div>`;
+    });
+  }
+  h+=`</div></div></div>`; // end col 3
+
+  h+=`</div></div>`; // end grid + wrap
+
   document.getElementById('dashboardContent').innerHTML=h;
 }
 
