@@ -653,9 +653,13 @@ function getJornadaSeleccionada(){
 function horasJornada(tipoJornada, fecha){
   const cfg=getConfig();
   if(tipoJornada==='media'){
-    return cfg.horasSabado||4; // usa las horas de media jornada configuradas
+    return cfg.horasSabado||4;
   }
-  return horasProductivas(fecha);
+  // Jornada completa: use config hours regardless of day of week
+  const [hi,him]=cfg.horaInicio.split(':').map(Number);
+  const [hf,hfm]=cfg.horaFin.split(':').map(Number);
+  const totalH=(hf*60+hfm-hi*60-him)/60;
+  return Math.max(0, totalH-(cfg.horasAlmuerzo||1));
 }
 function prepModalTurno(){
   document.querySelectorAll('#jornadaChips .chip').forEach(c=>c.classList.remove('selected'));
@@ -675,14 +679,15 @@ function updateTurnoResumen(){
   const eq=S.colaboradores.filter(c=>ids.includes(c.id));
   const el=document.getElementById('turnoResumen');
   if(!eq.length){el.textContent='Selecciona colaboradores para ver el resumen';return;}
-  const ops=eq.filter(c=>c.cargo==='operador').length,ags=eq.filter(c=>c.cargo==='ag').length;
+  const ops=eq.filter(c=>c.cargo==='operador').length, ags=eq.filter(c=>c.cargo==='ag').length;
   const cfg=getConfig();
-  const hpPP=horasProductivas(document.getElementById('tFecha').value);
-  const costo=eq.reduce((s,c)=>s+costoCargo(c.cargo,document.getElementById('tFecha').value).dia,0);
-  el.innerHTML=`<b>${eq.length} persona(s)</b> — ${ops} Operador(es) + ${ags} AG<br>
-  📅 Horas productivas/persona: <b>${hpPP}h</b> · Total equipo: <b>${(eq.length*hpPP).toFixed(1)}h</b><br>
-  🍽 Almuerzo: ${cfg.horasAlmuerzo}h/persona · ⏰ ${cfg.horaInicio} → ${cfg.horaFin}<br>
-  💰 Costo estimado: <b>$${costo.toFixed(2)}</b>`;
+  const fecha=document.getElementById('tFecha').value;
+  const jornada=getJornadaSeleccionada();
+  const hpPP=horasJornada(jornada, fecha);
+  const jornadaLabel=jornada==='media'?`🕐 Media Jornada (${hpPP}h/persona)`:`☀️ Jornada Completa (${hpPP}h/persona)`;
+  el.innerHTML=`<b>${eq.length} persona(s)</b> — ${ops} Op + ${ags} AG<br>
+  ${jornadaLabel}<br>
+  📅 Total equipo: <b>${(eq.length*hpPP).toFixed(1)}h</b> · Almuerzo: ${cfg.horasAlmuerzo}h/persona`;
 }
 async function abrirTurno(){
   const ids=[...document.querySelectorAll('#colabChips .chip.selected')].map(c=>c.dataset.id);
