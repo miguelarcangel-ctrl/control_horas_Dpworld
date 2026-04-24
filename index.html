@@ -189,6 +189,60 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
 
+/* DASHBOARD TV */
+.tv-wrap{min-height:100vh;background:#0F0E1A;color:#F0F0F5;display:flex;flex-direction:column;font-family:'Barlow',sans-serif}
+.tv-hdr{background:#FFFFFF;border-bottom:2px solid #2D2B6B;padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.tv-hdr-logo img{height:38px}
+.tv-hdr-center{text-align:center}
+.tv-hdr-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.2rem;letter-spacing:.1em;text-transform:uppercase;color:#2D2B6B}
+.tv-hdr-sub{font-size:.65rem;color:#6B7280;letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
+.tv-hdr-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.tv-clock{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.5rem;color:#2D2B6B;letter-spacing:.04em}
+.tv-date{font-size:.65rem;color:#6B7280}
+.tv-close{background:var(--red);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;margin-left:12px}
+.tv-body{padding:16px;display:flex;flex-direction:column;gap:14px;flex:1}
+.tv-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tv-stat{background:#1A1830;border-radius:10px;padding:12px 8px;text-align:center;border:1px solid #2D2B6B}
+.tv-stat-label{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:#8B8FAD;margin-bottom:4px}
+.tv-stat-val{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.6rem;line-height:1;color:#F0F0F5}
+.tv-stat-val.g{color:#00C389}.tv-stat-val.a{color:#F59E0B}.tv-stat-val.r{color:#E8003D}
+.tv-stat-sub{font-size:.62rem;color:#8B8FAD;margin-top:3px}
+.tv-sec{background:#1A1830;border-radius:12px;border:1px solid #2D2B6B;overflow:hidden}
+.tv-sec-hdr{background:#2D2B6B;padding:10px 14px;display:flex;align-items:center;gap:7px}
+.tv-sec-accent{width:3px;height:16px;background:#00C389;border-radius:2px}
+.tv-sec-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.82rem;letter-spacing:.09em;text-transform:uppercase;color:#fff}
+.tv-sec-body{padding:12px}
+.tv-hora-bar{background:#1A1830;border-radius:12px;border:1px solid #2D2B6B;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.tv-bar-wrap{background:rgba(255,255,255,.08);border-radius:6px;height:14px;overflow:hidden}
+.tv-bar-fill{height:100%;border-radius:6px;transition:width 1s ease}
+.tv-bar-legend{display:flex;justify-content:space-between;font-size:.65rem;color:#8B8FAD}
+.tv-task{background:rgba(0,195,137,.06);border:1px solid rgba(0,195,137,.3);border-radius:8px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.tv-task:last-child{margin-bottom:0}
+.tv-task-name{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.88rem;text-transform:uppercase;color:#F0F0F5}
+.tv-task-meta{font-size:.68rem;color:#8B8FAD;margin-top:2px}
+.tv-task-timer{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.3rem;color:#00C389;letter-spacing:.04em;flex-shrink:0}
+.tv-op-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(45,43,107,.5)}
+.tv-op-row:last-child{border-bottom:none}
+.tv-op-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;color:#fff;flex-shrink:0}
+.tv-op-name{font-size:.82rem;font-weight:600;color:#F0F0F5}
+.tv-op-role{font-size:.65rem;color:#8B8FAD}
+.tv-sp{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.6rem;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:20px;display:inline-block}
+.tv-sp-active{background:#065F46;color:#D1FAE5}
+.tv-sp-idle{background:#92400E;color:#FEF3C7}
+.tv-sp-lunch{background:#1E40AF;color:#DBEAFE}
+.tv-hist-item{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(45,43,107,.4)}
+.tv-hist-item:last-child{border-bottom:none}
+.tv-hist-name{font-size:.8rem;font-weight:600;color:#F0F0F5}
+.tv-hist-meta{font-size:.65rem;color:#8B8FAD}
+.tv-no-turno{text-align:center;padding:60px 20px;color:#8B8FAD}
+.tv-no-icon{font-size:4rem;margin-bottom:16px}
+.tv-no-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.6rem;text-transform:uppercase;letter-spacing:.08em;color:#F0F0F5;margin-bottom:8px}
+.tv-live-dot{width:7px;height:7px;border-radius:50%;background:#00C389;animation:pulse 1.5s infinite;display:inline-block;margin-right:5px}
+.tv-badge{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.58rem;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:3px;display:inline-block}
+.tv-bg{background:#065F46;color:#D1FAE5}.tv-ba{background:#92400E;color:#FEF3C7}
+.tv-br{background:#991B1B;color:#FEE2E2}.tv-bgy{background:#374151;color:#D1D5DB}
+.tv-bi{background:#1E3A5F;color:#93C5FD}
+
 /* EDIT INLINE */
 .edit-row{display:flex;gap:5px;align-items:center;width:100%}
 .edit-row input,.edit-row select{flex:1;border:1.5px solid var(--indigo);border-radius:6px;padding:5px 8px;font-family:'Barlow',sans-serif;font-size:.8rem}
@@ -227,6 +281,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
         📊 Insights
         <span class="notif-badge hidden" id="notifBadge">0</span>
       </button>
+      <button class="nav-btn ghost" id="navTvBtn" onclick="openDashboard()" style="background:var(--indigo);color:#fff;border-color:var(--indigo)">📺 TV</button>
       <span class="hdr-user" id="hdrUser" onclick="doLogout()">— · Salir</span>
     </div>
   </div>
@@ -294,6 +349,11 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
     <div id="insightsContent"></div>
   </div>
 
+</div>
+
+<!-- DASHBOARD TV OVERLAY -->
+<div id="dashboardOverlay" style="display:none;position:fixed;inset:0;z-index:500;background:#0F0E1A;overflow:auto">
+  <div id="dashboardContent"></div>
 </div>
 
 <!-- MODALES -->
@@ -1255,6 +1315,163 @@ function renderInsights(){
       <button onclick="location.reload()" style="padding:8px 16px;background:#991B1B;color:#fff;border:none;border-radius:6px;cursor:pointer">Recargar</button>
     </div>`;
   }
+}
+
+// ═══ DASHBOARD TV ═══
+let tvClockInterval=null;
+const TVCOLORS=['#2D2B6B','#00C389','#7C5CBF','#E8003D','#F59E0B','#0EA5E9','#10B981'];
+const tvPad=n=>String(n).padStart(2,'0');
+const tvMsHMS=ms=>{const s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return`${tvPad(h)}:${tvPad(m)}:${tvPad(sec)}`;};
+const tvMsH=ms=>ms/3600000;
+
+function openDashboard(){
+  document.getElementById('dashboardOverlay').style.display='block';
+  renderDashboard();
+  if(tvClockInterval) clearInterval(tvClockInterval);
+  tvClockInterval=setInterval(()=>{
+    const now=new Date();
+    const cl=document.getElementById('tvClock');
+    if(cl) cl.textContent=`${tvPad(now.getHours())}:${tvPad(now.getMinutes())}:${tvPad(now.getSeconds())}`;
+    updateTvTimers();
+  },1000);
+  // Auto-refresh data every 15s
+  window._tvRefresh=setInterval(async()=>{await reload();renderDashboard();},15000);
+}
+function closeDashboard(){
+  document.getElementById('dashboardOverlay').style.display='none';
+  if(tvClockInterval){clearInterval(tvClockInterval);tvClockInterval=null;}
+  if(window._tvRefresh){clearInterval(window._tvRefresh);window._tvRefresh=null;}
+}
+function updateTvTimers(){
+  (S.tareasActivas||[]).forEach(t=>{
+    const el=document.getElementById('tvt_'+t.id);
+    if(el) el.textContent=tvMsHMS(Date.now()-t.inicio);
+  });
+  if(S.turno){
+    const el=document.getElementById('tvElapsed');
+    if(el) el.textContent=tvMsHMS(Date.now()-S.turno.inicio);
+    const usMs=(S.historial||[]).reduce((s,t)=>s+(t.fin-t.inicio),0)+
+               (S.tareasActivas||[]).reduce((s,t)=>s+(Date.now()-t.inicio),0);
+    const usH=tvMsH(usMs),dispH=S.turno.horasProd,pct=Math.min(100,(usH/dispH)*100);
+    const fill=document.getElementById('tvBarFill');
+    const pctEl=document.getElementById('tvBarPct');
+    const usEl=document.getElementById('tvBarUsadas');
+    if(fill){fill.style.width=pct+'%';fill.style.background=pct>90?'#E8003D':pct>70?'#F59E0B':'#00C389';}
+    if(pctEl) pctEl.textContent=Math.round(pct)+'%';
+    if(usEl) usEl.textContent=usH.toFixed(1)+'h';
+  }
+}
+function renderDashboard(){
+  const now=new Date();
+  const turno=S.turno;
+  const tareas=S.tareasActivas||[];
+  const hist=S.historial||[];
+  const equipo=turno?turno.equipo||[]:[];
+  let usMs=0;
+  hist.forEach(t=>usMs+=(t.fin-t.inicio));
+  tareas.forEach(t=>usMs+=(Date.now()-t.inicio));
+  const usH=tvMsH(usMs);
+  const dispH=turno?turno.horasProd:0;
+  const libH=Math.max(0,dispH-usH);
+  const pct=dispH>0?Math.min(100,(usH/dispH)*100):0;
+  const activos=equipo.filter(c=>tareas.some(t=>(t.colaboradores||[]).some(x=>x.id===c.id))).length;
+  const ops=equipo.filter(c=>c.cargo==='operador').length;
+  const ags=equipo.filter(c=>c.cargo==='ag').length;
+
+  let h=`<div class="tv-wrap">
+  <div class="tv-hdr">
+    <div class="tv-hdr-logo"><img src="https://raw.githubusercontent.com/miguelarcangel-ctrl/cotizador-dpworld/main/logo_white.png" alt="DP World"></div>
+    <div class="tv-hdr-center">
+      <div class="tv-hdr-title"><span class="tv-live-dot"></span>Dashboard Operativo</div>
+      <div class="tv-hdr-sub">DAL Colón Logistics Park · Tiempo Real</div>
+    </div>
+    <div class="tv-hdr-right">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div>
+          <div class="tv-clock" id="tvClock">${tvPad(now.getHours())}:${tvPad(now.getMinutes())}:${tvPad(now.getSeconds())}</div>
+          <div class="tv-date">${now.toLocaleDateString('es-PA',{weekday:'long',day:'numeric',month:'long'})}</div>
+        </div>
+        <button class="tv-close" onclick="closeDashboard()">✕ Cerrar</button>
+      </div>
+    </div>
+  </div>
+  <div class="tv-body">`;
+
+  if(!turno){
+    h+=`<div class="tv-no-turno">
+      <div class="tv-no-icon">🏭</div>
+      <div class="tv-no-title">Sin Turno Activo</div>
+      <div style="font-size:.9rem">El dashboard se actualiza automáticamente cada 15 segundos</div>
+    </div>`;
+  } else {
+    // Stats
+    h+=`<div class="tv-stats">
+      <div class="tv-stat"><div class="tv-stat-label">Turno Activo</div><div class="tv-stat-val" id="tvElapsed">${tvMsHMS(Date.now()-turno.inicio)}</div><div class="tv-stat-sub">${turno.fecha} · ${turno.hora}</div></div>
+      <div class="tv-stat"><div class="tv-stat-label">Equipo</div><div class="tv-stat-val">${equipo.length}</div><div class="tv-stat-sub">${ops} Op · ${ags} AG</div></div>
+      <div class="tv-stat"><div class="tv-stat-label">Activos</div><div class="tv-stat-val g">${activos}</div><div class="tv-stat-sub">de ${equipo.length} personas</div></div>
+      <div class="tv-stat"><div class="tv-stat-label">Horas Usadas</div><div class="tv-stat-val ${pct>90?'r':pct>70?'a':'g'}">${usH.toFixed(1)}h</div><div class="tv-stat-sub">de ${dispH}h disponibles</div></div>
+      <div class="tv-stat"><div class="tv-stat-label">Horas Libres</div><div class="tv-stat-val ${libH<1?'r':libH<3?'a':'g'}">${libH.toFixed(1)}h</div><div class="tv-stat-sub">${turno.jornada==='media'?'🕐 Media Jornada':'☀️ Jornada Completa'}</div></div>
+      <div class="tv-stat"><div class="tv-stat-label">Completadas</div><div class="tv-stat-val">${hist.length}</div><div class="tv-stat-sub">${tareas.length} en curso</div></div>
+    </div>`;
+
+    // Hora bar
+    h+=`<div class="tv-hora-bar">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:#8B8FAD;display:flex;align-items:center;gap:6px"><span class="tv-live-dot"></span>Ocupación del Turno</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1rem;color:#F0F0F5"><span id="tvBarUsadas">${usH.toFixed(1)}h</span> / ${dispH}h · <span id="tvBarPct">${Math.round(pct)}%</span></div>
+      </div>
+      <div class="tv-bar-wrap"><div class="tv-bar-fill" id="tvBarFill" style="width:${pct}%;background:${pct>90?'#E8003D':pct>70?'#F59E0B':'#00C389'}"></div></div>
+      <div class="tv-bar-legend"><span>${turno.fecha} · ${turno.hora}</span><span>Libres: ${libH.toFixed(1)}h</span></div>
+    </div>`;
+
+    // Equipo
+    h+=`<div class="tv-sec"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">👥 Equipo del Turno</span></div><div class="tv-sec-body">`;
+    equipo.forEach((c,i)=>{
+      const act=tareas.find(t=>(t.colaboradores||[]).some(x=>x.id===c.id));
+      const init=c.nombre.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
+      const sp=act?(act.tarea==='Almuerzo'?`<span class="tv-sp tv-sp-lunch">🍽 Almuerzo</span>`:`<span class="tv-sp tv-sp-active">▶ ${act.tarea.substring(0,16)}</span>`):`<span class="tv-sp tv-sp-idle">⏸ Disponible</span>`;
+      h+=`<div class="tv-op-row">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="tv-op-av" style="background:${TVCOLORS[i%TVCOLORS.length]}">${init}</div>
+          <div><div class="tv-op-name">${c.nombre}</div><div class="tv-op-role">${c.cargo==='operador'?'Operador':'Ayudante General'}${act?' · '+act.cliente:''}</div></div>
+        </div>
+        ${sp}
+      </div>`;
+    });
+    h+=`</div></div>`;
+
+    // Tareas activas
+    h+=`<div class="tv-sec"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">⚡ Tareas Activas (${tareas.length})</span></div><div class="tv-sec-body">`;
+    if(!tareas.length){
+      h+=`<div style="text-align:center;color:#8B8FAD;padding:14px;font-size:.82rem">Sin tareas activas en este momento</div>`;
+    } else {
+      tareas.forEach(t=>{
+        h+=`<div class="tv-task">
+          <div><div class="tv-task-name">${t.tarea}</div><div class="tv-task-meta">${t.cliente} · ${(t.colaboradores||[]).map(c=>c.nombre.split(' ')[0]).join(', ')}</div></div>
+          <div class="tv-task-timer" id="tvt_${t.id}">${tvMsHMS(Date.now()-t.inicio)}</div>
+        </div>`;
+      });
+    }
+    h+=`</div></div>`;
+
+    // Historial
+    h+=`<div class="tv-sec"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">📋 Completadas Hoy (${hist.length})</span></div><div class="tv-sec-body">`;
+    if(!hist.length){
+      h+=`<div style="text-align:center;color:#8B8FAD;padding:14px;font-size:.82rem">Sin tareas completadas aún</div>`;
+    } else {
+      [...hist].reverse().forEach(t=>{
+        const eb=t.efic!=null?`<span class="tv-badge ${t.efic>=90?'tv-bg':t.efic>=70?'tv-ba':'tv-br'}">${Math.round(t.efic)}%</span>`:'';
+        h+=`<div class="tv-hist-item">
+          <div><div class="tv-hist-name">${t.tarea}</div><div class="tv-hist-meta">${t.cliente} · ${(t.colaboradores||[]).map(c=>c.nombre.split(' ')[0]).join(', ')}</div></div>
+          <div style="display:flex;gap:4px;align-items:center"><span class="tv-badge tv-bgy">${t.durH.toFixed(1)}h</span>${eb}${t.cant?`<span class="tv-badge tv-bi">${t.cant} ${t.unidad}s</span>`:''}</div>
+        </div>`;
+      });
+    }
+    h+=`</div></div>`;
+  }
+
+  h+=`</div></div>`;
+  document.getElementById('dashboardContent').innerHTML=h;
 }
 
 // ═══ RENDER ALL ═══
