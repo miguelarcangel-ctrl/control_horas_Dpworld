@@ -304,6 +304,12 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
       <div class="field"><label>Fecha</label><input type="date" id="tFecha"></div>
       <div class="field"><label>Hora inicio</label><input type="time" id="tHora"></div>
     </div>
+    <div class="field"><label>Tipo de Jornada</label>
+      <div class="chip-wrap" id="jornadaChips">
+        <div class="chip selected" data-jornada="completa" onclick="selectJornada(this)">☀️ Jornada Completa</div>
+        <div class="chip" data-jornada="media" onclick="selectJornada(this)">🕐 Media Jornada</div>
+      </div>
+    </div>
     <div class="field"><label>Colaboradores del turno</label><div class="chip-wrap" id="colabChips"></div></div>
     <div class="info-box" id="turnoResumen">Selecciona colaboradores para ver el resumen</div>
     <button class="btn btn-green btn-full" onclick="abrirTurno()">▶ Iniciar Turno</button>
@@ -635,9 +641,33 @@ const msH=ms=>ms/3600000;
 const pad=n=>String(n).padStart(2,'0');
 
 // ═══ TURNO ═══
+function selectJornada(el){
+  document.querySelectorAll('#jornadaChips .chip').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+  updateTurnoResumen();
+}
+function getJornadaSeleccionada(){
+  const sel=document.querySelector('#jornadaChips .chip.selected');
+  return sel?sel.dataset.jornada:'completa';
+}
+function horasJornada(tipoJornada, fecha){
+  const cfg=getConfig();
+  if(tipoJornada==='media'){
+    return cfg.horasSabado||4; // usa las horas de media jornada configuradas
+  }
+  return horasProductivas(fecha);
+}
 function prepModalTurno(){
+  document.querySelectorAll('#jornadaChips .chip').forEach(c=>c.classList.remove('selected'));
+  const completa=document.querySelector('#jornadaChips .chip[data-jornada="completa"]');
+  if(completa) completa.classList.add('selected');
   const w=document.getElementById('colabChips');w.innerHTML='';
-  S.colaboradores.forEach(c=>{const el=document.createElement('div');el.className='chip';el.dataset.id=c.id;el.textContent=c.nombre+' ('+(c.cargo==='operador'?'Op':'AG')+')';el.onclick=()=>{el.classList.toggle('selected');updateTurnoResumen();};w.appendChild(el);});
+  S.colaboradores.forEach(c=>{
+    const el=document.createElement('div');el.className='chip';el.dataset.id=c.id;
+    el.textContent=c.nombre+' ('+(c.cargo==='operador'?'Op':'AG')+')';
+    el.onclick=()=>{el.classList.toggle('selected');updateTurnoResumen();};
+    w.appendChild(el);
+  });
   updateTurnoResumen();
 }
 function updateTurnoResumen(){
@@ -659,8 +689,14 @@ async function abrirTurno(){
   if(!ids.length){alert('Selecciona al menos un colaborador');return;}
   const eq=S.colaboradores.filter(c=>ids.includes(c.id));
   const fecha=document.getElementById('tFecha').value;
-  const hpPorPersona=horasProductivas(fecha);
-  S.turno={id:uid(),fecha,hora:document.getElementById('tHora').value,inicio:Date.now(),equipo:eq,horasProd:eq.length*hpPorPersona,hpPorPersona};
+  const jornada=getJornadaSeleccionada();
+  const hpPorPersona=horasJornada(jornada,fecha);
+  S.turno={
+    id:uid(),fecha,hora:document.getElementById('tHora').value,
+    inicio:Date.now(),equipo:eq,
+    jornada,hpPorPersona,
+    horasProd:eq.length*hpPorPersona,
+  };
   S.tareasActivas=[];S.historial=[];
   await save();hideModal('modalAbrirTurno');renderAll();
 }
@@ -676,7 +712,8 @@ function updateBanner(){
   document.getElementById('horaBar').style.width=pct+'%';document.getElementById('tPct').textContent=Math.round(pct)+'%';
   const ops=S.turno.equipo.filter(c=>c.cargo==='operador').length,ags=S.turno.equipo.filter(c=>c.cargo==='ag').length;
   document.getElementById('tEquipoLbl').textContent=`${S.turno.equipo.length} pers · ${ops}Op ${ags}AG`;
-  document.getElementById('turnoBannerMeta').textContent=`${S.turno.fecha} · ${S.turno.hora}`;
+  const jornadaTag=S.turno.jornada==='media'?'🕐 Media Jornada':'☀️ Jornada Completa';
+  document.getElementById('turnoBannerMeta').textContent=`${S.turno.fecha} · ${S.turno.hora} · ${jornadaTag}`;
 }
 
 // ═══ EQUIPO ═══
@@ -768,7 +805,11 @@ function prepCerrarTurno(){
   if(!S.turno)return;
   let usMs=0;S.historial.forEach(t=>usMs+=(t.fin-t.inicio));S.tareasActivas.forEach(t=>usMs+=(Date.now()-t.inicio));
   const usH=msH(usMs),libH=Math.max(0,S.turno.horasProd-usH);
-  document.getElementById('cTurnoResumen').innerHTML=`Fecha: <b>${S.turno.fecha} ${S.turno.hora}</b><br>Horas productivas: <b>${S.turno.horasProd}h</b><br>Usadas: <b>${usH.toFixed(1)}h</b> · Libres: <b>${libH.toFixed(1)}h</b><br>Tareas completadas: <b>${S.historial.length}</b>`;
+  const jornadaLbl=S.turno.jornada==='media'?'Media Jornada':'Jornada Completa';
+  document.getElementById('cTurnoResumen').innerHTML=`Fecha: <b>${S.turno.fecha} ${S.turno.hora}</b> · ${jornadaLbl}<br>
+  Horas productivas: <b>${S.turno.horasProd}h</b> (${S.turno.hpPorPersona}h × ${S.turno.equipo.length} personas)<br>
+  Usadas: <b>${usH.toFixed(1)}h</b> · Libres: <b>${libH.toFixed(1)}h</b><br>
+  Tareas completadas: <b>${S.historial.length}</b>`;
   const jw=document.getElementById('justWrap');jw.style.display=libH>0.5?'flex':'none';
   showModal('modalCerrarTurno');
 }
@@ -893,11 +934,11 @@ function exportExcel(turnoId){
   }));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(detRows),'Detalle Tareas');
 
-  const turRows=[['Fecha','Hora Inicio','Hora Fin','Equipo','Personas','Horas Productivas','Tareas','Costo ($)','Horas Libres','Causa','Detalle','Estado']];
+  const turRows=[['Fecha','Hora Inicio','Hora Fin','Equipo','Personas','Tipo Jornada','Horas Productivas','Tareas','Costo ($)','Horas Libres','Causa','Detalle','Estado']];
   turnos.forEach(t=>{
     const usH=(t.historial||[]).reduce((s,ta)=>s+(ta.durH||0),0),libH=Math.max(0,(t.horasProd||0)-usH);
     const costo=calcTotalCosto(t.historial||[]);
-    turRows.push([t.fecha,t.hora,t.fin?new Date(t.fin).toLocaleTimeString():'En curso',(t.equipo||[]).map(c=>c.nombre).join(', '),(t.equipo||[]).length,t.horasProd||0,(t.historial||[]).length,costo.toFixed(2),libH.toFixed(2),t.justCausa||'',t.justNota||'',t.estado||'']);
+    turRows.push([t.fecha,t.hora,t.fin?new Date(t.fin).toLocaleTimeString():'En curso',(t.equipo||[]).map(c=>c.nombre).join(', '),(t.equipo||[]).length,t.jornada==='media'?'Media Jornada':'Jornada Completa',t.horasProd||0,(t.historial||[]).length,costo.toFixed(2),libH.toFixed(2),t.justCausa||'',t.justNota||'',t.estado||'']);
   });
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(turRows),'Resumen Turnos');
 
@@ -1156,7 +1197,7 @@ function renderInsights(){
         h+=`<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:6px">
           <div style="display:flex;justify-content:space-between;width:100%">
             <div><div class="li-name">${t.fecha} — ${t.hora}</div>
-            <div class="li-sub">${(t.equipo||[]).map(c=>c.nombre.split(' ')[0]).join(', ')}</div></div>${eb}
+            <div class="li-sub">${(t.equipo||[]).map(c=>c.nombre.split(' ')[0]).join(', ')} · ${t.jornada==='media'?'🕐 Media':'☀️ Completa'}</div></div>${eb}
           </div>
           <div style="display:flex;gap:5px;flex-wrap:wrap">
             <span class="badge bgy">${(t.historial||[]).length} tareas</span>
