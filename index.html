@@ -493,6 +493,44 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
   </div>
 </div>
 
+<!-- DIMENSIONADOR -->
+<div class="overlay hidden" id="modalDimensionador">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title">📐 Planificar Turno</span><span class="modal-close" onclick="hideModal('modalDimensionador')">✕</span></div>
+    <div class="field-row">
+      <div class="field"><label>Fecha del turno</label><input type="date" id="dimFecha"></div>
+      <div class="field"><label>Hora inicio</label><input type="time" id="dimHora"></div>
+    </div>
+    <div class="field"><label>Tipo de Jornada</label>
+      <div class="chip-wrap" id="dimJornadaChips">
+        <div class="chip selected" data-jornada="completa" onclick="selectDimJornada(this)">☀️ Completa</div>
+        <div class="chip" data-jornada="media" onclick="selectDimJornada(this)">🕐 Media</div>
+      </div>
+    </div>
+    <hr>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid)">Tareas del Turno</div>
+    <div id="dimTareasList" style="display:flex;flex-direction:column;gap:7px"></div>
+    <button class="btn btn-ghost btn-full" onclick="addDimTarea()">+ Agregar Tarea</button>
+    <div class="info-box" id="dimResumen">Agrega tareas para ver el dimensionamiento</div>
+    <hr>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid)">Colaboradores Sugeridos</div>
+    <div class="chip-wrap" id="dimColabChips"></div>
+    <div class="warn-box hidden" id="dimColabWarn"></div>
+    <button class="btn btn-green btn-full" onclick="guardarPlan()">💾 Guardar Plan</button>
+  </div>
+</div>
+
+<!-- INICIAR TURNO PROGRAMADO -->
+<div class="overlay hidden" id="modalIniciarPlan">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title">▶ Iniciar Turno Planificado</span><span class="modal-close" onclick="hideModal('modalIniciarPlan')">✕</span></div>
+    <div class="info-box" id="iniciarPlanInfo"></div>
+    <div class="field"><label>Confirmar Colaboradores (ajustar si hay ausencias)</label><div class="chip-wrap" id="iniciarPlanColabs"></div></div>
+    <div class="info-box" id="iniciarPlanResumen">Selecciona colaboradores para ver el resumen</div>
+    <button class="btn btn-green btn-full" onclick="iniciarTurnoPlan()">▶ Iniciar Turno</button>
+  </div>
+</div>
+
 <div class="overlay hidden" id="modalColab">
   <div class="modal">
     <div class="modal-hdr"><span class="modal-title" id="modalColabTitle">👷 Nuevo Colaborador</span><span class="modal-close" onclick="hideModal('modalColab')">✕</span></div>
@@ -514,7 +552,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
     <div class="field"><label>Nombre</label><input type="text" id="tcNombre" placeholder="Ej. Descarga de Sider"></div>
     <div class="field"><label>Descripción</label><textarea id="tcDesc" placeholder="Descripción breve..."></textarea></div>
     <div class="field-row">
-      <div class="field"><label>Productividad esperada</label><input type="number" id="tcProd" placeholder="Ej. 36" min="0"></div>
+      <div class="field"><label>Prod. Objetivo (unidades/h)</label><input type="number" id="tcProd" placeholder="Ej. 36" min="0"></div>
       <div class="field"><label>Unidad</label>
         <select id="tcUnidad">
           <option value="pallet">Pallet</option>
@@ -524,6 +562,8 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
         </select>
       </div>
     </div>
+    <div class="field"><label>% Eficiencia para dimensionador</label><input type="number" id="tcEfic" placeholder="Ej. 85" min="1" max="100"></div>
+    <div class="info-box" id="tcEficInfo">Prod. efectiva = Prod. Objetivo × % Eficiencia</div>
     <button class="btn btn-green btn-full" onclick="guardarTareaCat()">💾 Guardar</button>
   </div>
 </div>
@@ -546,7 +586,7 @@ const db=createClient(SUPA_URL,SUPA_KEY);
 let S={
   colaboradores:[],tareasCat:[],clientes:[],usuarios:[],
   turno:null,tareasActivas:[],historial:[],
-  turnosHistorial:[],solicitudes:[],
+  turnosHistorial:[],solicitudes:[],turnosProgramados:[],
   cerrandoId:null,reabriendoId:null,editingId:null,
   config:{
     horaInicio:'08:00',
@@ -657,6 +697,7 @@ async function init(){
   if(!S.colaboradores) S.colaboradores=[];
   if(!S.usuarios)S.usuarios=[];
   if(!S.solicitudes)S.solicitudes=[];
+  if(!S.turnosProgramados)S.turnosProgramados=[];
   if(!S.turnosHistorial)S.turnosHistorial=[];
   if(!S.tareasActivas)S.tareasActivas=[];
   if(!S.historial)S.historial=[];
@@ -691,6 +732,20 @@ async function showModal(id){
   if(id==='modalAbrirTurno'){await reload();prepModalTurno();}
   else if(id==='modalNuevaTarea'){await reload();prepModalTarea();}
   else if(id==='modalColab') updateColabCosto();
+  else if(id==='modalDimensionador') initDimensionador();
+}
+function initDimensionador(){
+  const now=new Date();
+  document.getElementById('dimFecha').value=now.toISOString().split('T')[0];
+  document.getElementById('dimHora').value='08:00';
+  document.getElementById('dimTareasList').innerHTML='';
+  document.getElementById('dimColabChips').innerHTML='';
+  document.getElementById('dimResumen').textContent='Agrega tareas para ver el dimensionamiento';
+  document.getElementById('dimColabWarn').classList.add('hidden');
+  // Reset jornada
+  document.querySelectorAll('#dimJornadaChips .chip').forEach(c=>c.classList.remove('selected'));
+  const comp=document.querySelector('#dimJornadaChips .chip[data-jornada="completa"]');
+  if(comp) comp.classList.add('selected');
 }
 function hideModal(id){document.getElementById(id).classList.add('hidden');}
 
@@ -895,6 +950,7 @@ function prepSolReap(turnoId){
 async function enviarSolicitud(){
   const motivo=document.getElementById('reapMotivo').value.trim();if(!motivo){alert('Ingresa el motivo');return;}
   if(!S.solicitudes)S.solicitudes=[];
+  if(!S.turnosProgramados)S.turnosProgramados=[];
   S.solicitudes.push({id:uid(),turnoId:S.reabriendoId,motivo,ts:Date.now(),estado:'pendiente',comentario:''});
   const t=S.turnosHistorial.find(x=>x.id===S.reabriendoId);if(t)t.estado='solicitud_pendiente';
   await save();hideModal('modalSolReap');updateNotifBadge();alert('✅ Solicitud enviada al administrador.');
@@ -957,9 +1013,32 @@ async function eliminarColab(id){if(!confirm('¿Eliminar colaborador?'))return;S
 function openModalTareaCat(id){
   S.editingId=id||null;
   document.getElementById('modalTareaCatTitle').textContent=id?'✏️ Editar Tarea':'📋 Nueva Tarea';
-  if(id){const t=S.tareasCat.find(x=>x.id===id);document.getElementById('tcNombre').value=t.nombre;document.getElementById('tcDesc').value=t.desc||'';document.getElementById('tcProd').value=t.prod||0;document.getElementById('tcUnidad').value=t.unidad||'pallet';}
-  else{document.getElementById('tcNombre').value='';document.getElementById('tcDesc').value='';document.getElementById('tcProd').value='';document.getElementById('tcUnidad').value='pallet';}
+  if(id){
+    const t=S.tareasCat.find(x=>x.id===id);
+    document.getElementById('tcNombre').value=t.nombre;
+    document.getElementById('tcDesc').value=t.desc||'';
+    document.getElementById('tcProd').value=t.prod||0;
+    document.getElementById('tcUnidad').value=t.unidad||'pallet';
+    document.getElementById('tcEfic').value=t.efic||85;
+  } else {
+    document.getElementById('tcNombre').value='';
+    document.getElementById('tcDesc').value='';
+    document.getElementById('tcProd').value='';
+    document.getElementById('tcUnidad').value='pallet';
+    document.getElementById('tcEfic').value=85;
+  }
+  updateTcEficInfo();
+  document.getElementById('tcProd').oninput=updateTcEficInfo;
+  document.getElementById('tcEfic').oninput=updateTcEficInfo;
   showModal('modalTareaCat');
+}
+function updateTcEficInfo(){
+  const prod=parseFloat(document.getElementById('tcProd').value)||0;
+  const efic=parseFloat(document.getElementById('tcEfic').value)||85;
+  const efectiva=(prod*(efic/100)).toFixed(1);
+  const unidad=document.getElementById('tcUnidad').value||'unidad';
+  document.getElementById('tcEficInfo').innerHTML=
+    `Prod. efectiva: <b>${efectiva} ${unidad}s/h</b> (${prod} × ${efic}% eficiencia)`;
 }
 async function guardarTareaCat(){
   const nombre=document.getElementById('tcNombre').value.trim();if(!nombre){alert('Ingresa un nombre');return;}
@@ -1102,6 +1181,27 @@ function filtrarHistRango(){
 }
 
 // ═══ INSIGHTS RENDER ═══
+// Helper: prod real por tarea del catálogo
+function calcProdReal(tareaId){
+  const allTareas=[
+    ...S.turnosHistorial.flatMap(t=>t.historial||[]),
+    ...(S.historial||[]),
+  ].filter(t=>t.tareaId===tareaId&&t.cant>0&&t.durH>0);
+  if(!allTareas.length) return null;
+  const totalCant=allTareas.reduce((s,t)=>s+(t.cant||0),0);
+  const totalH=allTareas.reduce((s,t)=>s+(t.durH||0),0);
+  return totalH>0?(totalCant/totalH):null;
+}
+
+// Helper: horas necesarias para una tarea en el dimensionador
+function calcHorasTarea(tareaId, cantidad){
+  const tc=S.tareasCat.find(t=>t.id===tareaId);
+  if(!tc||!tc.prod||!cantidad) return 0;
+  const efic=(tc.efic||85)/100;
+  const prodEfectiva=tc.prod*efic;
+  return prodEfectiva>0?cantidad/prodEfectiva:0;
+}
+
 // Helper: calculate cost of a single task
 function calcTaskCosto(ta){
   return (ta.colaboradores||[]).reduce((s,c)=>{
@@ -1281,6 +1381,24 @@ function renderInsights(){
   }
 
   if(isAdmin){
+    // DIMENSIONADOR HISTORICO
+    const planesTerminados=(S.turnosProgramados||[]).filter(p=>p.estado==='iniciado'||p.estado==='completado');
+    if(planesTerminados.length||((S.turnosProgramados||[]).filter(p=>p.estado==='programado').length)){
+      h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sDim','cDim')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">📐 Planes de Turno</span></div><span class="chevron open" id="cDim">▼</span></div><div class="sec-body" id="sDim">`;
+      const todosPlanes=[...(S.turnosProgramados||[])].reverse();
+      if(!todosPlanes.length) h+=`<div class="empty"><div class="empty-text">Sin planes creados</div></div>`;
+      todosPlanes.forEach(p=>{
+        const estadoBadge=p.estado==='programado'?`<span class="badge ba">Programado</span>`:p.estado==='iniciado'?`<span class="badge bg">Iniciado</span>`:`<span class="badge bgy">Completado</span>`;
+        h+=`<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:5px">
+          <div style="display:flex;justify-content:space-between;width:100%">
+            <div><div class="li-name">${p.fecha} · ${p.hora}</div><div class="li-sub">${p.tareas.length} tareas · ${p.totalHNecesarias.toFixed(1)}h · ${p.personasNecesarias} personas</div></div>
+            ${estadoBadge}
+          </div>
+        </div>`;
+      });
+      h+=`</div></div>`;
+    }
+
     // USUARIOS
     h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sUsers','cUsers')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">👤 Usuarios</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalUsuario()">+ Nuevo</button><span class="chevron open" id="cUsers">▼</span></div></div><div class="sec-body" id="sUsers">`;
     if(!S.usuarios.length)h+=`<div class="info-box">Sin usuarios creados. El acceso por defecto es admin/admin123.</div>`;
@@ -1561,11 +1679,288 @@ function renderDashboard(){
   document.getElementById('dashboardContent').innerHTML=h;
 }
 
+// ═══ DIMENSIONADOR ═══
+function selectDimJornada(el){
+  document.querySelectorAll('#dimJornadaChips .chip').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+  updateDimResumen();
+}
+function getDimJornada(){
+  const sel=document.querySelector('#dimJornadaChips .chip.selected');
+  return sel?sel.dataset.jornada:'completa';
+}
+
+function addDimTarea(){
+  const wrap=document.getElementById('dimTareasList');
+  const id='dim_'+uid();
+  const div=document.createElement('div');
+  div.id=id;
+  div.style.cssText='border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;background:var(--bg);display:flex;flex-direction:column;gap:7px';
+
+  // Tarea select
+  let tareaOpts='<option value="">— Tarea —</option>';
+  S.tareasCat.forEach(t=>{
+    const prod=t.prod||0, efic=t.efic||85;
+    const efect=(prod*(efic/100)).toFixed(1);
+    tareaOpts+=`<option value="${t.id}">${t.nombre} (${efect} ${t.unidad}s/h efectivo)</option>`;
+  });
+
+  // Cliente select
+  let cliOpts='<option value="">— Cliente —</option>';
+  S.clientes.forEach(c=>cliOpts+=`<option value="${c.id}">${c.nombre}</option>`);
+
+  div.innerHTML=`
+    <div style="display:flex;gap:7px;align-items:center">
+      <select style="flex:1;border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;font-size:.83rem" onchange="updateDimResumen()">${tareaOpts}</select>
+      <select style="flex:1;border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;font-size:.83rem" onchange="updateDimResumen()">${cliOpts}</select>
+      <button onclick="document.getElementById('${id}').remove();updateDimResumen()" style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:.72rem;font-weight:700;cursor:pointer">✕</button>
+    </div>
+    <div style="display:flex;gap:7px;align-items:center">
+      <div style="flex:1"><label style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:var(--mid);letter-spacing:.05em">Cantidad</label>
+        <input type="number" min="0" placeholder="Ej. 432" style="width:100%;border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;font-size:.85rem" onchange="updateDimResumen()" oninput="updateDimResumen()">
+      </div>
+      <div style="flex:1" id="${id}_result" class="info-box" style="font-size:.75rem">—</div>
+    </div>`;
+  wrap.appendChild(div);
+  updateDimResumen();
+}
+
+function getDimTareas(){
+  const rows=document.querySelectorAll('#dimTareasList > div');
+  const result=[];
+  rows.forEach(row=>{
+    const sels=row.querySelectorAll('select');
+    const inp=row.querySelector('input[type=number]');
+    if(!sels[0]||!inp) return;
+    const tareaId=sels[0].value;
+    const clienteId=sels[1]?.value||'';
+    const cant=parseFloat(inp.value)||0;
+    if(!tareaId||!cant) return;
+    const tc=S.tareasCat.find(t=>t.id===tareaId);
+    if(!tc) return;
+    const efic=(tc.efic||85)/100;
+    const prodEfect=tc.prod*efic;
+    const horas=prodEfect>0?cant/prodEfect:0;
+    result.push({tareaId,tarea:tc.nombre,clienteId,unidad:tc.unidad,prod:tc.prod,efic:tc.efic||85,prodEfect,cant,horas});
+  });
+  return result;
+}
+
+function updateDimResumen(){
+  const tareas=getDimTareas();
+  const jornada=getDimJornada();
+  const cfg=getConfig();
+  const hpPP=horasJornada(jornada, document.getElementById('dimFecha').value);
+  const totalH=tareas.reduce((s,t)=>s+t.horas,0);
+  const personasNec=hpPP>0?Math.ceil(totalH/hpPP):0;
+
+  // Update individual row results
+  const rows=document.querySelectorAll('#dimTareasList > div');
+  rows.forEach((row,i)=>{
+    const res=row.querySelector('[id$="_result"]');
+    if(!res||!tareas[i]) return;
+    const t=tareas[i];
+    res.innerHTML=`<b>${t.horas.toFixed(1)}h</b> necesarias<br><span style="font-size:.68rem;color:var(--mid)">${t.cant} ${t.unidad}s ÷ ${t.prodEfect.toFixed(1)}/h</span>`;
+  });
+
+  const el=document.getElementById('dimResumen');
+  if(!tareas.length){el.textContent='Agrega tareas para ver el dimensionamiento';return;}
+
+  const costoEst=personasNec*(hpPP>0?hpPP:8)*((50*1.07)/8); // rough estimate
+  el.innerHTML=`📋 <b>${tareas.length} tarea(s)</b> · Total horas: <b>${totalH.toFixed(1)}h</b><br>
+  👥 Personas necesarias: <b>${personasNec}</b> (base ${hpPP}h productivas/persona)<br>
+  ⏰ Jornada ${jornada==='media'?'Media ('+hpPP+'h)':'Completa ('+hpPP+'h)'}`;
+
+  // Suggest collaborators
+  updateDimColabs(personasNec);
+}
+
+function updateDimColabs(personasNec){
+  const wrap=document.getElementById('dimColabChips');
+  const warn=document.getElementById('dimColabWarn');
+  if(!wrap) return;
+  // Auto-select top N collaborators if not already selected
+  const chips=wrap.querySelectorAll('.chip');
+  if(!chips.length){
+    // Build chips
+    wrap.innerHTML='';
+    S.colaboradores.forEach(c=>{
+      const chip=document.createElement('div');
+      chip.className='chip'; chip.dataset.id=c.id;
+      chip.textContent=c.nombre+' ('+(c.cargo==='operador'?'Op':'AG')+')';
+      chip.onclick=()=>{chip.classList.toggle('selected');checkDimColabs(personasNec);};
+      wrap.appendChild(chip);
+    });
+    // Auto-select first N
+    const allChips=wrap.querySelectorAll('.chip');
+    for(let i=0;i<Math.min(personasNec,allChips.length);i++) allChips[i].classList.add('selected');
+  }
+  checkDimColabs(personasNec);
+}
+
+function checkDimColabs(personasNec){
+  const sel=document.querySelectorAll('#dimColabChips .chip.selected').length;
+  const warn=document.getElementById('dimColabWarn');
+  if(!warn) return;
+  if(sel<personasNec){
+    warn.classList.remove('hidden');
+    warn.textContent=`⚠️ Tienes ${sel} colaborador(es) seleccionado(s) pero necesitas ${personasNec}. Agrega más personas o ajusta las tareas.`;
+  } else {
+    warn.classList.add('hidden');
+  }
+}
+
+async function guardarPlan(){
+  const fecha=document.getElementById('dimFecha').value;
+  const hora=document.getElementById('dimHora').value;
+  const jornada=getDimJornada();
+  const tareas=getDimTareas();
+  const colabIds=[...document.querySelectorAll('#dimColabChips .chip.selected')].map(c=>c.dataset.id);
+  if(!fecha){alert('Selecciona una fecha');return;}
+  if(!tareas.length){alert('Agrega al menos una tarea');return;}
+  const colabs=S.colaboradores.filter(c=>colabIds.includes(c.id));
+  const cfg=getConfig();
+  const hpPP=horasJornada(jornada,fecha);
+  const totalH=tareas.reduce((s,t)=>s+t.horas,0);
+  const plan={
+    id:uid(), fecha, hora, jornada, tareas, colabs,
+    horasProd:colabs.length*hpPP, hpPorPersona:hpPP,
+    totalHNecesarias:totalH,
+    personasNecesarias:Math.ceil(totalH/hpPP),
+    estado:'programado', creadoEn:Date.now(),
+  };
+  if(!S.turnosProgramados) S.turnosProgramados=[];
+  S.turnosProgramados.push(plan);
+  await save();
+  hideModal('modalDimensionador');
+  renderAll();
+}
+
+let _planIniciandoId=null;
+function prepIniciarPlan(planId){
+  _planIniciandoId=planId;
+  const plan=S.turnosProgramados.find(p=>p.id===planId);
+  if(!plan) return;
+  const cfg=getConfig();
+  document.getElementById('iniciarPlanInfo').innerHTML=
+    `📅 <b>${plan.fecha} ${plan.hora}</b> · ${plan.jornada==='media'?'🕐 Media':'☀️ Completa'}<br>
+    📋 ${plan.tareas.length} tarea(s) · ${plan.totalHNecesarias.toFixed(1)}h necesarias · ${plan.personasNecesarias} persona(s)`;
+
+  const wrap=document.getElementById('iniciarPlanColabs');
+  wrap.innerHTML='';
+  S.colaboradores.forEach(c=>{
+    const chip=document.createElement('div');
+    chip.className='chip'; chip.dataset.id=c.id;
+    chip.textContent=c.nombre+' ('+(c.cargo==='operador'?'Op':'AG')+')';
+    // Pre-select suggested
+    if((plan.colabs||[]).some(x=>x.id===c.id)) chip.classList.add('selected');
+    chip.onclick=()=>{chip.classList.toggle('selected');updateIniciarResumen(plan);};
+    wrap.appendChild(chip);
+  });
+  updateIniciarResumen(plan);
+  showModal('modalIniciarPlan');
+}
+
+function updateIniciarResumen(plan){
+  const ids=[...document.querySelectorAll('#iniciarPlanColabs .chip.selected')].map(c=>c.dataset.id);
+  const eq=S.colaboradores.filter(c=>ids.includes(c.id));
+  const el=document.getElementById('iniciarPlanResumen');
+  if(!eq.length){el.textContent='Selecciona colaboradores';return;}
+  const hpPP=plan.hpPorPersona||8;
+  const ops=eq.filter(c=>c.cargo==='operador').length, ags=eq.filter(c=>c.cargo==='ag').length;
+  el.innerHTML=`<b>${eq.length} persona(s)</b> — ${ops} Op + ${ags} AG<br>
+  📅 Horas productivas: <b>${(eq.length*hpPP).toFixed(1)}h</b> disponibles · Necesarias: <b>${plan.totalHNecesarias.toFixed(1)}h</b>`;
+}
+
+async function iniciarTurnoPlan(){
+  const plan=S.turnosProgramados.find(p=>p.id===_planIniciandoId);
+  if(!plan) return;
+  const ids=[...document.querySelectorAll('#iniciarPlanColabs .chip.selected')].map(c=>c.dataset.id);
+  if(!ids.length){alert('Selecciona al menos un colaborador');return;}
+  const eq=S.colaboradores.filter(c=>ids.includes(c.id));
+  S.turno={
+    id:uid(), fecha:plan.fecha, hora:plan.hora,
+    inicio:Date.now(), equipo:eq,
+    jornada:plan.jornada, hpPorPersona:plan.hpPorPersona,
+    horasProd:eq.length*plan.hpPorPersona,
+    planId:plan.id, tareasPlan:plan.tareas,
+  };
+  S.tareasActivas=[]; S.historial=[];
+  // Mark plan as iniciado
+  plan.estado='iniciado';
+  await save();
+  hideModal('modalIniciarPlan');
+  renderAll();
+}
+
+function renderTurnosProgramados(){
+  const el=document.getElementById('turnosProgramadosList');
+  if(!el) return;
+  const planes=(S.turnosProgramados||[]).filter(p=>p.estado==='programado').sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  if(!planes.length){
+    el.innerHTML=`<div class="no-turno" style="margin-bottom:12px">
+      <div class="no-turno-icon">🏭</div>
+      <div class="no-turno-title">Sin turnos programados</div>
+      <div class="no-turno-sub">Planifica turnos futuros o abre uno ahora mismo.</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML=planes.map(p=>{
+    const hoy=new Date().toISOString().split('T')[0];
+    const esHoy=p.fecha===hoy;
+    const borderCol=esHoy?'var(--green)':'var(--border)';
+    const costo=p.colabs.reduce((s,c)=>s+costoCargo(c.cargo).hora*(p.hpPorPersona||8),0)*p.colabs.length;
+    return `<div style="border:2px solid ${borderCol};border-radius:10px;background:#fff;overflow:hidden;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,.07)">
+      <div style="background:${esHoy?'var(--green)':'var(--indigo)'};padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.9rem;text-transform:uppercase;letter-spacing:.06em;color:#fff">
+            ${esHoy?'🟢 HOY — ':'📅 '}${p.fecha} · ${p.hora}
+          </div>
+          <div style="font-size:.7rem;color:rgba(255,255,255,.75);margin-top:2px">${p.jornada==='media'?'🕐 Media Jornada':'☀️ Jornada Completa'} · ${p.tareas.length} tarea(s)</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.1rem;color:#fff">${p.personasNecesarias} pers.</div>
+          <div style="font-size:.68rem;color:rgba(255,255,255,.7)">${p.totalHNecesarias.toFixed(1)}h necesarias</div>
+        </div>
+      </div>
+      <div style="padding:10px 14px;display:flex;flex-direction:column;gap:7px">
+        ${p.tareas.map(t=>{
+          const cli=S.clientes.find(c=>c.id===t.clienteId);
+          return `<div style="display:flex;align-items:center;justify-content:space-between;font-size:.78rem;padding:4px 0;border-bottom:1px solid var(--border)">
+            <span><b>${t.tarea}</b> · ${cli?cli.nombre:'—'}</span>
+            <span style="color:var(--mid)">${t.cant} ${t.unidad}s · <b>${t.horas.toFixed(1)}h</b></span>
+          </div>`;
+        }).join('')}
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px">
+          <div style="font-size:.72rem;color:var(--mid)">${p.colabs.map(c=>c.nombre.split(' ')[0]).join(', ')}</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm" onclick="editarPlan('${p.id}')">✏️</button>
+            <button class="btn btn-red btn-sm" onclick="eliminarPlan('${p.id}')">🗑</button>
+            <button class="btn btn-green btn-sm" onclick="prepIniciarPlan('${p.id}')">▶ Iniciar</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function eliminarPlan(id){
+  if(!confirm('¿Eliminar este plan?')) return;
+  S.turnosProgramados=S.turnosProgramados.filter(p=>p.id!==id);
+  await save(); renderAll();
+}
+
+function editarPlan(id){
+  // For now open dimensionador pre-filled — future enhancement
+  alert('Para editar, elimina este plan y crea uno nuevo con los ajustes.');
+}
+
 // ═══ RENDER ALL ═══
 function renderAll(){
   const has=!!S.turno;
   document.getElementById('noTurnoPanel').style.display=has?'none':'block';
   const tp=document.getElementById('turnoPanel');tp.style.display=has?'flex':'none';
+  if(!has) renderTurnosProgramados();
   if(has){renderEquipo();renderTareasActivas();renderHistorial();updateBanner();}
   updateNotifBadge();
   if(!document.getElementById('viewInsights').classList.contains('hidden'))renderInsights();
