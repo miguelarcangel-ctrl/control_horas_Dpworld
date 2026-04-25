@@ -289,10 +289,11 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
   <!-- SUPERVISOR VIEW -->
   <div id="viewSupervisor" class="main">
     <div class="no-turno" id="noTurnoPanel">
-      <div class="no-turno-icon">🏭</div>
-      <div class="no-turno-title">Sin turno activo</div>
-      <div class="no-turno-sub">Abre un nuevo turno para comenzar a registrar tareas y controlar las horas del equipo en tiempo real.</div>
-      <button class="btn btn-green btn-full" onclick="showModal('modalAbrirTurno')">▶ Abrir Turno</button>
+      <div id="turnosProgramadosList"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-green" style="flex:1;justify-content:center" onclick="showModal('modalAbrirTurno')">▶ Abrir Turno Ahora</button>
+        <button class="btn btn-indigo" style="flex:1;justify-content:center" onclick="showModal('modalDimensionador')">📐 Planificar Turno</button>
+      </div>
     </div>
     <div id="turnoPanel" style="display:none;flex-direction:column;gap:11px">
       <div class="turno-banner">
