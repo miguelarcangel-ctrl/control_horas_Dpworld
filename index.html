@@ -568,8 +568,12 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
         </select>
       </div>
     </div>
-    <div class="field"><label>% Eficiencia para dimensionador</label><input type="number" id="tcEfic" placeholder="Ej. 85" min="1" max="100"></div>
+    <div class="field" id="tcEficField"><label>% Eficiencia para dimensionador</label><input type="number" id="tcEfic" placeholder="Ej. 85" min="1" max="100"></div>
     <div class="info-box" id="tcEficInfo">Prod. efectiva = Prod. Objetivo × % Eficiencia</div>
+    <div class="list-item" style="padding:10px 12px;cursor:pointer" onclick="toggleSinProd()">
+      <div class="li-info"><div class="li-name" style="font-size:.85rem">Sin productividad</div><div class="li-sub">Ej. Supervisión, reuniones, esperas. No afecta % eficiencia.</div></div>
+      <input type="checkbox" id="tcSinProd" style="width:18px;height:18px;cursor:pointer" onchange="toggleSinProd()">
+    </div>
     <button class="btn btn-green btn-full" onclick="guardarTareaCat()">💾 Guardar</button>
   </div>
 </div>
@@ -896,7 +900,11 @@ function renderTareasActivas(){
 function prepCerrarTarea(id){
   S.cerrandoId=id;const t=S.tareasActivas.find(x=>x.id===id);if(!t)return;
   document.getElementById('cerrarTareaInfo').innerHTML=`<b>${t.tarea}</b> · ${t.cliente}<br>👥 ${t.colaboradores.map(c=>c.nombre).join(', ')}<br>⏱ ${new Date(t.inicio).toLocaleTimeString()}`;
-  document.getElementById('cantLabel').textContent=t.prod>0?`Cantidad ejecutada (${t.unidad}s)`:'Cantidad ejecutada';
+  const tcCat=S.tareasCat.find(x=>x.id===t.tareaId);
+  const isSinProd=tcCat?.sinProd||t.sinProd||false;
+  const qtyRow=document.querySelector('.qty-row');
+  if(qtyRow) qtyRow.style.display=isSinProd?'none':'flex';
+  document.getElementById('cantLabel').textContent=t.prod>0?'Cantidad ejecutada ('+t.unidad+'s)':'Cantidad ejecutada';
   document.getElementById('cantEjec').value='';document.getElementById('cerrarNota').value='';
   document.getElementById('eficRow').style.display='none';
   document.getElementById('cantEjec').oninput=function(){
@@ -941,17 +949,38 @@ function prepCerrarTurno(){
   let usMs=0;S.historial.forEach(t=>usMs+=(t.fin-t.inicio));S.tareasActivas.forEach(t=>usMs+=(Date.now()-t.inicio));
   const usH=msH(usMs),libH=Math.max(0,S.turno.horasProd-usH);
   const jornadaLbl=S.turno.jornada==='media'?'Media Jornada':'Jornada Completa';
-  document.getElementById('cTurnoResumen').innerHTML=`Fecha: <b>${S.turno.fecha} ${S.turno.hora}</b> · ${jornadaLbl}<br>
-  Horas productivas: <b>${S.turno.horasProd}h</b> (${S.turno.hpPorPersona}h × ${S.turno.equipo.length} personas)<br>
-  Usadas: <b>${usH.toFixed(1)}h</b> · Libres: <b>${libH.toFixed(1)}h</b><br>
-  Tareas completadas: <b>${S.historial.length}</b>`;
+  const cpagado=S.turno.equipo.reduce((s,c)=>s+costoCargo(c.cargo).dia,0);
+  const cprod=S.historial.reduce((s,t)=>(t.colaboradores||[]).reduce((ss,c)=>{
+    const co=S.colaboradores.find(x=>x.id===c.id)||c;
+    return ss+costoCargo(co.cargo||'operador').hora*((t.durH||0)/Math.max(1,t.colaboradores.length));
+  },s),0);
+  const cperdido=Math.max(0,cpagado-cprod);
+  const isAdminView=currentUser?.rol==='admin';
+  document.getElementById('cTurnoResumen').innerHTML=
+    'Fecha: <b>'+S.turno.fecha+' '+S.turno.hora+'</b> · '+jornadaLbl+'<br>'+
+    'Horas productivas: <b>'+S.turno.horasProd+'h</b> ('+S.turno.hpPorPersona+'h × '+S.turno.equipo.length+' personas)<br>'+
+    'Usadas: <b>'+usH.toFixed(1)+'h</b> · Libres: <b>'+libH.toFixed(1)+'h</b><br>'+
+    'Tareas completadas: <b>'+S.historial.length+'</b>'+
+    (isAdminView?'<br>💰 Costo pagado: <b>$'+cpagado.toFixed(2)+'</b> · Productivo: <b>$'+cprod.toFixed(2)+'</b> · Perdido: <b style="color:var(--red)">$'+cperdido.toFixed(2)+'</b>':'');
   const jw=document.getElementById('justWrap');jw.style.display=libH>0.5?'flex':'none';
   showModal('modalCerrarTurno');
 }
 async function confirmarCierreTurno(){
   if(!S.turno)return;
   if(document.getElementById('justWrap').style.display!=='none'&&!document.getElementById('justCausa').value){alert('Selecciona la causa de las horas libres');return;}
-  S.turnosHistorial.push({...S.turno,fin:Date.now(),historial:[...S.historial],justCausa:document.getElementById('justCausa').value,justNota:document.getElementById('justNota').value,estado:'cerrado'});
+  // Calculate cost breakdown
+  const finTs=Date.now();
+  const costoPagado=S.turno.equipo.reduce((s,c)=>s+costoCargo(c.cargo).dia,0);
+  const costoProductivo=S.historial.reduce((s,t)=>(t.colaboradores||[]).reduce((ss,c)=>{
+    const co=S.colaboradores.find(x=>x.id===c.id)||c;
+    return ss+costoCargo(co.cargo||'operador').hora*((t.durH||0)/Math.max(1,t.colaboradores.length));
+  },s),0);
+  const costoPerdido=Math.max(0,costoPagado-costoProductivo);
+  S.turnosHistorial.push({...S.turno,fin:finTs,historial:[...S.historial],
+    justCausa:document.getElementById('justCausa').value,
+    justNota:document.getElementById('justNota').value,
+    estado:'cerrado',
+    costoPagado,costoProductivo,costoPerdido});
   S.turno=null;S.tareasActivas=[];S.historial=[];
   await save();hideModal('modalCerrarTurno');renderAll();showToast('Turno cerrado');
 }
@@ -1035,17 +1064,29 @@ function openModalTareaCat(id){
     document.getElementById('tcProd').value=t.prod||0;
     document.getElementById('tcUnidad').value=t.unidad||'pallet';
     document.getElementById('tcEfic').value=t.efic||85;
+    document.getElementById('tcSinProd').checked=t.sinProd||false;
   } else {
     document.getElementById('tcNombre').value='';
     document.getElementById('tcDesc').value='';
     document.getElementById('tcProd').value='';
     document.getElementById('tcUnidad').value='pallet';
     document.getElementById('tcEfic').value=85;
+    document.getElementById('tcSinProd').checked=false;
   }
+  toggleSinProd();
   updateTcEficInfo();
   document.getElementById('tcProd').oninput=updateTcEficInfo;
   document.getElementById('tcEfic').oninput=updateTcEficInfo;
   showModal('modalTareaCat');
+}
+function toggleSinProd(){
+  const checked=document.getElementById('tcSinProd')?.checked||false;
+  const prodField=document.getElementById('tcProd')?.closest('.field-row');
+  const eficField=document.getElementById('tcEficField');
+  const eficInfo=document.getElementById('tcEficInfo');
+  if(prodField) prodField.style.opacity=checked?'0.4':'1';
+  if(eficField) eficField.style.opacity=checked?'0.4':'1';
+  if(eficInfo) eficInfo.style.display=checked?'none':'block';
 }
 function updateTcEficInfo(){
   const prod=parseFloat(document.getElementById('tcProd').value)||0;
@@ -1093,11 +1134,16 @@ function exportExcel(turnoId){
   }));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(detRows),'Detalle Tareas');
 
-  const turRows=[['Fecha','Hora Inicio','Hora Fin','Equipo','Personas','Tipo Jornada','Horas Productivas','Tareas','Costo ($)','Horas Libres','Causa','Detalle','Estado']];
+  const turRows=[['Fecha','Hora Inicio','Hora Fin','Equipo','Personas','Tipo Jornada','Horas Productivas','Horas Usadas','Horas Libres','Tareas','Costo Pagado ($)','Costo Productivo ($)','Costo Perdido ($)','Causa Horas Libres','Detalle','Estado']];
   turnos.forEach(t=>{
     const usH=(t.historial||[]).reduce((s,ta)=>s+(ta.durH||0),0),libH=Math.max(0,(t.horasProd||0)-usH);
     const costo=calcTotalCosto(t.historial||[]);
-    turRows.push([t.fecha,t.hora,t.fin?new Date(t.fin).toLocaleTimeString():'En curso',(t.equipo||[]).map(c=>c.nombre).join(', '),(t.equipo||[]).length,t.jornada==='media'?'Media Jornada':'Jornada Completa',t.horasProd||0,(t.historial||[]).length,costo.toFixed(2),libH.toFixed(2),t.justCausa||'',t.justNota||'',t.estado||'']);
+    const usHt=(t.historial||[]).reduce((s,ta)=>s+(ta.durH||0),0);
+    const libHt=Math.max(0,(t.horasProd||0)-usHt);
+    const cpag=t.costoPagado||(t.equipo||[]).reduce((s,c)=>s+costoCargo(c.cargo||'operador').dia,0);
+    const cpro=t.costoProductivo||costo;
+    const cper=Math.max(0,cpag-cpro);
+    turRows.push([t.fecha,t.hora,t.fin?new Date(t.fin).toLocaleTimeString():'En curso',(t.equipo||[]).map(c=>c.nombre).join(', '),(t.equipo||[]).length,t.jornada==='media'?'Media Jornada':'Jornada Completa',t.horasProd||0,usHt.toFixed(2),libHt.toFixed(2),(t.historial||[]).length,cpag.toFixed(2),cpro.toFixed(2),cper.toFixed(2),t.justCausa||'',t.justNota||'',t.estado||'']);
   });
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(turRows),'Resumen Turnos');
 
@@ -1435,16 +1481,17 @@ function renderInsights(){
       const pe=((t.prod||0)*(ef/100)).toFixed(1);
       const prStr=pr!=null?pr.toFixed(1)+' '+t.unidad+'s/h':'Sin datos';
       const prCol=pr!=null&&t.prod>0?(pr/t.prod*100)>=ef?'var(--green)':'var(--amber)':'var(--mid)';
+      const sinProdBadge=t.sinProd?'<span class="badge bgy" style="font-size:.58rem">Sin Productividad</span>':'';
       h+=`<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:5px">
         <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
-          <span class="li-name">${t.nombre}</span>
+          <div style="display:flex;align-items:center;gap:6px"><span class="li-name">${t.nombre}</span>${sinProdBadge}</div>
           <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalTareaCat('${t.id}')">✏️</button><button class="btn btn-red btn-sm" onclick="eliminarTarea('${t.id}')">✕</button></div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;width:100%">
+        ${t.sinProd?'<div class="li-sub">No aplica productividad — no impacta % eficiencia</div>':`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;width:100%">
           <div style="background:var(--bg);border-radius:6px;padding:5px 7px;text-align:center"><div style="font-size:.58rem;font-weight:700;text-transform:uppercase;color:var(--mid)">Prod. Objetivo</div><div style="font-weight:800;font-size:.82rem;color:var(--indigo)">${t.prod>0?t.prod+' '+t.unidad+'s/h':'-'}</div></div>
           <div style="background:var(--bg);border-radius:6px;padding:5px 7px;text-align:center"><div style="font-size:.58rem;font-weight:700;text-transform:uppercase;color:var(--mid)">Prod. Real</div><div style="font-weight:800;font-size:.82rem;color:${prCol}">${prStr}</div></div>
           <div style="background:var(--bg);border-radius:6px;padding:5px 7px;text-align:center"><div style="font-size:.58rem;font-weight:700;text-transform:uppercase;color:var(--mid)">Efic. Dim.</div><div style="font-weight:800;font-size:.82rem;color:var(--purple)">${ef}% · ${pe}/h</div></div>
-        </div>
+        </div>`}
       </div>`;
     });
     h+=`</div></div>`;
