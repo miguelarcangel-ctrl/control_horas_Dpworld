@@ -189,6 +189,12 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
 
+/* TOAST */
+.toast{position:fixed;top:70px;left:50%;transform:translateX(-50%) translateY(-20px);background:var(--indigo);color:#fff;padding:10px 20px;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.82rem;letter-spacing:.05em;text-transform:uppercase;z-index:999;opacity:0;transition:all .3s ease;pointer-events:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.2);display:flex;align-items:center;gap:8px}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.success{background:var(--green)}
+.toast.error{background:var(--red)}
+
 /* DASHBOARD TV */
 .tv-wrap{min-height:100vh;background:#0F0E1A;color:#F0F0F5;display:flex;flex-direction:column;font-family:'Barlow',sans-serif}
 .tv-hdr{background:#FFFFFF;border-bottom:2px solid #2D2B6B;padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
@@ -266,6 +272,9 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
     <div style="font-size:.65rem;color:var(--mid);letter-spacing:.04em">🔒 USO INTERNO EXCLUSIVO · DP WORLD PANAMÁ</div>
   </div>
 </div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
 
 <!-- APP -->
 <div id="appScreen" class="hidden">
@@ -647,12 +656,12 @@ async function save(){await dbSet('ctrl_horas',S);}
 async function reload(){
   const saved=await dbGet('ctrl_horas');
   if(saved){
-    // Preserve runtime-only fields, reload catalog data
     const keep={turno:S.turno,tareasActivas:S.tareasActivas,historial:S.historial};
     Object.assign(S,saved);
-    // If we have an active turno in memory, keep it
     if(keep.turno&&!S.turno){S.turno=keep.turno;S.tareasActivas=keep.tareasActivas;S.historial=keep.historial;}
   }
+  // Ensure all tareas have efic default
+  (S.tareasCat||[]).forEach(t=>{ if(!t.efic) t.efic=85; });
 }
 
 // ═══ LOGIN ═══
@@ -695,6 +704,8 @@ async function init(){
   // Only initialize empty arrays if missing
   if(!S.clientes) S.clientes=[];
   if(!S.tareasCat) S.tareasCat=[];
+  // Ensure all tareas have efic field
+  S.tareasCat.forEach(t=>{ if(!t.efic) t.efic=85; });
   if(!S.colaboradores) S.colaboradores=[];
   if(!S.usuarios)S.usuarios=[];
   if(!S.solicitudes)S.solicitudes=[];
@@ -711,6 +722,17 @@ async function init(){
 }
 
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+
+function showToast(msg, type='success'){
+  const el=document.getElementById('toast');
+  if(!el) return;
+  el.textContent=(type==='success'?'✓ ':type==='error'?'✕ ':'')+ msg;
+  el.className='toast '+type;
+  void el.offsetWidth;
+  el.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer=setTimeout(()=>el.classList.remove('show'),2800);
+}
 
 // ═══ NAV ═══
 function setNav(nav){
@@ -819,7 +841,7 @@ async function abrirTurno(){
     horasProd:eq.length*hpPorPersona,
   };
   S.tareasActivas=[];S.historial=[];
-  await save();hideModal('modalAbrirTurno');renderAll();
+  await save();hideModal('modalAbrirTurno');renderAll();showToast('Turno iniciado');
 }
 
 // ═══ BANNER (NO COSTOS PARA SUPERVISOR) ═══
@@ -900,7 +922,7 @@ async function confirmarCierre(){
   const fin=Date.now(),dH=msH(fin-t.inicio),rp=dH>0&&cant>0?cant/dH:0,efic=t.prod>0?(rp/t.prod)*100:null;
   S.historial.push({...t,fin,cant,nota,durH:dH,realProd:rp,efic});
   S.tareasActivas=S.tareasActivas.filter(x=>x.id!==S.cerrandoId);
-  await save();hideModal('modalCerrarTarea');renderTareasActivas();renderHistorial();renderEquipo();
+  await save();hideModal('modalCerrarTarea');renderTareasActivas();renderHistorial();renderEquipo();showToast('Tarea cerrada');
 }
 function renderHistorial(){
   const el=document.getElementById('historialList');
@@ -939,7 +961,7 @@ async function confirmarCierreTurno(){
   if(document.getElementById('justWrap').style.display!=='none'&&!document.getElementById('justCausa').value){alert('Selecciona la causa de las horas libres');return;}
   S.turnosHistorial.push({...S.turno,fin:Date.now(),historial:[...S.historial],justCausa:document.getElementById('justCausa').value,justNota:document.getElementById('justNota').value,estado:'cerrado'});
   S.turno=null;S.tareasActivas=[];S.historial=[];
-  await save();hideModal('modalCerrarTurno');renderAll();
+  await save();hideModal('modalCerrarTurno');renderAll();showToast('Turno cerrado');
 }
 
 // ═══ REAPERTURA ═══
@@ -967,7 +989,7 @@ async function resolverSolicitud(aprobado){
   sol.estado=aprobado?'aprobado':'rechazado';sol.comentario=document.getElementById('aprobComentario').value;sol.tsResolucion=Date.now();
   if(aprobado){const t=S.turnosHistorial.find(x=>x.id===sol.turnoId);if(t){t.estado='reabierto';S.turno={...t};S.historial=[...(t.historial||[])];S.tareasActivas=[];S.turnosHistorial=S.turnosHistorial.filter(x=>x.id!==sol.turnoId);}}
   else{const t=S.turnosHistorial.find(x=>x.id===sol.turnoId);if(t)t.estado='cerrado';}
-  await save();hideModal('modalAprobarReap');updateNotifBadge();renderInsights();if(aprobado){setNav('supervisor');renderAll();}
+  await save();hideModal('modalAprobarReap');updateNotifBadge();renderInsights();showToast(aprobado?'Reapertura aprobada':'Solicitud rechazada',aprobado?'success':'error');if(aprobado){setNav('supervisor');renderAll();}
 }
 function updateNotifBadge(){const pend=(S.solicitudes||[]).filter(x=>x.estado==='pendiente').length;const b=document.getElementById('notifBadge');b.textContent=pend;b.classList.toggle('hidden',pend===0);}
 
@@ -989,7 +1011,7 @@ async function guardarUsuario(){
     if(S.usuarios.find(u=>u.username===username)){alert('Ese usuario ya existe');return;}
     S.usuarios.push({id:uid(),nombre,username,pass,rol});
   }
-  await save();hideModal('modalUsuario');renderInsights();
+  await save();hideModal('modalUsuario');renderInsights();showToast('Usuario guardado');
 }
 async function eliminarUsuario(id){if(!confirm('¿Eliminar usuario?'))return;S.usuarios=S.usuarios.filter(x=>x.id!==id);await save();renderInsights();}
 
@@ -1006,7 +1028,7 @@ async function guardarColab(){
   const nombre=document.getElementById('cNombre').value.trim();if(!nombre){alert('Ingresa un nombre');return;}
   if(S.editingId){const c=S.colaboradores.find(x=>x.id===S.editingId);c.nombre=nombre;c.cargo=document.getElementById('cCargo').value;}
   else S.colaboradores.push({id:uid(),nombre,cargo:document.getElementById('cCargo').value});
-  await save();hideModal('modalColab');renderInsights();renderAll();
+  await save();hideModal('modalColab');renderInsights();renderAll();showToast('Colaborador guardado');
 }
 async function eliminarColab(id){if(!confirm('¿Eliminar colaborador?'))return;S.colaboradores=S.colaboradores.filter(x=>x.id!==id);await save();renderInsights();renderAll();}
 
@@ -1045,7 +1067,7 @@ async function guardarTareaCat(){
   const nombre=document.getElementById('tcNombre').value.trim();if(!nombre){alert('Ingresa un nombre');return;}
   if(S.editingId){const t=S.tareasCat.find(x=>x.id===S.editingId);t.nombre=nombre;t.desc=document.getElementById('tcDesc').value;t.prod=parseFloat(document.getElementById('tcProd').value)||0;t.unidad=document.getElementById('tcUnidad').value;}
   else S.tareasCat.push({id:uid(),nombre,desc:document.getElementById('tcDesc').value,prod:parseFloat(document.getElementById('tcProd').value)||0,unidad:document.getElementById('tcUnidad').value});
-  await save();hideModal('modalTareaCat');renderInsights();renderAll();
+  await save();hideModal('modalTareaCat');renderInsights();renderAll();showToast('Tarea guardada');
 }
 async function eliminarTarea(id){if(!confirm('¿Eliminar tarea?'))return;S.tareasCat=S.tareasCat.filter(x=>x.id!==id);await save();renderInsights();}
 
@@ -1061,7 +1083,7 @@ async function guardarCliente(){
   const nombre=document.getElementById('clNombre').value.trim();if(!nombre){alert('Ingresa un nombre');return;}
   if(S.editingId){const c=S.clientes.find(x=>x.id===S.editingId);c.nombre=nombre;c.desc=document.getElementById('clDesc').value;}
   else S.clientes.push({id:uid(),nombre,desc:document.getElementById('clDesc').value});
-  await save();hideModal('modalCliente');renderInsights();renderAll();
+  await save();hideModal('modalCliente');renderInsights();renderAll();showToast('Cliente guardado');
 }
 async function eliminarCliente(id){if(!confirm('¿Eliminar cliente?'))return;S.clientes=S.clientes.filter(x=>x.id!==id);await save();renderInsights();}
 
@@ -1154,7 +1176,7 @@ async function guardarConfig(){
   await save();
   hideModal('modalConfig');
   renderInsights();
-  alert('✅ Configuración guardada');
+  showToast('Configuración guardada');
 }
 
 // ═══ ELIMINAR TURNO ═══
@@ -1415,7 +1437,33 @@ function renderInsights(){
     // TAREAS
     h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sTarCat','cTarCat')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">📋 Catálogo de Tareas</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalTareaCat()">+ Nueva</button><span class="chevron open" id="cTarCat">▼</span></div></div><div class="sec-body" id="sTarCat">`;
     if(!S.tareasCat.length)h+=`<div class="empty"><div class="empty-text">Sin tareas</div></div>`;
-    S.tareasCat.forEach(t=>{h+=`<div class="list-item"><div class="li-info"><div class="li-name">${t.nombre}</div><div class="li-sub">${t.prod>0?t.prod+' '+t.unidad+'s/h':'Sin productividad'}${t.desc?' · '+t.desc:''}</div></div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalTareaCat('${t.id}')">✏️</button><button class="btn btn-red btn-sm" onclick="eliminarTarea('${t.id}')">✕</button></div></div>`;});
+    S.tareasCat.forEach(t=>{
+      const prodReal=calcProdReal(t.id);
+      const efic=t.efic||85;
+      const prodEfect=(( t.prod||0)*(efic/100)).toFixed(1);
+      const prodRealStr=prodReal!=null?prodReal.toFixed(1)+' '+t.unidad+'s/h':'Sin datos';
+      const eficColor=prodReal!=null&&t.prod>0?(prodReal/t.prod*100)>=efic?'var(--green)':'var(--amber)':'var(--mid)';
+      h+=`<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:5px">
+        <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
+          <span class="li-name">${t.nombre}</span>
+          <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalTareaCat('${t.id}')">✏️</button><button class="btn btn-red btn-sm" onclick="eliminarTarea('${t.id}')">✕</button></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;width:100%">
+          <div style="background:var(--bg);border-radius:6px;padding:5px 7px;text-align:center">
+            <div style="font-size:.58rem;font-weight:700;text-transform:uppercase;color:var(--mid);letter-spacing:.04em">Prod. Objetivo</div>
+            <div style="font-weight:800;font-size:.82rem;color:var(--indigo)">${t.prod>0?t.prod+' '+t.unidad+'s/h':'-'}</div>
+          </div>
+          <div style="background:var(--bg);border-radius:6px;padding:5px 7px;text-align:center">
+            <div style="font-size:.58rem;font-weight:700;text-transform:uppercase;color:var(--mid);letter-spacing:.04em">Prod. Real</div>
+            <div style="font-weight:800;font-size:.82rem;color:${eficColor}">${prodRealStr}</div>
+          </div>
+          <div style="background:var(--bg);border-radius:6px;padding:5px 7px;text-align:center">
+            <div style="font-size:.58rem;font-weight:700;text-transform:uppercase;color:var(--mid);letter-spacing:.04em">Efic. Dim.</div>
+            <div style="font-weight:800;font-size:.82rem;color:var(--purple)">${efic}% · ${prodEfect}/h</div>
+          </div>
+        </div>
+        ${t.desc?`<div class="li-sub">${t.desc}</div>`:''}
+      </div>`;
     h+=`</div></div>`;
 
     // CLIENTES
@@ -1700,281 +1748,4 @@ function addDimTarea(){
 
   // Tarea select
   let tareaOpts='<option value="">— Tarea —</option>';
-  S.tareasCat.forEach(t=>{
-    const prod=t.prod||0, efic=t.efic||85;
-    const efect=(prod*(efic/100)).toFixed(1);
-    tareaOpts+=`<option value="${t.id}">${t.nombre} (${efect} ${t.unidad}s/h efectivo)</option>`;
-  });
-
-  // Cliente select
-  let cliOpts='<option value="">— Cliente —</option>';
-  S.clientes.forEach(c=>cliOpts+=`<option value="${c.id}">${c.nombre}</option>`);
-
-  div.innerHTML=`
-    <div style="display:flex;gap:7px;align-items:center">
-      <select style="flex:1;border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;font-size:.83rem" onchange="updateDimResumen()">${tareaOpts}</select>
-      <select style="flex:1;border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;font-size:.83rem" onchange="updateDimResumen()">${cliOpts}</select>
-      <button onclick="document.getElementById('${id}').remove();updateDimResumen()" style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:.72rem;font-weight:700;cursor:pointer">✕</button>
-    </div>
-    <div style="display:flex;gap:7px;align-items:center">
-      <div style="flex:1"><label style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:var(--mid);letter-spacing:.05em">Cantidad</label>
-        <input type="number" min="0" placeholder="Ej. 432" style="width:100%;border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;font-size:.85rem" onchange="updateDimResumen()" oninput="updateDimResumen()">
-      </div>
-      <div style="flex:1" id="${id}_result" class="info-box" style="font-size:.75rem">—</div>
-    </div>`;
-  wrap.appendChild(div);
-  updateDimResumen();
-}
-
-function getDimTareas(){
-  const rows=document.querySelectorAll('#dimTareasList > div');
-  const result=[];
-  rows.forEach(row=>{
-    const sels=row.querySelectorAll('select');
-    const inp=row.querySelector('input[type=number]');
-    if(!sels[0]||!inp) return;
-    const tareaId=sels[0].value;
-    const clienteId=sels[1]?.value||'';
-    const cant=parseFloat(inp.value)||0;
-    if(!tareaId||!cant) return;
-    const tc=S.tareasCat.find(t=>t.id===tareaId);
-    if(!tc) return;
-    const efic=(tc.efic||85)/100;
-    const prodEfect=tc.prod*efic;
-    const horas=prodEfect>0?cant/prodEfect:0;
-    result.push({tareaId,tarea:tc.nombre,clienteId,unidad:tc.unidad,prod:tc.prod,efic:tc.efic||85,prodEfect,cant,horas});
-  });
-  return result;
-}
-
-function updateDimResumen(){
-  const tareas=getDimTareas();
-  const jornada=getDimJornada();
-  const cfg=getConfig();
-  const hpPP=horasJornada(jornada, document.getElementById('dimFecha').value);
-  const totalH=tareas.reduce((s,t)=>s+t.horas,0);
-  const personasNec=hpPP>0?Math.ceil(totalH/hpPP):0;
-
-  // Update individual row results
-  const rows=document.querySelectorAll('#dimTareasList > div');
-  rows.forEach((row,i)=>{
-    const res=row.querySelector('[id$="_result"]');
-    if(!res||!tareas[i]) return;
-    const t=tareas[i];
-    res.innerHTML=`<b>${t.horas.toFixed(1)}h</b> necesarias<br><span style="font-size:.68rem;color:var(--mid)">${t.cant} ${t.unidad}s ÷ ${t.prodEfect.toFixed(1)}/h</span>`;
-  });
-
-  const el=document.getElementById('dimResumen');
-  if(!tareas.length){el.textContent='Agrega tareas para ver el dimensionamiento';return;}
-
-  const costoEst=personasNec*(hpPP>0?hpPP:8)*((50*1.07)/8); // rough estimate
-  el.innerHTML=`📋 <b>${tareas.length} tarea(s)</b> · Total horas: <b>${totalH.toFixed(1)}h</b><br>
-  👥 Personas necesarias: <b>${personasNec}</b> (base ${hpPP}h productivas/persona)<br>
-  ⏰ Jornada ${jornada==='media'?'Media ('+hpPP+'h)':'Completa ('+hpPP+'h)'}`;
-
-  // Suggest collaborators
-  updateDimColabs(personasNec);
-}
-
-function updateDimColabs(personasNec){
-  const wrap=document.getElementById('dimColabChips');
-  const warn=document.getElementById('dimColabWarn');
-  if(!wrap) return;
-  // Auto-select top N collaborators if not already selected
-  const chips=wrap.querySelectorAll('.chip');
-  if(!chips.length){
-    // Build chips
-    wrap.innerHTML='';
-    S.colaboradores.forEach(c=>{
-      const chip=document.createElement('div');
-      chip.className='chip'; chip.dataset.id=c.id;
-      chip.textContent=c.nombre+' ('+(c.cargo==='operador'?'Op':'AG')+')';
-      chip.onclick=()=>{chip.classList.toggle('selected');checkDimColabs(personasNec);};
-      wrap.appendChild(chip);
-    });
-    // Auto-select first N
-    const allChips=wrap.querySelectorAll('.chip');
-    for(let i=0;i<Math.min(personasNec,allChips.length);i++) allChips[i].classList.add('selected');
-  }
-  checkDimColabs(personasNec);
-}
-
-function checkDimColabs(personasNec){
-  const sel=document.querySelectorAll('#dimColabChips .chip.selected').length;
-  const warn=document.getElementById('dimColabWarn');
-  if(!warn) return;
-  if(sel<personasNec){
-    warn.classList.remove('hidden');
-    warn.textContent=`⚠️ Tienes ${sel} colaborador(es) seleccionado(s) pero necesitas ${personasNec}. Agrega más personas o ajusta las tareas.`;
-  } else {
-    warn.classList.add('hidden');
-  }
-}
-
-async function guardarPlan(){
-  const fecha=document.getElementById('dimFecha').value;
-  const hora=document.getElementById('dimHora').value;
-  const jornada=getDimJornada();
-  const tareas=getDimTareas();
-  const colabIds=[...document.querySelectorAll('#dimColabChips .chip.selected')].map(c=>c.dataset.id);
-  if(!fecha){alert('Selecciona una fecha');return;}
-  if(!tareas.length){alert('Agrega al menos una tarea');return;}
-  const colabs=S.colaboradores.filter(c=>colabIds.includes(c.id));
-  const cfg=getConfig();
-  const hpPP=horasJornada(jornada,fecha);
-  const totalH=tareas.reduce((s,t)=>s+t.horas,0);
-  const plan={
-    id:uid(), fecha, hora, jornada, tareas, colabs,
-    horasProd:colabs.length*hpPP, hpPorPersona:hpPP,
-    totalHNecesarias:totalH,
-    personasNecesarias:Math.ceil(totalH/hpPP),
-    estado:'programado', creadoEn:Date.now(),
-  };
-  if(!S.turnosProgramados) S.turnosProgramados=[];
-  S.turnosProgramados.push(plan);
-  await save();
-  hideModal('modalDimensionador');
-  renderAll();
-}
-
-let _planIniciandoId=null;
-function prepIniciarPlan(planId){
-  _planIniciandoId=planId;
-  const plan=S.turnosProgramados.find(p=>p.id===planId);
-  if(!plan) return;
-  const cfg=getConfig();
-  document.getElementById('iniciarPlanInfo').innerHTML=
-    `📅 <b>${plan.fecha} ${plan.hora}</b> · ${plan.jornada==='media'?'🕐 Media':'☀️ Completa'}<br>
-    📋 ${plan.tareas.length} tarea(s) · ${plan.totalHNecesarias.toFixed(1)}h necesarias · ${plan.personasNecesarias} persona(s)`;
-
-  const wrap=document.getElementById('iniciarPlanColabs');
-  wrap.innerHTML='';
-  S.colaboradores.forEach(c=>{
-    const chip=document.createElement('div');
-    chip.className='chip'; chip.dataset.id=c.id;
-    chip.textContent=c.nombre+' ('+(c.cargo==='operador'?'Op':'AG')+')';
-    // Pre-select suggested
-    if((plan.colabs||[]).some(x=>x.id===c.id)) chip.classList.add('selected');
-    chip.onclick=()=>{chip.classList.toggle('selected');updateIniciarResumen(plan);};
-    wrap.appendChild(chip);
-  });
-  updateIniciarResumen(plan);
-  showModal('modalIniciarPlan');
-}
-
-function updateIniciarResumen(plan){
-  const ids=[...document.querySelectorAll('#iniciarPlanColabs .chip.selected')].map(c=>c.dataset.id);
-  const eq=S.colaboradores.filter(c=>ids.includes(c.id));
-  const el=document.getElementById('iniciarPlanResumen');
-  if(!eq.length){el.textContent='Selecciona colaboradores';return;}
-  const hpPP=plan.hpPorPersona||8;
-  const ops=eq.filter(c=>c.cargo==='operador').length, ags=eq.filter(c=>c.cargo==='ag').length;
-  el.innerHTML=`<b>${eq.length} persona(s)</b> — ${ops} Op + ${ags} AG<br>
-  📅 Horas productivas: <b>${(eq.length*hpPP).toFixed(1)}h</b> disponibles · Necesarias: <b>${plan.totalHNecesarias.toFixed(1)}h</b>`;
-}
-
-async function iniciarTurnoPlan(){
-  const plan=S.turnosProgramados.find(p=>p.id===_planIniciandoId);
-  if(!plan) return;
-  const ids=[...document.querySelectorAll('#iniciarPlanColabs .chip.selected')].map(c=>c.dataset.id);
-  if(!ids.length){alert('Selecciona al menos un colaborador');return;}
-  const eq=S.colaboradores.filter(c=>ids.includes(c.id));
-  S.turno={
-    id:uid(), fecha:plan.fecha, hora:plan.hora,
-    inicio:Date.now(), equipo:eq,
-    jornada:plan.jornada, hpPorPersona:plan.hpPorPersona,
-    horasProd:eq.length*plan.hpPorPersona,
-    planId:plan.id, tareasPlan:plan.tareas,
-  };
-  S.tareasActivas=[]; S.historial=[];
-  // Mark plan as iniciado
-  plan.estado='iniciado';
-  await save();
-  hideModal('modalIniciarPlan');
-  renderAll();
-}
-
-function renderTurnosProgramados(){
-  const el=document.getElementById('turnosProgramadosList');
-  if(!el) return;
-  const planes=(S.turnosProgramados||[]).filter(p=>p.estado==='programado').sort((a,b)=>a.fecha.localeCompare(b.fecha));
-  if(!planes.length){
-    el.innerHTML=`<div class="no-turno" style="margin-bottom:12px">
-      <div class="no-turno-icon">🏭</div>
-      <div class="no-turno-title">Sin turnos programados</div>
-      <div class="no-turno-sub">Planifica turnos futuros o abre uno ahora mismo.</div>
-    </div>`;
-    return;
-  }
-  el.innerHTML=planes.map(p=>{
-    const hoy=new Date().toISOString().split('T')[0];
-    const esHoy=p.fecha===hoy;
-    const borderCol=esHoy?'var(--green)':'var(--border)';
-    const costo=p.colabs.reduce((s,c)=>s+costoCargo(c.cargo).hora*(p.hpPorPersona||8),0)*p.colabs.length;
-    return `<div style="border:2px solid ${borderCol};border-radius:10px;background:#fff;overflow:hidden;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,.07)">
-      <div style="background:${esHoy?'var(--green)':'var(--indigo)'};padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
-        <div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.9rem;text-transform:uppercase;letter-spacing:.06em;color:#fff">
-            ${esHoy?'🟢 HOY — ':'📅 '}${p.fecha} · ${p.hora}
-          </div>
-          <div style="font-size:.7rem;color:rgba(255,255,255,.75);margin-top:2px">${p.jornada==='media'?'🕐 Media Jornada':'☀️ Jornada Completa'} · ${p.tareas.length} tarea(s)</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.1rem;color:#fff">${p.personasNecesarias} pers.</div>
-          <div style="font-size:.68rem;color:rgba(255,255,255,.7)">${p.totalHNecesarias.toFixed(1)}h necesarias</div>
-        </div>
-      </div>
-      <div style="padding:10px 14px;display:flex;flex-direction:column;gap:7px">
-        ${p.tareas.map(t=>{
-          const cli=S.clientes.find(c=>c.id===t.clienteId);
-          return `<div style="display:flex;align-items:center;justify-content:space-between;font-size:.78rem;padding:4px 0;border-bottom:1px solid var(--border)">
-            <span><b>${t.tarea}</b> · ${cli?cli.nombre:'—'}</span>
-            <span style="color:var(--mid)">${t.cant} ${t.unidad}s · <b>${t.horas.toFixed(1)}h</b></span>
-          </div>`;
-        }).join('')}
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px">
-          <div style="font-size:.72rem;color:var(--mid)">${p.colabs.map(c=>c.nombre.split(' ')[0]).join(', ')}</div>
-          <div style="display:flex;gap:6px">
-            <button class="btn btn-ghost btn-sm" onclick="editarPlan('${p.id}')">✏️</button>
-            <button class="btn btn-red btn-sm" onclick="eliminarPlan('${p.id}')">🗑</button>
-            <button class="btn btn-green btn-sm" onclick="prepIniciarPlan('${p.id}')">▶ Iniciar</button>
-          </div>
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-async function eliminarPlan(id){
-  if(!confirm('¿Eliminar este plan?')) return;
-  S.turnosProgramados=S.turnosProgramados.filter(p=>p.id!==id);
-  await save(); renderAll();
-}
-
-function editarPlan(id){
-  // For now open dimensionador pre-filled — future enhancement
-  alert('Para editar, elimina este plan y crea uno nuevo con los ajustes.');
-}
-
-// ═══ RENDER ALL ═══
-function renderAll(){
-  const has=!!S.turno;
-  document.getElementById('noTurnoPanel').style.display=has?'none':'block';
-  const tp=document.getElementById('turnoPanel');tp.style.display=has?'flex':'none';
-  if(!has) renderTurnosProgramados();
-  if(has){renderEquipo();renderTareasActivas();renderHistorial();updateBanner();}
-  updateNotifBadge();
-  if(!document.getElementById('viewInsights').classList.contains('hidden'))renderInsights();
-}
-
-init().then(()=>{
-  startClock();
-  // Sync from DB every 30s to reflect admin changes in supervisor view
-  setInterval(async()=>{
-    await reload();
-    renderAll();
-  }, 30000);
-});
-</script>
-</body>
-</html>
+  
