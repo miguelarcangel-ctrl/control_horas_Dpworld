@@ -1292,11 +1292,19 @@ function renderInsights(){
 
   // Stats
   const allT=S.turnosHistorial.flatMap(t=>t.historial||[]);
-  const totC=calcTotalCosto(allT);
+  const totPagado=S.turnosHistorial.reduce((s,t)=>s+(t.costoPagado||(t.equipo||[]).reduce((ss,c)=>ss+costoCargo(c.cargo||'operador').dia,0)),0);
+  const totProductivo=S.turnosHistorial.reduce((s,t)=>s+(t.costoProductivo||calcTotalCosto(t.historial||[])),0);
+  const totPerdido=Math.max(0,totPagado-totProductivo);
+  const eficGlobal=totPagado>0?Math.round((totProductivo/totPagado)*100):0;
   h+=`<div class="stat-row">
-    <div class="stat-card"><div class="stat-label">Turnos</div><div class="stat-val">${S.turnosHistorial.length}</div></div>
-    <div class="stat-card"><div class="stat-label">Tareas</div><div class="stat-val">${allT.length+(S.historial||[]).length}</div></div>
-    <div class="stat-card"><div class="stat-label">Costo Total</div><div class="stat-val g" style="font-size:.95rem">$${totC.toFixed(0)}</div></div>
+    <div class="stat-card"><div class="stat-label">Turnos</div><div class="stat-val">${S.turnosHistorial.length}</div><div class="stat-sub">histórico</div></div>
+    <div class="stat-card"><div class="stat-label">Tareas</div><div class="stat-val">${allT.length+(S.historial||[]).length}</div><div class="stat-sub">completadas</div></div>
+    <div class="stat-card"><div class="stat-label">Costo Pagado</div><div class="stat-val" style="font-size:.85rem;color:var(--indigo)">$${totPagado.toFixed(0)}</div><div class="stat-sub">total turnos</div></div>
+  </div>
+  <div class="stat-row" style="margin-top:-4px">
+    <div class="stat-card"><div class="stat-label">Productivo</div><div class="stat-val g" style="font-size:.85rem">$${totProductivo.toFixed(0)}</div><div class="stat-sub">en tareas</div></div>
+    <div class="stat-card"><div class="stat-label">Perdido</div><div class="stat-val ${totPerdido>0?'r':''}" style="font-size:.85rem">$${totPerdido.toFixed(0)}</div><div class="stat-sub">horas libres</div></div>
+    <div class="stat-card"><div class="stat-label">Eficiencia</div><div class="stat-val ${eficGlobal>=80?'g':eficGlobal>=60?'a':'r'}" style="font-size:.85rem">${totPagado>0?eficGlobal+'%':'—'}</div><div class="stat-sub">costo/pagado</div></div>
   </div>`;
 
   // Config button (admin only)
@@ -1418,21 +1426,37 @@ function renderInsights(){
       h+=`<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Sin turnos en este período</div></div>`;
     } else {
       turnosFilt.forEach(t=>{
-        const costo=calcTotalCosto(t.historial||[]);
-        const eb=t.estado==='solicitud_pendiente'?`<span class="badge ba">Sol. Pendiente</span>`:t.estado==='cerrado'?`<span class="badge bgy">Cerrado</span>`:`<span class="badge bg">Reabierto</span>`;
+        const costoP=t.costoPagado||(t.equipo||[]).reduce((s,c)=>s+costoCargo(c.cargo||'operador').dia,0);
+        const costoPr=t.costoProductivo||calcTotalCosto(t.historial||[]);
+        const costoPerd=Math.max(0,costoP-costoPr);
+        const usH2=(t.historial||[]).reduce((s,ta)=>s+(ta.durH||0),0);
+        const libH2=Math.max(0,(t.horasProd||0)-usH2);
+        let eb='';
+        if(t.estado==='solicitud_pendiente') eb='<span class="badge ba">Sol. Pendiente</span>';
+        else if(t.estado==='cerrado') eb='<span class="badge bgy">Cerrado</span>';
+        else eb='<span class="badge bg">Reabierto</span>';
+        const reaBtn=t.estado==='cerrado'?'<button class="btn btn-amber btn-sm" onclick="prepSolReap(\''+t.id+'\')">🔓 Reapertura</button>':'';
+        const justBadge=t.justCausa?'<span class="badge ba">'+t.justCausa+'</span>':'';
         h+=`<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:6px">
           <div style="display:flex;justify-content:space-between;width:100%">
             <div><div class="li-name">${t.fecha} — ${t.hora}</div>
-            <div class="li-sub">${(t.equipo||[]).map(c=>c.nombre.split(' ')[0]).join(', ')} · ${t.jornada==='media'?'🕐 Media':'☀️ Completa'}</div></div>${eb}
+            <div class="li-sub">${(t.equipo||[]).map(c=>c.nombre.split(' ')[0]).join(', ')} · ${t.jornada==='media'?'Media':'Completa'} · ${t.horasProd||0}h base</div></div>
+            ${eb}
           </div>
           <div style="display:flex;gap:5px;flex-wrap:wrap">
             <span class="badge bgy">${(t.historial||[]).length} tareas</span>
-            <span class="badge bi">$${costo.toFixed(2)}</span>
-            ${t.justCausa?`<span class="badge ba">${t.justCausa}</span>`:''}
+            <span class="badge bgy">${usH2.toFixed(1)}h usadas</span>
+            ${libH2>0?'<span class="badge ba">'+libH2.toFixed(1)+'h perdidas</span>':''}
           </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;width:100%;margin-top:2px">
+            <div style="background:var(--bg);border-radius:6px;padding:5px 7px;text-align:center"><div style="font-size:.58rem;font-weight:700;text-transform:uppercase;color:var(--mid)">Costo Pagado</div><div style="font-weight:800;font-size:.85rem;color:var(--indigo)">$${costoP.toFixed(2)}</div></div>
+            <div style="background:var(--bg);border-radius:6px;padding:5px 7px;text-align:center"><div style="font-size:.58rem;font-weight:700;text-transform:uppercase;color:var(--mid)">Productivo</div><div style="font-weight:800;font-size:.85rem;color:var(--green)">$${costoPr.toFixed(2)}</div></div>
+            <div style="background:var(--bg);border-radius:6px;padding:5px 7px;text-align:center"><div style="font-size:.58rem;font-weight:700;text-transform:uppercase;color:var(--mid)">Perdido</div><div style="font-weight:800;font-size:.85rem;color:var(--red)">$${costoPerd.toFixed(2)}</div></div>
+          </div>
+          ${justBadge?'<div>'+justBadge+'</div>':''}
           <div class="btn-row">
             <button class="btn btn-ghost btn-sm" onclick="exportExcel('${t.id}')">📥 Excel</button>
-            ${t.estado==='cerrado'?`<button class="btn btn-amber btn-sm" onclick="prepSolReap('${t.id}')">🔓 Reapertura</button>`:''}
+            ${reaBtn}
             <button class="btn btn-red btn-sm" onclick="eliminarTurno('${t.id}')">🗑 Eliminar</button>
           </div>
         </div>`;
