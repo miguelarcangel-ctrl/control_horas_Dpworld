@@ -319,6 +319,8 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
           <div class="hora-bar-wrap"><div class="hora-bar-fill" id="horaBar" style="width:0%"></div></div>
         </div>
         <div class="turno-actions">
+          
+          <button id="toolboxBtn" class="btn btn-sm" style="display:none;background:#F59E0B;color:#fff;border:none;border-radius:6px;padding:6px 11px;font-weight:700;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer" onclick="showToolboxScreen()">🦺 Toolbox</button>
           <button class="btn btn-green btn-sm" onclick="showModal('modalNuevaTarea')">+ Tarea</button>
           <button class="btn btn-ghost-w btn-sm" onclick="prepCerrarTurno()">⏹ Cerrar Turno</button>
         </div>
@@ -934,6 +936,7 @@ function updateBanner(){
   document.getElementById('tUsadas').textContent=usH.toFixed(1)+'h';
   const lEl=document.getElementById('tLibres');lEl.textContent=libH.toFixed(1)+'h';lEl.className='t-stat-val '+(libH<0.5?'r':libH<2?'a':'g');
   document.getElementById('horaBar').style.width=pct+'%';document.getElementById('tPct').textContent=Math.round(pct)+'%';
+  const tbBtn=document.getElementById('toolboxBtn');if(tbBtn)tbBtn.style.display=S.turno.toolboxDone?'none':'inline-block';
   const ops=S.turno.equipo.filter(c=>c.cargo==='operador').length,ags=S.turno.equipo.filter(c=>c.cargo==='ag').length;
   document.getElementById('tEquipoLbl').textContent=`${S.turno.equipo.length} pers · ${ops}Op ${ags}AG`;
   const jornadaTag=S.turno.jornada==='media'?'🕐 Media Jornada':'☀️ Jornada Completa';
@@ -1560,8 +1563,4 @@ function renderInsights(){
     // DIMENSIONADOR HISTORICO
     const planesTerminados=(S.turnosProgramados||[]).filter(p=>p.estado==='iniciado'||p.estado==='completado');
     if(planesTerminados.length||((S.turnosProgramados||[]).filter(p=>p.estado==='programado').length)){
-      h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sDim','cDim')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">📐 Planes de Turno</span></div><span class="chevron open" id="cDim">▼</span></div><div class="sec-body" id="sDim">`;
-      const todosPlanes=[...(S.turnosProgramados||[])].reverse();
-      if(!todosPlanes.length) h+=`<div class="empty"><div class="empty-text">Sin planes creados</div></div>`;
-      todosPlanes.forEach(p=>{
-        const estadoBadge=p.estado==='programado'?`<span class="badge ba">Programad
+      h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sDim','cDim')"><div class="sec-hdr-left"><div class="sec-accent"></div><
