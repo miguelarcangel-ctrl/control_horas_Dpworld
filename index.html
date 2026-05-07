@@ -319,7 +319,6 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
           <div class="hora-bar-wrap"><div class="hora-bar-fill" id="horaBar" style="width:0%"></div></div>
         </div>
         <div class="turno-actions">
-          
           <button id="toolboxBtn" class="btn btn-sm" style="display:none;background:#F59E0B;color:#fff;border:none;border-radius:6px;padding:6px 11px;font-weight:700;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer" onclick="showToolboxScreen()">🦺 Toolbox</button>
           <button class="btn btn-green btn-sm" onclick="showModal('modalNuevaTarea')">+ Tarea</button>
           <button class="btn btn-ghost-w btn-sm" onclick="prepCerrarTurno()">⏹ Cerrar Turno</button>
@@ -384,32 +383,25 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
   </div>
 </div>
 
-<!-- NEXT TASK SELECTOR -->
 <div class="overlay hidden" id="modalNextTask">
   <div class="modal">
     <div class="modal-hdr">
-      <span class="modal-title">⚡ ¿Qué sigue?</span>
+      <span class="modal-title">⚡ Siguiente tarea</span>
       <span class="modal-close" onclick="hideModal('modalNextTask')">✕</span>
     </div>
-    <div style="font-size:.75rem;color:var(--mid);margin-bottom:10px">Selecciona la próxima tarea para continuar</div>
-
-    <!-- Special options -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-      <button onclick="quickStartEspecial('almuerzo')" style="background:#FEF3C7;border:2px solid #F59E0B;border-radius:10px;padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer">
-        <span style="font-size:1.4rem">🍽</span>
-        <span style="font-weight:800;font-size:.8rem;color:#92400E;font-family:'Barlow Condensed',sans-serif;letter-spacing:.04em;text-transform:uppercase">Almuerzo</span>
-        <span style="font-size:.65rem;color:#92400E">1 hora</span>
+      <button onclick="quickStartEspecial('almuerzo')" style="background:#FEF3C7;border:2px solid #F59E0B;border-radius:10px;padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;width:100%">
+        <span style="font-size:1.5rem">🍽</span>
+        <span style="font-weight:800;font-size:.8rem;color:#92400E;text-transform:uppercase;letter-spacing:.04em">Almuerzo</span>
       </button>
-      <button onclick="quickStartEspecial('reunion')" style="background:#EDE9FE;border:2px solid #7C5CBF;border-radius:10px;padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer">
-        <span style="font-size:1.4rem">📋</span>
-        <span style="font-weight:800;font-size:.8rem;color:#5B21B6;font-family:'Barlow Condensed',sans-serif;letter-spacing:.04em;text-transform:uppercase">Reunión</span>
-        <span style="font-size:.65rem;color:#5B21B6">Sin productividad</span>
+      <button onclick="quickStartEspecial('reunion')" style="background:#EDE9FE;border:2px solid #7C5CBF;border-radius:10px;padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;width:100%">
+        <span style="font-size:1.5rem">📋</span>
+        <span style="font-weight:800;font-size:.8rem;color:#5B21B6;text-transform:uppercase;letter-spacing:.04em">Reunión</span>
       </button>
     </div>
-
-    <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--mid);margin-bottom:7px">O selecciona del catálogo</div>
-    <div id="nextTaskList" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto"></div>
-    <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="hideModal('modalNextTask')">Cerrar — continuar más tarde</button>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--mid);margin-bottom:7px">Del catálogo</div>
+    <div id="nextTaskList" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto"></div>
+    <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="hideModal('modalNextTask')">Continuar más tarde</button>
   </div>
 </div>
 
@@ -568,19 +560,18 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
   </div>
 </div>
 
-<!-- TOOLBOX -->
 <div class="overlay hidden" id="modalToolbox">
   <div class="modal" style="text-align:center">
     <div style="font-size:2rem;margin-bottom:8px">🦺</div>
     <div class="modal-title" style="text-align:center;margin-bottom:4px">Toolbox Meeting</div>
-    <div style="font-size:.8rem;color:var(--mid);margin-bottom:16px">Reunión de seguridad pre-turno · 15 minutos</div>
-    <div class="info-box" id="toolboxTimer" style="font-size:1.4rem;font-weight:800;letter-spacing:.08em;font-family:'Barlow Condensed',sans-serif;text-align:center">00:00</div>
-    <div style="font-size:.75rem;color:var(--mid);margin-top:6px;margin-bottom:16px" id="toolboxStatus">Presiona Iniciar para comenzar la reunión</div>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-indigo btn-full" id="toolboxIniciarBtn" onclick="iniciarToolbox()">▶ Iniciar Toolbox</button>
+    <div style="font-size:.8rem;color:var(--mid);margin-bottom:16px">Reunión de seguridad pre-turno · 15 min</div>
+    <div class="info-box" id="toolboxTimer" style="font-size:1.4rem;font-weight:800;letter-spacing:.08em;text-align:center">00:00</div>
+    <div style="font-size:.75rem;color:var(--mid);margin-top:6px;margin-bottom:16px" id="toolboxStatus">Presiona Iniciar para comenzar</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <button id="toolboxIniciarBtn" class="btn btn-indigo btn-full" onclick="iniciarToolbox()">▶ Iniciar Toolbox</button>
       <button class="btn btn-ghost btn-full" onclick="skipToolbox()">Omitir</button>
     </div>
-    <button class="btn btn-green btn-full hidden" id="toolboxFinBtn" onclick="finToolbox()">✓ Finalizar Toolbox</button>
+    <button id="toolboxFinBtn" class="btn btn-green btn-full hidden" onclick="finToolbox()">✓ Finalizar Toolbox</button>
   </div>
 </div>
 
@@ -793,46 +784,6 @@ function toggleSec(b,c){
   const h=body.classList.toggle('collapsed');
   if(chev)chev.classList.toggle('open',!h);
 }
-function showNextTaskPanel(){
-  if(!S.turno) return;
-  const list=document.getElementById('nextTaskList');
-  if(!list) return;
-  list.innerHTML='';
-  S.tareasCat.forEach(tc=>{
-    const pr=tc.sinProd?'Sin productividad':(tc.prod>0?tc.prod+' '+tc.unidad+'s/h':'');
-    const btn=document.createElement('button');
-    btn.style.cssText='width:100%;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;background:#fff;cursor:pointer;display:flex;justify-content:space-between;align-items:center;text-align:left';
-    btn.innerHTML='<div><div style="font-weight:700;font-size:.85rem;color:var(--dark)">'+tc.nombre+'</div><div style="font-size:.7rem;color:var(--mid)">'+pr+'</div></div><span style="font-size:.7rem;background:var(--indigo);color:#fff;padding:2px 8px;border-radius:20px;font-weight:700">▶ Iniciar</span>';
-    btn.onclick=()=>quickStartTarea(tc.id);
-    list.appendChild(btn);
-  });
-  showModal('modalNextTask');
-}
-
-async function quickStartTarea(tareaId){
-  hideModal('modalNextTask');
-  // Pre-fill the nueva tarea modal
-  await showModal('modalNuevaTarea');
-  const sel=document.getElementById('tTarea');
-  if(sel) sel.value=tareaId;
-  prepModalTarea();
-}
-
-async function quickStartEspecial(tipo){
-  hideModal('modalNextTask');
-  if(!S.turno) return;
-  const nombre=tipo==='almuerzo'?'Almuerzo':'Reunión';
-  const tarea={
-    id:uid(),tarea:nombre,tareaId:'_'+tipo,
-    cliente:'Interno',colaboradores:[...S.turno.equipo],
-    inicio:Date.now(),prod:0,unidad:'',sinProd:true,
-    isEspecial:true
-  };
-  S.tareasActivas.push(tarea);
-  await save();renderTareasActivas();renderEquipo();
-  showToast(nombre+' iniciado');
-}
-
 async function showModal(id){
   document.getElementById(id).classList.remove('hidden');
   if(id==='modalAbrirTurno'){await reload();prepModalTurno();}
@@ -924,7 +875,7 @@ async function abrirTurno(){
     horasProd:eq.length*hpPorPersona,
   };
   S.tareasActivas=[];S.historial=[];
-  await save();hideModal('modalAbrirTurno');renderAll();showToast('Turno iniciado');
+  await save();hideModal('modalAbrirTurno');renderAll();showToast('Turno iniciado');setTimeout(showToolboxScreen,400);
 }
 
 // ═══ BANNER (NO COSTOS PARA SUPERVISOR) ═══
@@ -936,7 +887,7 @@ function updateBanner(){
   document.getElementById('tUsadas').textContent=usH.toFixed(1)+'h';
   const lEl=document.getElementById('tLibres');lEl.textContent=libH.toFixed(1)+'h';lEl.className='t-stat-val '+(libH<0.5?'r':libH<2?'a':'g');
   document.getElementById('horaBar').style.width=pct+'%';document.getElementById('tPct').textContent=Math.round(pct)+'%';
-  const tbBtn=document.getElementById('toolboxBtn');if(tbBtn)tbBtn.style.display=S.turno.toolboxDone?'none':'inline-block';
+  const _tbBtn=document.getElementById('toolboxBtn');if(_tbBtn)_tbBtn.style.display=(S.turno&&!S.turno.toolboxDone)?'inline-block':'none';
   const ops=S.turno.equipo.filter(c=>c.cargo==='operador').length,ags=S.turno.equipo.filter(c=>c.cargo==='ag').length;
   document.getElementById('tEquipoLbl').textContent=`${S.turno.equipo.length} pers · ${ops}Op ${ags}AG`;
   const jornadaTag=S.turno.jornada==='media'?'🕐 Media Jornada':'☀️ Jornada Completa';
@@ -1010,9 +961,7 @@ async function confirmarCierre(){
   const fin=Date.now(),dH=msH(fin-t.inicio),rp=dH>0&&cant>0?cant/dH:0,efic=t.prod>0?(rp/t.prod)*100:null;
   S.historial.push({...t,fin,cant,nota,durH:dH,realProd:rp,efic});
   S.tareasActivas=S.tareasActivas.filter(x=>x.id!==S.cerrandoId);
-  await save();hideModal('modalCerrarTarea');renderTareasActivas();renderHistorial();renderEquipo();showToast('Tarea cerrada');
-  // Show next task selector
-  setTimeout(()=>showNextTaskPanel(),200);
+  await save();hideModal('modalCerrarTarea');renderTareasActivas();renderHistorial();renderEquipo();showToast('Tarea cerrada');setTimeout(showNextTaskPanel,300);
 }
 function renderHistorial(){
   const el=document.getElementById('historialList');
@@ -1563,4 +1512,26 @@ function renderInsights(){
     // DIMENSIONADOR HISTORICO
     const planesTerminados=(S.turnosProgramados||[]).filter(p=>p.estado==='iniciado'||p.estado==='completado');
     if(planesTerminados.length||((S.turnosProgramados||[]).filter(p=>p.estado==='programado').length)){
-      h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sDim','cDim')"><div class="sec-hdr-left"><div class="sec-accent"></div><
+      h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sDim','cDim')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">📐 Planes de Turno</span></div><span class="chevron open" id="cDim">▼</span></div><div class="sec-body" id="sDim">`;
+      const todosPlanes=[...(S.turnosProgramados||[])].reverse();
+      if(!todosPlanes.length) h+=`<div class="empty"><div class="empty-text">Sin planes creados</div></div>`;
+      todosPlanes.forEach(p=>{
+        const estadoBadge=p.estado==='programado'?`<span class="badge ba">Programado</span>`:p.estado==='iniciado'?`<span class="badge bg">Iniciado</span>`:`<span class="badge bgy">Completado</span>`;
+        h+=`<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:5px">
+          <div style="display:flex;justify-content:space-between;width:100%">
+            <div><div class="li-name">${p.fecha} · ${p.hora}</div><div class="li-sub">${p.tareas.length} tareas · ${p.totalHNecesarias.toFixed(1)}h · ${p.personasNecesarias} personas</div></div>
+            ${estadoBadge}
+          </div>
+        </div>`;
+      });
+      h+=`</div></div>`;
+    }
+
+    // USUARIOS
+    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sUsers','cUsers')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">👤 Usuarios</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalUsuario()">+ Nuevo</button><span class="chevron open" id="cUsers">▼</span></div></div><div class="sec-body" id="sUsers">`;
+    if(!S.usuarios.length)h+=`<div class="info-box">Sin usuarios creados. El acceso por defecto es admin/admin123.</div>`;
+    S.usuarios.forEach(u=>{h+=`<div class="list-item"><div class="li-info"><div class="li-name">${u.nombre}</div><div class="li-sub">@${u.username} · ${u.rol==='admin'?'Admin':'Supervisor'}</div></div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalUsuario('${u.id}')">✏️</button><button class="btn btn-red btn-sm" onclick="eliminarUsuario('${u.id}')">✕</button></div></div>`;});
+    h+=`</div></div>`;
+
+    // COLABORADORES
+    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sColabs
