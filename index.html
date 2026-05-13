@@ -671,14 +671,31 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
 </div>
 
 <div class="overlay hidden" id="modalToolbox">
-  <div class="modal" style="text-align:center">
-    <div style="font-size:2rem;margin-bottom:8px">🦺</div>
-    <div class="modal-title" style="text-align:center;margin-bottom:4px">Toolbox Meeting</div>
-    <div style="font-size:.8rem;color:var(--mid);margin-bottom:16px">Reunión de seguridad pre-turno · 15 min</div>
-    <div class="info-box" id="toolboxTimer" style="font-size:1.4rem;font-weight:800;letter-spacing:.08em;text-align:center">00:00</div>
-    <div style="font-size:.75rem;color:var(--mid);margin-top:6px;margin-bottom:16px" id="toolboxStatus">Presiona Iniciar para comenzar</div>
-    <div style="display:flex;gap:8px;margin-bottom:8px">
-      <button id="toolboxIniciarBtn" class="btn btn-indigo btn-full" onclick="iniciarToolbox()">▶ Iniciar Toolbox</button>
+  <div class="modal" style="gap:11px">
+    <!-- Header -->
+    <div style="text-align:center">
+      <div style="font-size:2rem;margin-bottom:4px">🦺</div>
+      <div class="modal-title" style="text-align:center;margin-bottom:2px">Toolbox Meeting</div>
+      <div style="font-size:.75rem;color:var(--mid)">Cápsula HSE pre-turno</div>
+    </div>
+    <!-- Selector de tema (visible antes de iniciar) -->
+    <div id="toolboxTemaWrap">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid);margin-bottom:6px">📋 Tema de la cápsula HSE</div>
+      <div id="toolboxTemaList" style="display:flex;flex-direction:column;gap:5px;max-height:220px;overflow-y:auto"></div>
+      <div class="warn-box hidden" id="toolboxTemaErr" style="margin-top:6px">Selecciona un tema HSE para iniciar el Toolbox</div>
+    </div>
+    <!-- Tema seleccionado (visible durante/después) -->
+    <div id="toolboxTemaActivo" style="display:none;background:#FFF7ED;border-left:3px solid #F59E0B;border-radius:0 7px 7px 0;padding:9px 12px">
+      <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#92400E;margin-bottom:2px">🦺 Tema del turno</div>
+      <div id="toolboxTemaNombre" style="font-weight:700;font-size:.9rem;color:#78350F"></div>
+      <div id="toolboxTemaCat" style="font-size:.68rem;color:#92400E;margin-top:1px"></div>
+    </div>
+    <!-- Timer -->
+    <div class="info-box" id="toolboxTimer" style="font-size:1.5rem;font-weight:800;letter-spacing:.1em;text-align:center;padding:12px">00:00</div>
+    <div style="font-size:.75rem;color:var(--mid);text-align:center;margin-top:-6px" id="toolboxStatus">Selecciona un tema y presiona Iniciar</div>
+    <!-- Botones -->
+    <div style="display:flex;gap:8px">
+      <button id="toolboxIniciarBtn" class="btn btn-indigo btn-full" onclick="iniciarToolbox()">▶ Iniciar</button>
       <button class="btn btn-ghost btn-full" onclick="skipToolbox()">Omitir</button>
     </div>
     <button id="toolboxFinBtn" class="btn btn-green btn-full hidden" onclick="finToolbox()">✓ Finalizar Toolbox</button>
@@ -792,6 +809,7 @@ let S={
   turno:null,tareasActivas:[],historial:[],
   turnosHistorial:[],solicitudes:[],turnosProgramados:[],
   rutinas:[],
+  temaHSE:[],  // catálogo de cápsulas HSE para Toolbox
   cerrandoId:null,reabriendoId:null,editingId:null,
   config:{
     horaInicio:'08:00',
@@ -1875,6 +1893,7 @@ function renderInsights(){
     // PLANTILLAS
     h+=buildPlantillasSection();
     h+=buildRutinasSection();
+    h+=buildToolboxSection();
 
     // DIMENSIONADOR HISTORICO
     const planesTerminados=(S.turnosProgramados||[]).filter(p=>p.estado==='iniciado'||p.estado==='completado');
@@ -2169,6 +2188,18 @@ function renderDashboard(){
       <div class="tv-bar-wrap"><div class="tv-bar-fill" id="tvBarFill" style="width:${pct}%;background:${pct>90?'#E8003D':pct>70?'#F59E0B':'#00C389'}"></div></div>
     </div>
   </div>`;
+
+  // BANNER TEMA HSE DEL TURNO
+  if(turno.toolboxTema){
+    h+=`<div style="margin:0 20px;background:linear-gradient(135deg,#78350F,#92400E);border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:1.4rem;flex-shrink:0">🦺</span>
+      <div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;color:#FDE68A;margin-bottom:1px">${turno.toolboxTema.categoria||'HSE'} DEL TURNO</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1rem;text-transform:uppercase;letter-spacing:.06em;color:#FFF7ED">${turno.toolboxTema.nombre}</div>
+      </div>
+      <div style="margin-left:auto;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.65rem;color:#FDE68A;text-align:right">TOOLBOX<br>${turno.hora||''}</div>
+    </div>`;
+  }
 
   // 3-COLUMN GRID
   h+=`<div style="padding:12px 20px;display:grid;grid-template-columns:200px 1fr 1fr 200px;gap:12px;flex:1;overflow:hidden">`;
@@ -2658,20 +2689,88 @@ async function eliminarTareaDia(tdId){
 }
 
 // ═══ TOOLBOX ═══
+let _toolboxTemaSelId=null; // ID del tema seleccionado en el modal
+
+function buildToolboxTemaList(){
+  const wrap=document.getElementById('toolboxTemaList');
+  if(!wrap) return;
+  const temas=(S.temaHSE||[]).filter(t=>t.activo!==false);
+  if(!temas.length){
+    wrap.innerHTML='<div class="warn-box">No hay temas HSE cargados. Agrégalos en Insights → Toolbox.</div>';
+    return;
+  }
+  // Agrupar por categoría
+  const cats={};
+  temas.forEach(t=>{const c=t.categoria||'General';if(!cats[c])cats[c]=[];cats[c].push(t);});
+  wrap.innerHTML='';
+  Object.entries(cats).forEach(([cat,items])=>{
+    const catDiv=document.createElement('div');
+    catDiv.style.cssText='font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid);margin:6px 0 3px';
+    catDiv.textContent=cat;
+    wrap.appendChild(catDiv);
+    items.forEach(t=>{
+      const btn=document.createElement('button');
+      btn.dataset.tid=t.id;
+      btn.style.cssText='width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;background:#fff;cursor:pointer;text-align:left;font-size:.83rem;font-weight:600;transition:all .15s';
+      btn.textContent='🦺 '+t.nombre;
+      btn.onclick=function(){
+        wrap.querySelectorAll('button').forEach(b=>{b.style.background='#fff';b.style.borderColor='var(--border)';b.style.color='var(--ink)';});
+        btn.style.background='var(--amber)';btn.style.borderColor='var(--amber)';btn.style.color='#fff';
+        _toolboxTemaSelId=t.id;
+        const errEl=document.getElementById('toolboxTemaErr');
+        if(errEl) errEl.classList.add('hidden');
+      };
+      wrap.appendChild(btn);
+    });
+  });
+}
+
 function showToolboxScreen(){
   if(S.turno && S.turno.toolboxDone) return;
+  _toolboxTemaSelId=null;
   const timerEl=document.getElementById('toolboxTimer');
   const statusEl=document.getElementById('toolboxStatus');
   const iniciarBtn=document.getElementById('toolboxIniciarBtn');
   const finBtn=document.getElementById('toolboxFinBtn');
+  const temaWrap=document.getElementById('toolboxTemaWrap');
+  const temaActivo=document.getElementById('toolboxTemaActivo');
+  const errEl=document.getElementById('toolboxTemaErr');
   if(timerEl) timerEl.textContent='00:00';
-  if(statusEl) statusEl.textContent='Presiona Iniciar para comenzar';
+  if(statusEl) statusEl.textContent='Selecciona un tema y presiona Iniciar';
   if(iniciarBtn) iniciarBtn.classList.remove('hidden');
   if(finBtn) finBtn.classList.add('hidden');
+  if(temaWrap) temaWrap.style.display='block';
+  if(temaActivo) temaActivo.style.display='none';
+  if(errEl) errEl.classList.add('hidden');
+  buildToolboxTemaList();
   showModal('modalToolbox');
 }
+
 function iniciarToolbox(){
   if(!S.turno) return;
+  // Validar que se seleccionó un tema (si hay temas cargados)
+  const hayTemas=(S.temaHSE||[]).filter(t=>t.activo!==false).length>0;
+  if(hayTemas && !_toolboxTemaSelId){
+    const errEl=document.getElementById('toolboxTemaErr');
+    if(errEl) errEl.classList.remove('hidden');
+    return;
+  }
+  // Guardar tema seleccionado en el turno
+  if(_toolboxTemaSelId){
+    const tema=(S.temaHSE||[]).find(t=>t.id===_toolboxTemaSelId);
+    if(tema) S.turno.toolboxTema={id:tema.id,nombre:tema.nombre,categoria:tema.categoria||'General'};
+  }
+  // Mostrar tema activo, ocultar lista
+  const temaWrap=document.getElementById('toolboxTemaWrap');
+  const temaActivo=document.getElementById('toolboxTemaActivo');
+  if(temaWrap) temaWrap.style.display='none';
+  if(temaActivo && S.turno.toolboxTema){
+    temaActivo.style.display='block';
+    const nomEl=document.getElementById('toolboxTemaNombre');
+    const catEl=document.getElementById('toolboxTemaCat');
+    if(nomEl) nomEl.textContent=S.turno.toolboxTema.nombre;
+    if(catEl) catEl.textContent=S.turno.toolboxTema.categoria;
+  }
   S.turno.toolboxInicio=Date.now();
   const iniciarBtn=document.getElementById('toolboxIniciarBtn');
   const finBtn=document.getElementById('toolboxFinBtn');
@@ -2688,16 +2787,18 @@ function iniciarToolbox(){
     if(timerEl) timerEl.textContent=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
   },1000);
 }
+
 async function finToolbox(){
   clearInterval(window._toolboxInterval);
   if(!S.turno) return;
   S.turno.toolboxFin=Date.now();
   S.turno.toolboxDone=true;
   const durH=(S.turno.toolboxFin-(S.turno.toolboxInicio||S.turno.toolboxFin))/3600000;
+  const notaTema=S.turno.toolboxTema?' · Tema: '+S.turno.toolboxTema.nombre:'';
   S.historial.push({
     id:uid(), tarea:'Toolbox', tareaId:'_toolbox', cliente:'Interno',
     colaboradores:S.turno.equipo, inicio:S.turno.toolboxInicio||S.turno.toolboxFin,
-    fin:S.turno.toolboxFin, durH, cant:0, nota:'Reunión de seguridad pre-turno',
+    fin:S.turno.toolboxFin, durH, cant:0, nota:'Cápsula HSE pre-turno'+notaTema,
     efic:null, sinProd:true, isToolbox:true
   });
   await save();
@@ -2705,6 +2806,7 @@ async function finToolbox(){
   renderAll();
   showToast('Toolbox completado · '+Math.round(durH*60)+' min');
 }
+
 async function skipToolbox(){
   clearInterval(window._toolboxInterval);
   if(S.turno) S.turno.toolboxDone=true;
@@ -3133,6 +3235,82 @@ async function eliminarRutina(id) {
   if (!confirm('¿Eliminar esta rutina?')) return;
   S.rutinas = (S.rutinas || []).filter(r => r.id !== id);
   await save(); renderInsights();
+}
+
+function buildToolboxSection(){
+  const temas=S.temaHSE||[];
+  const cats=['Seguridad','Salud','Ambiente','Emergencias','Incidentes','General'];
+  let s='<div class="sec"><div class="sec-hdr" onclick="toggleSec(\'sToolboxMgr\',\'cToolboxMgr\')">';
+  s+='<div class="sec-hdr-left"><div class="sec-accent" style="background:var(--amber)"></div><span class="sec-title">🦺 Toolbox — Temas HSE</span></div>';
+  s+='<div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalTemaHSE()">+ Nuevo</button>';
+  s+='<span class="chevron open" id="cToolboxMgr">▼</span></div></div>';
+  s+='<div class="sec-body" id="sToolboxMgr">';
+  s+='<div class="info-box" style="margin-bottom:8px">Cápsulas HSE que aparecen para selección al iniciar cada Toolbox Meeting. Organízalas por categoría.</div>';
+  if(!temas.length){s+='<div class="empty"><div class="empty-text">Sin temas HSE. Agrega el primero.</div></div>';}
+  // Agrupar por categoría
+  const catMap={};
+  temas.forEach(t=>{const c=t.categoria||'General';if(!catMap[c])catMap[c]=[];catMap[c].push(t);});
+  Object.entries(catMap).forEach(([cat,items])=>{
+    s+='<div style="font-family:\'Barlow Condensed\',sans-serif;font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid);margin:8px 0 4px">'+cat+'</div>';
+    items.forEach(t=>{
+      const actSwitch=t.activo!==false
+        ?'<span style="background:var(--green);color:#fff;padding:2px 9px;border-radius:20px;font-size:.65rem;font-weight:700;cursor:pointer" data-thseid="'+t.id+'" onclick="toggleTemaHSE(this.dataset.thseid)">Activo</span>'
+        :'<span style="background:var(--bg);color:var(--mid);border:1.5px solid var(--border);padding:2px 9px;border-radius:20px;font-size:.65rem;font-weight:700;cursor:pointer" data-thseid="'+t.id+'" onclick="toggleTemaHSE(this.dataset.thseid)">Inactivo</span>';
+      s+='<div class="list-item"><div class="li-info"><div class="li-name">🦺 '+t.nombre+'</div></div>';
+      s+='<div class="li-actions">'+actSwitch;
+      s+='<button class="btn btn-ghost btn-sm" data-thseid="'+t.id+'" onclick="openModalTemaHSE(this.dataset.thseid)">✏️</button>';
+      s+='<button class="btn btn-red btn-sm" data-thseid="'+t.id+'" onclick="eliminarTemaHSE(this.dataset.thseid)">✕</button>';
+      s+='</div></div>';
+    });
+  });
+  s+='</div></div>';
+  return s;
+}
+function openModalTemaHSE(id){
+  S.editingId=id||null;
+  // Usar el modal de rutina reaprovechado o crear inline
+  const nombre=id?(S.temaHSE||[]).find(x=>x.id===id)?.nombre||'':'';
+  const cat=id?(S.temaHSE||[]).find(x=>x.id===id)?.categoria||'Seguridad':'Seguridad';
+  const cats=['Seguridad','Salud','Ambiente','Emergencias','Incidentes','General'];
+  const opts=cats.map(c=>'<option value="'+c+'"'+(c===cat?' selected':'')+'>'+c+'</option>').join('');
+  // Inline modal rápido usando prompt-like approach con modal genérico
+  const wrap=document.getElementById('insightsContent');
+  if(!wrap) return;
+  // Insertar form inline al inicio del insights
+  const old=document.getElementById('temaHSEForm');if(old)old.remove();
+  const div=document.createElement('div');div.id='temaHSEForm';
+  div.style.cssText='border:2px solid var(--amber);border-radius:10px;padding:14px;background:#FFFBEB;margin-bottom:12px;display:flex;flex-direction:column;gap:9px';
+  div.innerHTML='<div style="font-family:\'Barlow Condensed\',sans-serif;font-weight:800;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:#92400E">'+(id?'✏️ Editar':'+ Nuevo')+' Tema HSE</div>'+
+    '<div class="field"><label>Nombre del tema</label><input type="text" id="thseNombre" value="'+nombre+'" placeholder="Ej. Uso correcto de EPP"></div>'+
+    '<div class="field"><label>Categoría</label><select id="thseCat">'+opts+'</select></div>'+
+    '<div style="display:flex;gap:8px"><button class="btn btn-green" onclick="guardarTemaHSE()" style="flex:1;justify-content:center">💾 Guardar</button>'+
+    '<button class="btn btn-ghost" onclick="document.getElementById(\'temaHSEForm\').remove();S.editingId=null" style="flex:1;justify-content:center">Cancelar</button></div>';
+  wrap.insertBefore(div,wrap.firstChild);
+  document.getElementById('thseNombre').focus();
+}
+async function guardarTemaHSE(){
+  const nombre=(document.getElementById('thseNombre')?.value||'').trim();
+  if(!nombre){showToast('Ingresa un nombre','error');return;}
+  const cat=document.getElementById('thseCat')?.value||'General';
+  if(!S.temaHSE)S.temaHSE=[];
+  if(S.editingId){
+    const t=S.temaHSE.find(x=>x.id===S.editingId);
+    if(t){t.nombre=nombre;t.categoria=cat;}
+  } else {
+    S.temaHSE.push({id:uid(),nombre,categoria:cat,activo:true});
+  }
+  S.editingId=null;
+  const form=document.getElementById('temaHSEForm');if(form)form.remove();
+  await save();renderInsights();showToast('Tema HSE guardado');
+}
+async function eliminarTemaHSE(id){
+  if(!confirm('¿Eliminar este tema HSE?'))return;
+  S.temaHSE=(S.temaHSE||[]).filter(x=>x.id!==id);
+  await save();renderInsights();
+}
+async function toggleTemaHSE(id){
+  const t=(S.temaHSE||[]).find(x=>x.id===id);
+  if(t){t.activo=t.activo===false?true:false;await save();renderInsights();}
 }
 
 function buildRutinasSection() {
