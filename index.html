@@ -7,6 +7,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <style>
 :root{
   --green:#00C389;--indigo:#2D2B6B;--purple:#7C5CBF;
@@ -252,6 +254,19 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
 /* EDIT INLINE */
 .edit-row{display:flex;gap:5px;align-items:center;width:100%}
 .edit-row input,.edit-row select{flex:1;border:1.5px solid var(--indigo);border-radius:6px;padding:5px 8px;font-family:'Barlow',sans-serif;font-size:.8rem}
+
+/* RUTINAS */
+.rutina-card{border:2px solid var(--purple);border-radius:9px;overflow:hidden;margin-bottom:7px;background:#FAF5FF}
+.rutina-card-hdr{padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:7px;background:#EDE9FE;border-bottom:1.5px solid #DDD6FE}
+.rutina-badge{background:var(--purple);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.58rem;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:4px}
+.paso-item{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid #EDE9FE}
+.paso-item:last-child{border-bottom:none}
+.paso-check{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;flex-shrink:0}
+.paso-ok{background:#D1FAE5;color:#065F46}
+.paso-pend{background:#EDE9FE;color:#5B21B6;cursor:pointer;border:1.5px solid #DDD6FE}
+/* QR SCANNER */
+.qr-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.qr-box{width:260px;height:260px;border:3px solid var(--green);border-radius:12px;overflow:hidden;background:#000}
 </style>
 </head>
 <body>
@@ -712,6 +727,52 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
   </div>
 </div>
 
+<!-- MODAL RUTINA -->
+<div class="overlay hidden" id="modalRutina">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title" id="modalRutinaTitle">📋 Nueva Rutina</span><span class="modal-close" onclick="hideModal('modalRutina')">✕</span></div>
+    <div class="field"><label>Nombre de la rutina</label><input type="text" id="rutNombre" placeholder="Ej. Ronda de Limpieza"></div>
+    <div class="field"><label>Vincular a tarea del catálogo</label>
+      <select id="rutTareaId"><option value="">— Seleccionar —</option></select>
+    </div>
+    <div class="list-item" style="padding:10px 12px;cursor:pointer" onclick="toggleRutQR()">
+      <div class="li-info"><div class="li-name" style="font-size:.85rem">Requiere escaneo de QR</div><div class="li-sub">Valida presencia física en cada punto</div></div>
+      <input type="checkbox" id="rutRequiereQR" style="width:18px;height:18px;cursor:pointer" onchange="toggleRutQR()">
+    </div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid);margin:4px 0">Pasos / Puntos</div>
+    <div id="rutPasosList" style="display:flex;flex-direction:column;gap:5px;max-height:200px;overflow-y:auto"></div>
+    <button class="btn btn-ghost btn-full" onclick="addRutPaso()" style="margin-top:4px">+ Agregar Paso</button>
+    <button class="btn btn-green btn-full" style="margin-top:8px" onclick="guardarRutina()">💾 Guardar Rutina</button>
+  </div>
+</div>
+
+<!-- MODAL VALIDAR PASO (selector de colaborador + QR) -->
+<div class="overlay hidden" id="modalValidarPaso">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title" id="validarPasoTitle">📍 Validar Paso</span><span class="modal-close" onclick="cerrarValidarPaso()">✕</span></div>
+    <div class="info-box" id="validarPasoInfo"></div>
+    <div class="field"><label>Colaborador que valida</label><div class="chip-wrap" id="validarColabChips"></div></div>
+    <div id="qrScanWrap" style="display:none;flex-direction:column;align-items:center;gap:10px;margin-top:8px">
+      <div class="info-box" style="width:100%">📷 Apunta la cámara al QR del punto</div>
+      <div id="qrReader" style="width:260px;height:260px;border:2px solid var(--purple);border-radius:10px;overflow:hidden;background:#000"></div>
+      <button class="btn btn-ghost btn-sm" onclick="cancelarQR()">Cancelar escaneo</button>
+    </div>
+    <div id="validarSinQR" style="display:none;margin-top:8px">
+      <button class="btn btn-green btn-full" onclick="confirmarPasoSinQR()">✔ Confirmar Validación</button>
+    </div>
+  </div>
+</div>
+
+<!-- IMPRIMIR QRs -->
+<div id="printQRPage" style="display:none;position:fixed;inset:0;z-index:700;background:#fff;overflow:auto;padding:24px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:2px solid #2D2B6B;padding-bottom:12px">
+    <img src="https://raw.githubusercontent.com/miguelarcangel-ctrl/cotizador-dpworld/main/logo_white.png" style="height:40px;filter:invert(1) sepia(1) saturate(5) hue-rotate(200deg)">
+    <div id="printQRTitle" style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.1rem;text-transform:uppercase;letter-spacing:.08em;color:#2D2B6B"></div>
+    <button onclick="closePrintQR()" style="background:#E8003D;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-weight:700;cursor:pointer">✕ Cerrar</button>
+  </div>
+  <div id="printQRGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:20px"></div>
+</div>
+
 <script>
 const SUPA_URL='https://nfqunrphpkopfodmcwar.supabase.co';
 const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5mcXVucnBocGtvcGZvZG1jd2FyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NzI1NjgsImV4cCI6MjA5MjU0ODU2OH0.KdiHB3Vh8uHzVxBaQvmXDBhZRsyWf-4K095Znvrb_jg';
@@ -722,6 +783,7 @@ let S={
   colaboradores:[],tareasCat:[],clientes:[],usuarios:[],
   turno:null,tareasActivas:[],historial:[],
   turnosHistorial:[],solicitudes:[],turnosProgramados:[],
+  rutinas:[],
   cerrandoId:null,reabriendoId:null,editingId:null,
   config:{
     horaInicio:'08:00',
@@ -1044,7 +1106,17 @@ async function iniciarTarea(){
   if(busy2.length){const bnames=busy2.map(id=>(S.turno.equipo.find(c=>c.id===id)||{}).nombre||id).join(', ');showToast(bnames+' ya tiene tarea activa','error');return;}
   const tc=S.tareasCat.find(t=>t.id===tId),cli=S.clientes.find(c=>c.id===cId);
   const colabs=S.turno.equipo.filter(c=>colIds.includes(c.id));
-  S.tareasActivas.push({id:uid(),tareaId:tId,tarea:tc.nombre,clienteId:cId,cliente:cli.nombre,colaboradores:colabs,inicio:Date.now(),fin:null,nota,prod:tc.prod,unidad:tc.unidad});
+  const rutVinculada = (S.rutinas || []).find(r => r.tareaId === tId);
+  const nuevaTareaObj = {
+    id: uid(), tareaId: tId, tarea: tc.nombre, clienteId: cId, cliente: cli.nombre,
+    colaboradores: colabs, inicio: Date.now(), fin: null, nota,
+    prod: tc.prod, unidad: tc.unidad,
+    isRutina: !!rutVinculada,
+    rutinaId: rutVinculada ? rutVinculada.id : null,
+    rutinaPasos: rutVinculada ? rutVinculada.pasos.map(p => ({ pasoId: p.id, nombre: p.nombre, validado: false, colaboradorId: null, hora: null })) : [],
+    pausada: false,
+  };
+  S.tareasActivas.push(nuevaTareaObj);
   await save();hideModal('modalNuevaTarea');renderTareasActivas();renderEquipo();if(!document.getElementById('viewInsights').classList.contains('hidden'))renderInsights();
 }
 function updateTimers(){S.tareasActivas.forEach(t=>{const el=document.getElementById('timer_'+t.id);if(el)el.textContent=msHMS(Date.now()-t.inicio);});}
@@ -1052,6 +1124,7 @@ function renderTareasActivas(){
   const el=document.getElementById('tareasActivasList');
   if(!S.tareasActivas.length){el.innerHTML=`<div class="empty"><div class="empty-icon">⚡</div><div class="empty-text">Sin tareas activas</div></div>`;return;}
   el.innerHTML=S.tareasActivas.map(t=>{
+    if (t.isRutina) return buildRutinaCardHtml(t);
     const _td2=(S.turno?.tareasDia||[]).find(x=>x.estado==='en_curso'&&x.tareaId===t.tareaId);
     const _ph=_td2?.horasEsperadas?'<span style="font-size:.6rem;color:var(--mid);margin-left:4px">'+_td2.horasEsperadas.toFixed(1)+'h plan</span>':'';
     return `<div class="task-card"><div class="task-card-hdr is-active">
@@ -1107,14 +1180,18 @@ async function confirmarCierre(){
   const tc=S.tareasCat.find(x=>x.id===t.tareaId);
   const efic=(tc?.sinProd||t.sinProd)?null:(t.prod>0?(rp/t.prod)*100:null);
   const taskId=t.id;
+  const validados = t.isRutina ? (t.rutinaPasos || []).filter(p => p.validado).length : null;
+  const totalPasos = t.isRutina ? (t.rutinaPasos || []).length : null;
+  const pctCumplimiento = (validados !== null && totalPasos > 0) ? Math.round(validados / totalPasos * 100) : null;
+  if (t.isRutina && validados === 0) showToast('Advertencia: ningún paso fue validado', 'error');
   const cerrandoTodos=!personaId||personaId==='todos'||(t.colaboradores||[]).length<=1;
   if(cerrandoTodos){
-    S.historial.push({...t,fin,cant,nota,durH:dH,realProd:rp,efic,sinProd:tc?.sinProd||false});
+    S.historial.push({...t,fin,cant,nota,durH:dH,realProd:rp,efic,sinProd:tc?.sinProd||false,pctCumplimiento,isRutina:t.isRutina,rutinaPasos:t.rutinaPasos});
     S.tareasActivas=S.tareasActivas.filter(x=>x.id!==S.cerrandoId);
   } else {
     const persona=(t.colaboradores||[]).find(c=>c.id===personaId);
     if(persona){
-      S.historial.push({...t,id:uid(),colaboradores:[persona],fin,cant,nota,durH:dH,realProd:rp,efic,sinProd:tc?.sinProd||false});
+      S.historial.push({...t,id:uid(),colaboradores:[persona],fin,cant,nota,durH:dH,realProd:rp,efic,sinProd:tc?.sinProd||false,pctCumplimiento,isRutina:t.isRutina,rutinaPasos:t.rutinaPasos});
       const remaining=(t.colaboradores||[]).filter(c=>c.id!==personaId);
       if(!remaining.length) S.tareasActivas=S.tareasActivas.filter(x=>x.id!==S.cerrandoId);
       else t.colaboradores=remaining;
@@ -1127,6 +1204,19 @@ async function confirmarCierre(){
     if(tdItem){tdItem.estado='completada';tdItem.tareaActivaId=taskId;}
     S._iniciandoTareaDiaId=null;
   }
+  // Vibración
+  if (navigator.vibrate) navigator.vibrate([200]);
+  // Sonido (beep corto)
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = 880; osc.type = 'sine';
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.25);
+  } catch(e) {}
   await save();hideModal('modalCerrarTarea');renderTareasActivas();renderHistorial();renderEquipo();renderTareasDia();showToast('Tarea cerrada');setTimeout(showNextTaskPanel,300);
 }
 function renderHistorial(){
@@ -1138,10 +1228,11 @@ function renderHistorial(){
     const hp=horasProductivas(S.turno?.fecha);
     const esExtra=t.durH>hp;
     const extraBadge=esExtra?`<span class="badge br">+${(t.durH-hp).toFixed(1)}h ST</span>`:'';
+    const rutBadge=t.isRutina?`<span class="badge bp">${t.pctCumplimiento||0}% cumpl.</span>`:'';
     return `<div class="task-card"><div class="task-card-hdr is-done">
       <div><div class="task-name">${t.tarea}</div><div class="task-meta">${t.cliente} · ${t.colaboradores.map(c=>c.nombre.split(' ')[0]).join(', ')}</div></div>
       <div style="text-align:right;display:flex;flex-direction:column;gap:3px;align-items:flex-end">
-        <span class="badge bgy">${t.durH.toFixed(1)}h</span>${eb}${extraBadge}
+        <span class="badge bgy">${t.durH.toFixed(1)}h</span>${eb}${extraBadge}${rutBadge}
       </div></div>
       ${t.cant?`<div class="task-card-body"><div class="task-meta">✅ ${t.cant} ${t.unidad}s${t.realProd?' · '+t.realProd.toFixed(1)+' '+t.unidad+'s/h':''}</div></div>`:''}
     </div>`;
@@ -1686,6 +1777,7 @@ function renderInsights(){
   if(isAdmin){
     // PLANTILLAS
     h+=buildPlantillasSection();
+    h+=buildRutinasSection();
 
     // DIMENSIONADOR HISTORICO
     const planesTerminados=(S.turnosProgramados||[]).filter(p=>p.estado==='iniciado'||p.estado==='completado');
@@ -2307,6 +2399,15 @@ function renderPlantillasActivas(){
 }
 // Plantillas managed by new functions above
 
+async function moverTareaDia(idxStr, dir) {
+  const idx = parseInt(idxStr);
+  const tareas = S.turno.tareasDia || [];
+  const newIdx = idx + parseInt(dir);
+  if (newIdx < 0 || newIdx >= tareas.length) return;
+  const temp = tareas[idx]; tareas[idx] = tareas[newIdx]; tareas[newIdx] = temp;
+  await save(); renderTareasDia();
+}
+
 // ═══ TAREAS DÍA ═══
 function openModalPlanTarea(){
   if(!S.turno) return;
@@ -2387,7 +2488,13 @@ function renderTareasDia(){
       <div style="width:${pct}%;height:100%;background:${pct===100?'var(--green)':pct>50?'var(--amber)':'var(--indigo)'};border-radius:4px;transition:width .4s"></div>
     </div>
   </div>`;
-  tareas.forEach(t=>{
+  const reorderBtns = (t, idx) => {
+    if (t.estado !== 'pendiente') return '';
+    const upBtn = idx > 0 ? '<button data-idx="' + idx + '" onclick="moverTareaDia(this.dataset.idx,-1)" style="background:none;border:1.5px solid var(--border);border-radius:5px;padding:2px 7px;cursor:pointer;font-size:.75rem">↑</button>' : '<span style="width:28px"></span>';
+    const downBtn = idx < tareas.length - 1 ? '<button data-idx="' + idx + '" onclick="moverTareaDia(this.dataset.idx,1)" style="background:none;border:1.5px solid var(--border);border-radius:5px;padding:2px 7px;cursor:pointer;font-size:.75rem">↓</button>' : '<span style="width:28px"></span>';
+    return '<div style="display:flex;gap:3px">' + upBtn + downBtn + '</div>';
+  };
+  tareas.forEach((t,idx)=>{
     const isActiva=t.estado==='en_curso';
     const isDone=t.estado==='completada';
     // Find completed task data for comparison
@@ -2411,6 +2518,7 @@ function renderTareasDia(){
       rightCol='<button onclick="iniciarTareaDia(\''+t.id+'\')" style="background:var(--indigo);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:.7rem;font-weight:700;cursor:pointer">▶ Iniciar</button>';
     }
     const quitarBtn=(!isDone&&!isActiva)?'<button onclick="eliminarTareaDia(\''+t.id+'\')" style="background:none;border:none;color:var(--mid);font-size:.65rem;cursor:pointer;margin-top:4px">✕ Quitar</button>':'';
+    const reorderHTML = reorderBtns(t, idx);
     h+='<div style="border:1.5px solid '+borderCol+';border-radius:8px;padding:9px 12px;background:'+bgCol+';margin:6px 12px">'+
       '<div style="display:flex;justify-content:space-between;align-items:flex-start">'+
         '<div style="flex:1">'+
@@ -2419,6 +2527,7 @@ function renderTareasDia(){
         '</div>'+
         '<div style="text-align:right;flex-shrink:0;margin-left:8px">'+rightCol+'</div>'+
       '</div>'+
+      (reorderHTML?'<div style="margin-top:4px">'+reorderHTML+'</div>':'')+
       quitarBtn+
     '</div>';
   });
@@ -2839,6 +2948,281 @@ function renderAll(){
   if(!document.getElementById('viewInsights').classList.contains('hidden'))renderInsights();
 }
 
+// ═══ RUTINAS ═══
+function openModalRutina(id) {
+  S.editingId = id || null;
+  document.getElementById('modalRutinaTitle').textContent = id ? '✏️ Editar Rutina' : '📋 Nueva Rutina';
+  const tSel = document.getElementById('rutTareaId');
+  tSel.innerHTML = '<option value="">— Seleccionar —</option>';
+  (S.tareasCat || []).forEach(t => {
+    tSel.innerHTML += '<option value="' + t.id + '">' + t.nombre + '</option>';
+  });
+  if (id) {
+    const r = (S.rutinas || []).find(x => x.id === id);
+    document.getElementById('rutNombre').value = r.nombre;
+    tSel.value = r.tareaId || '';
+    document.getElementById('rutRequiereQR').checked = r.requiereQR || false;
+    renderRutPasos(r.pasos || []);
+  } else {
+    document.getElementById('rutNombre').value = '';
+    tSel.value = '';
+    document.getElementById('rutRequiereQR').checked = false;
+    renderRutPasos([]);
+  }
+  showModal('modalRutina');
+}
+
+function toggleRutQR() {}
+
+function renderRutPasos(pasos) {
+  const wrap = document.getElementById('rutPasosList');
+  wrap.innerHTML = '';
+  pasos.forEach((p, i) => {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;gap:6px;align-items:center;border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;background:#fff';
+    div.innerHTML = '<input type="text" value="' + (p.nombre || '') + '" placeholder="Ej. Baño Hombres" style="flex:1;border:none;outline:none;font-size:.85rem;font-family:Barlow,sans-serif">' +
+      '<button onclick="this.parentNode.remove()" style="background:var(--red);color:#fff;border:none;border-radius:5px;padding:3px 8px;font-weight:700;cursor:pointer;font-size:.75rem">✕</button>';
+    wrap.appendChild(div);
+  });
+}
+
+function addRutPaso() {
+  renderRutPasos([...(getCurrentRutPasos()), { nombre: '' }]);
+}
+
+function getCurrentRutPasos() {
+  return [...document.querySelectorAll('#rutPasosList > div')].map(d => ({
+    nombre: d.querySelector('input').value.trim()
+  })).filter(p => p.nombre);
+}
+
+async function guardarRutina() {
+  const nombre = document.getElementById('rutNombre').value.trim();
+  if (!nombre) { showToast('Ingresa un nombre', 'error'); return; }
+  const tareaId = document.getElementById('rutTareaId').value;
+  const requiereQR = document.getElementById('rutRequiereQR').checked;
+  const pasos = getCurrentRutPasos().map(p => ({ id: uid(), nombre: p.nombre }));
+  if (!pasos.length) { showToast('Agrega al menos un paso', 'error'); return; }
+  if (!S.rutinas) S.rutinas = [];
+  if (S.editingId) {
+    const r = S.rutinas.find(x => x.id === S.editingId);
+    r.nombre = nombre; r.tareaId = tareaId; r.requiereQR = requiereQR; r.pasos = pasos;
+  } else {
+    S.rutinas.push({ id: uid(), nombre, tareaId, requiereQR, pasos });
+  }
+  S.editingId = null;
+  await save(); hideModal('modalRutina'); renderInsights(); showToast('Rutina guardada');
+}
+
+async function eliminarRutina(id) {
+  if (!confirm('¿Eliminar esta rutina?')) return;
+  S.rutinas = (S.rutinas || []).filter(r => r.id !== id);
+  await save(); renderInsights();
+}
+
+function buildRutinasSection() {
+  const ruts = S.rutinas || [];
+  let s = '<div class="sec"><div class="sec-hdr" onclick="toggleSec(\'sRutinas\',\'cRutinas\')">';
+  s += '<div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">🔄 Rutinas</span></div>';
+  s += '<div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalRutina()">+ Nueva</button>';
+  s += '<span class="chevron open" id="cRutinas">▼</span></div></div>';
+  s += '<div class="sec-body" id="sRutinas">';
+  if (!ruts.length) { s += '<div class="empty"><div class="empty-text">Sin rutinas creadas</div></div>'; }
+  ruts.forEach(r => {
+    const tc = (S.tareasCat || []).find(t => t.id === r.tareaId);
+    s += '<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:6px">';
+    s += '<div style="display:flex;justify-content:space-between;width:100%;align-items:center">';
+    s += '<div><div class="li-name">🔄 ' + r.nombre + '</div>';
+    s += '<div class="li-sub">' + (tc ? tc.nombre : 'Sin tarea vinculada') + ' · ' + r.pasos.length + ' pasos' + (r.requiereQR ? ' · 📷 QR' : '') + '</div></div>';
+    s += '<div class="li-actions">';
+    s += '<button class="btn btn-ghost btn-sm" data-rid="' + r.id + '" onclick="imprimirQRs(this.dataset.rid)">🖨 QRs</button>';
+    s += '<button class="btn btn-ghost btn-sm" data-rid="' + r.id + '" onclick="openModalRutina(this.dataset.rid)">✏️</button>';
+    s += '<button class="btn btn-red btn-sm" data-rid="' + r.id + '" onclick="eliminarRutina(this.dataset.rid)">✕</button>';
+    s += '</div></div>';
+    s += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+    r.pasos.forEach(p => { s += '<span class="badge bp">' + p.nombre + '</span>'; });
+    s += '</div></div>';
+  });
+  s += '</div></div>';
+  return s;
+}
+
+function imprimirQRs(rutinaId) {
+  const r = (S.rutinas || []).find(x => x.id === rutinaId);
+  if (!r) return;
+  document.getElementById('printQRTitle').textContent = r.nombre;
+  const grid = document.getElementById('printQRGrid');
+  grid.innerHTML = '';
+  r.pasos.forEach(p => {
+    const card = document.createElement('div');
+    card.style.cssText = 'border:2px solid #2D2B6B;border-radius:10px;padding:14px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center';
+    const qrDiv = document.createElement('div');
+    qrDiv.style.cssText = 'width:150px;height:150px';
+    card.appendChild(qrDiv);
+    const lbl = document.createElement('div');
+    lbl.style.cssText = 'font-family:Barlow Condensed,sans-serif;font-weight:800;font-size:.9rem;text-transform:uppercase;letter-spacing:.05em;color:#2D2B6B';
+    lbl.textContent = p.nombre;
+    card.appendChild(lbl);
+    const sub = document.createElement('div');
+    sub.style.cssText = 'font-size:.65rem;color:#6B7280;letter-spacing:.04em';
+    sub.textContent = p.id;
+    card.appendChild(sub);
+    grid.appendChild(card);
+    try {
+      new QRCode(qrDiv, { text: p.id, width: 150, height: 150, colorDark: '#2D2B6B', colorLight: '#ffffff' });
+    } catch (e) { qrDiv.textContent = p.id; }
+  });
+  document.getElementById('printQRPage').style.display = 'block';
+}
+
+function closePrintQR() {
+  document.getElementById('printQRPage').style.display = 'none';
+}
+
+// Estado para validación de pasos
+let _validandoPaso = null;
+let _html5QR = null;
+
+function abrirValidarPaso(tareaActivaId, pasoId) {
+  const t = S.tareasActivas.find(x => x.id === tareaActivaId);
+  if (!t || !t.isRutina) return;
+  const paso = t.rutinaPasos.find(p => p.pasoId === pasoId);
+  if (!paso || paso.validado) return;
+  const rut = (S.rutinas || []).find(r => r.id === t.rutinaId);
+  _validandoPaso = { tareaActivaId, pasoId, pasoNombre: paso.nombre, colabId: null, requiereQR: rut ? rut.requiereQR : false };
+  document.getElementById('validarPasoTitle').textContent = '📍 ' + paso.nombre;
+  document.getElementById('validarPasoInfo').textContent = 'Paso: ' + paso.nombre + ' · Rutina: ' + t.tarea;
+  const wrap = document.getElementById('validarColabChips');
+  wrap.innerHTML = '';
+  (t.colaboradores || []).forEach(c => {
+    const ch = document.createElement('div');
+    ch.className = 'chip'; ch.dataset.id = c.id;
+    ch.textContent = c.nombre.split(' ')[0];
+    ch.onclick = function() {
+      wrap.querySelectorAll('.chip').forEach(x => x.classList.remove('selected'));
+      ch.classList.add('selected');
+      _validandoPaso.colabId = c.id;
+      if (_validandoPaso.requiereQR) {
+        document.getElementById('qrScanWrap').style.display = 'flex';
+        document.getElementById('validarSinQR').style.display = 'none';
+        iniciarQRScanner();
+      } else {
+        document.getElementById('qrScanWrap').style.display = 'none';
+        document.getElementById('validarSinQR').style.display = 'block';
+      }
+    };
+    wrap.appendChild(ch);
+  });
+  document.getElementById('qrScanWrap').style.display = 'none';
+  document.getElementById('validarSinQR').style.display = 'none';
+  showModal('modalValidarPaso');
+}
+
+function iniciarQRScanner() {
+  if (_html5QR) { try { _html5QR.stop(); } catch(e){} _html5QR = null; }
+  try {
+    _html5QR = new Html5Qrcode('qrReader');
+    _html5QR.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: 220 },
+      function(decodedText) {
+        _html5QR.stop().then(() => { _html5QR = null; procesarQREscaneado(decodedText); }).catch(() => { procesarQREscaneado(decodedText); });
+      },
+      function() {}
+    ).catch(err => { showToast('Error cámara: ' + err, 'error'); });
+  } catch(e) { showToast('Error iniciando QR', 'error'); }
+}
+
+function cancelarQR() {
+  if (_html5QR) { try { _html5QR.stop(); } catch(e){} _html5QR = null; }
+  document.getElementById('qrScanWrap').style.display = 'none';
+}
+
+async function procesarQREscaneado(texto) {
+  if (!_validandoPaso) return;
+  if (texto !== _validandoPaso.pasoId) {
+    showToast('QR incorrecto — punto equivocado', 'error');
+    setTimeout(() => { if (_validandoPaso && _validandoPaso.requiereQR) iniciarQRScanner(); }, 1500);
+    return;
+  }
+  await marcarPasoValidado();
+}
+
+async function confirmarPasoSinQR() {
+  if (!_validandoPaso || !_validandoPaso.colabId) { showToast('Selecciona un colaborador', 'error'); return; }
+  await marcarPasoValidado();
+}
+
+async function marcarPasoValidado() {
+  if (!_validandoPaso) return;
+  const t = S.tareasActivas.find(x => x.id === _validandoPaso.tareaActivaId);
+  if (!t) return;
+  const paso = t.rutinaPasos.find(p => p.pasoId === _validandoPaso.pasoId);
+  if (!paso) return;
+  const colab = (t.colaboradores || []).find(c => c.id === _validandoPaso.colabId) || { nombre: 'Desconocido' };
+  paso.validado = true; paso.colaboradorId = _validandoPaso.colabId;
+  paso.colaboradorNombre = colab.nombre; paso.hora = new Date().toLocaleTimeString();
+  _validandoPaso = null;
+  if (_html5QR) { try { _html5QR.stop(); } catch(e){} _html5QR = null; }
+  await save(); cerrarValidarPaso(); renderTareasActivas(); showToast('Paso validado ✔', 'success');
+  if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+}
+
+function cerrarValidarPaso() {
+  if (_html5QR) { try { _html5QR.stop(); } catch(e){} _html5QR = null; }
+  _validandoPaso = null;
+  hideModal('modalValidarPaso');
+}
+
+async function pausarRutina(tareaId) {
+  const t = S.tareasActivas.find(x => x.id === tareaId);
+  if (!t) return;
+  t.pausada = !t.pausada;
+  await save(); renderTareasActivas(); showToast(t.pausada ? 'Rutina pausada' : 'Rutina reanudada');
+}
+
+function buildRutinaCardHtml(t) {
+  const validados = (t.rutinaPasos || []).filter(p => p.validado).length;
+  const total = (t.rutinaPasos || []).length;
+  const pct = total > 0 ? Math.round((validados / total) * 100) : 0;
+  const pctCol = pct === 100 ? 'var(--green)' : pct > 50 ? 'var(--amber)' : 'var(--red)';
+  const _td2 = (S.turno && S.turno.tareasDia || []).find(x => x.estado === 'en_curso' && x.tareaId === t.tareaId);
+  const _ph = _td2 && _td2.horasEsperadas ? '<span style="font-size:.6rem;color:#7C5CBF;margin-left:4px">' + _td2.horasEsperadas.toFixed(1) + 'h plan</span>' : '';
+  let h = '<div class="rutina-card">';
+  h += '<div class="rutina-card-hdr">';
+  h += '<div><div style="font-family:\'Barlow Condensed\',sans-serif;font-weight:800;font-size:.85rem;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:5px">';
+  h += '<span class="rutina-badge">RUTINA</span> ' + t.tarea + _ph + '</div>';
+  h += '<div style="font-size:.7rem;color:#5B21B6;margin-top:2px">' + t.cliente + ' · ' + (t.colaboradores || []).map(c => c.nombre.split(' ')[0]).join(', ') + '</div></div>';
+  h += '<div style="text-align:right;display:flex;flex-direction:column;gap:4px;align-items:flex-end">';
+  h += '<div class="task-timer" style="color:var(--purple)" id="timer_' + t.id + '">' + msHMS(Date.now() - t.inicio) + '</div>';
+  h += '<div style="display:flex;gap:4px">';
+  if (!t.pausada) {
+    h += '<button class="btn btn-sm" style="background:var(--amber);color:#fff" data-tid="' + t.id + '" onclick="pausarRutina(this.dataset.tid)">⏸</button>';
+  } else {
+    h += '<button class="btn btn-sm" style="background:var(--green);color:#fff" data-tid="' + t.id + '" onclick="pausarRutina(this.dataset.tid)">▶</button>';
+  }
+  h += '<button class="btn btn-indigo btn-sm" data-tid="' + t.id + '" onclick="prepCerrarTarea(this.dataset.tid)">⏹ Fin</button>';
+  h += '</div></div></div>';
+  h += '<div style="padding:6px 12px 0;display:flex;align-items:center;gap:8px">';
+  h += '<div style="flex:1;background:#DDD6FE;border-radius:4px;height:6px;overflow:hidden"><div style="width:' + pct + '%;height:100%;background:' + pctCol + ';border-radius:4px;transition:width .4s"></div></div>';
+  h += '<span style="font-family:\'Barlow Condensed\',sans-serif;font-weight:800;font-size:.72rem;color:' + pctCol + '">' + validados + '/' + total + '</span>';
+  h += '</div>';
+  h += '<div style="padding:6px 0 8px">';
+  (t.rutinaPasos || []).forEach(p => {
+    if (p.validado) {
+      h += '<div class="paso-item"><div class="paso-check paso-ok">✔</div>';
+      h += '<div style="flex:1"><div style="font-size:.78rem;font-weight:600">' + p.nombre + '</div>';
+      h += '<div style="font-size:.65rem;color:var(--mid)">' + (p.colaboradorNombre || '') + ' · ' + (p.hora || '') + '</div></div></div>';
+    } else {
+      h += '<div class="paso-item"><div class="paso-check paso-pend" data-tid="' + t.id + '" data-pid="' + p.pasoId + '" onclick="abrirValidarPaso(this.dataset.tid,this.dataset.pid)">🔵</div>';
+      h += '<div style="flex:1;font-size:.78rem;font-weight:600;color:var(--mid)">' + p.nombre + '</div>';
+      h += '<button class="btn btn-sm" style="background:#EDE9FE;color:var(--purple);font-size:.62rem" data-tid="' + t.id + '" data-pid="' + p.pasoId + '" onclick="abrirValidarPaso(this.dataset.tid,this.dataset.pid)">Validar</button></div>';
+    }
+  });
+  h += '</div></div>';
+  return h;
+}
+
 init().then(()=>{
   startClock();
   // Sync from DB every 30s to reflect admin changes in supervisor view
@@ -2846,6 +3230,16 @@ init().then(()=>{
     await reload();
     renderAll();
   }, 30000);
+  // Acceso directo al dashboard sin login (URL param ?tv=1)
+  if (new URLSearchParams(window.location.search).get('tv') === '1') {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appScreen').classList.remove('hidden');
+    currentUser = { nombre: 'TV', rol: 'supervisor' };
+    document.getElementById('hdrUser').textContent = 'TV · Salir';
+    document.getElementById('navInsBtn').classList.add('hidden');
+    renderAll();
+    openDashboard();
+  }
 });
 </script>
 </body>
