@@ -423,20 +423,24 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
       <span class="modal-title">⚡ Siguiente tarea</span>
       <span class="modal-close" onclick="hideModal('modalNextTask')">✕</span>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-      <button onclick="quickStartEspecial('almuerzo')" style="background:#FEF3C7;border:2px solid #F59E0B;border-radius:10px;padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;width:100%">
-        <span style="font-size:1.5rem">🍽</span>
-        <span style="font-weight:800;font-size:.8rem;color:#92400E;text-transform:uppercase;letter-spacing:.04em">Almuerzo</span>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:12px">
+      <button onclick="quickStartEspecial('almuerzo')" style="background:#FEF3C7;border:2px solid #F59E0B;border-radius:10px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;width:100%">
+        <span style="font-size:1.4rem">🍽</span>
+        <span style="font-weight:800;font-size:.72rem;color:#92400E;text-transform:uppercase;letter-spacing:.04em">Almuerzo</span>
       </button>
-      <button onclick="quickStartEspecial('reunion')" style="background:#EDE9FE;border:2px solid #7C5CBF;border-radius:10px;padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;width:100%">
-        <span style="font-size:1.5rem">📋</span>
-        <span style="font-weight:800;font-size:.8rem;color:#5B21B6;text-transform:uppercase;letter-spacing:.04em">Reunión</span>
+      <button onclick="quickStartEspecial('reunion')" style="background:#EDE9FE;border:2px solid #7C5CBF;border-radius:10px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;width:100%">
+        <span style="font-size:1.4rem">📋</span>
+        <span style="font-weight:800;font-size:.72rem;color:#5B21B6;text-transform:uppercase;letter-spacing:.04em">Reunión</span>
+      </button>
+      <button onclick="quickStartEspecial('bano')" style="background:#E0F2FE;border:2px solid #0EA5E9;border-radius:10px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;width:100%">
+        <span style="font-size:1.4rem">🚻</span>
+        <span style="font-weight:800;font-size:.72rem;color:#0369A1;text-transform:uppercase;letter-spacing:.04em">Baño</span>
       </button>
     </div>
     <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--mid);margin-bottom:5px">Del catálogo</div>
     <input type="search" id="nextTaskSearch" placeholder="🔍 Buscar..." oninput="filtrarNextTask(this.value)" style="width:100%;border:1.5px solid var(--border);border-radius:7px;padding:7px 11px;font-family:'Barlow',sans-serif;font-size:.84rem;margin-bottom:7px">
-    <div id="nextTaskList" style="display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto"></div>
-    <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="hideModal('modalNextTask')">Continuar más tarde</button>
+    <div id="nextTaskList" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto"></div>
+    <div style="margin-top:8px;font-size:.68rem;color:var(--mid);text-align:center;letter-spacing:.03em">⚠ Asigna siempre una tarea — nadie debe quedar disponible</div>
   </div>
 </div>
 
@@ -2729,23 +2733,38 @@ function showNextTaskPanel(){
 }
 async function startNextTarea(tareaId){
   hideModal('modalNextTask');
+  // showModal('modalNuevaTarea') llama prepModalTarea() internamente → reconstruye el select
   await showModal('modalNuevaTarea');
-  const sel=document.getElementById('tTarea');
-  if(sel){ sel.value=tareaId; prepModalTarea(); }
+  // Setear el valor DESPUÉS de que prepModalTarea() pobló las opciones
+  const sel=document.getElementById('nTareaSel');
+  if(sel) sel.value=tareaId;
+  // Limpiar el buscador para que no filtre la selección
+  const srch=document.getElementById('nTareaSearch');
+  if(srch) srch.value='';
 }
 async function quickStartEspecial(tipo){
   hideModal('modalNextTask');
   if(!S.turno) return;
-  const nombre=tipo==='almuerzo'?'Almuerzo':'Reunión';
+  const nombres={almuerzo:'Almuerzo',reunion:'Reunión',bano:'Baño'};
+  const nombre=nombres[tipo]||tipo;
+  // Baño: solo colaboradores disponibles (no en tarea activa)
+  // Almuerzo y Reunión: todo el equipo (pausa grupal)
+  let colabs;
+  if(tipo==='bano'){
+    colabs=S.turno.equipo.filter(c=>!S.tareasActivas.some(t=>(t.colaboradores||[]).some(x=>x.id===c.id)));
+    if(!colabs.length){showToast('Todos están en tareas activas','error');return;}
+  } else {
+    colabs=[...S.turno.equipo];
+  }
   S.tareasActivas.push({
     id:uid(), tarea:nombre, tareaId:'_'+tipo, cliente:'Interno',
-    colaboradores:[...S.turno.equipo], inicio:Date.now(),
+    colaboradores:colabs, inicio:Date.now(),
     prod:0, unidad:'', sinProd:true, isEspecial:true
   });
   await save();
   renderTareasActivas();
   renderEquipo();
-  showToast(nombre+' iniciado');
+  showToast(nombre+' iniciado — '+colabs.length+' persona(s)');
 }
 
 // ═══ DIMENSIONADOR ═══
