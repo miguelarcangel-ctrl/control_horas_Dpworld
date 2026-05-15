@@ -421,7 +421,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
   <div class="modal">
     <div class="modal-hdr">
       <span class="modal-title">⚡ Siguiente tarea</span>
-      <span class="modal-close" onclick="hideModal('modalNextTask')">✕</span>
+      <span class="modal-close" onclick="confirmarSinTarea()">✕</span>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:12px">
       <button onclick="quickStartEspecial('almuerzo')" style="background:#FEF3C7;border:2px solid #F59E0B;border-radius:10px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;width:100%">
@@ -440,7 +440,10 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
     <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--mid);margin-bottom:5px">Del catálogo</div>
     <input type="search" id="nextTaskSearch" placeholder="🔍 Buscar..." oninput="filtrarNextTask(this.value)" style="width:100%;border:1.5px solid var(--border);border-radius:7px;padding:7px 11px;font-family:'Barlow',sans-serif;font-size:.84rem;margin-bottom:7px">
     <div id="nextTaskList" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto"></div>
-    <div style="margin-top:8px;font-size:.68rem;color:var(--mid);text-align:center;letter-spacing:.03em">⚠ Asigna siempre una tarea — nadie debe quedar disponible</div>
+    <div id="nextTaskSinAsignar" style="display:none;margin-top:8px;background:#FEE2E2;border-left:3px solid var(--red);border-radius:0 7px 7px 0;padding:9px 12px;font-size:.78rem;color:#991B1B;line-height:1.5">
+      ⚠ <b>Personal quedará disponible en bodega.</b><br>Cerrando sin asignar tarea...
+    </div>
+    <div style="margin-top:6px;font-size:.65rem;color:var(--mid);text-align:center">⚠ Asigna siempre una tarea — nadie debe quedar disponible en bodega</div>
   </div>
 </div>
 
@@ -1026,7 +1029,16 @@ function initDimensionador(){
   const comp=document.querySelector('#dimJornadaChips .chip[data-jornada="completa"]');
   if(comp) comp.classList.add('selected');
 }
-function hideModal(id){document.getElementById(id).classList.add('hidden');}
+function hideModal(id){
+  document.getElementById(id).classList.add('hidden');
+  // Si se cancela modalNuevaTarea con una tarea del plan pendiente → resetear a 'pendiente'
+  if(id==='modalNuevaTarea' && S._iniciandoTareaDiaId && S.turno){
+    const tdLink=(S.turno.tareasDia||[]).find(x=>x.id===S._iniciandoTareaDiaId);
+    if(tdLink && tdLink.estado==='en_curso') tdLink.estado='pendiente';
+    S._iniciandoTareaDiaId=null;
+    renderTareasDia();
+  }
+}
 
 // ═══ CLOCK ═══
 function startClock(){setInterval(()=>{if(!S.turno)return;document.getElementById('turnoReloj').textContent=msHMS(Date.now()-S.turno.inicio);updateBanner();updateTimers();},1000);}
@@ -1197,9 +1209,32 @@ async function iniciarTarea(){
     pausada: false,
   };
   S.tareasActivas.push(nuevaTareaObj);
-  await save();hideModal('modalNuevaTarea');renderTareasActivas();renderEquipo();if(!document.getElementById('viewInsights').classList.contains('hidden'))renderInsights();
+  // Si viene de una tarea del plan, marcarla en_curso ahora que se confirmó
+  if(S._iniciandoTareaDiaId && S.turno){
+    const tdLink=(S.turno.tareasDia||[]).find(x=>x.id===S._iniciandoTareaDiaId);
+    if(tdLink) tdLink.estado='en_curso';
+  }
+  await save();hideModal('modalNuevaTarea');renderTareasActivas();renderEquipo();renderTareasDia();if(!document.getElementById('viewInsights').classList.contains('hidden'))renderInsights();
 }
-function updateTimers(){S.tareasActivas.forEach(t=>{const el=document.getElementById('timer_'+t.id);if(el)el.textContent=msHMS(Date.now()-t.inicio);});}
+function updateTimers(){
+  S.tareasActivas.forEach(t=>{
+    const el=document.getElementById('timer_'+t.id);
+    if(!el) return;
+    const min=(Date.now()-t.inicio)/60000;
+    el.textContent=msHMS(Date.now()-t.inicio);
+    // Semáforo de tiempo: verde <30min · ámbar 30-45 · rojo >45
+    if(min<30){el.style.color='var(--green)';el.style.animation='';}
+    else if(min<45){el.style.color='var(--amber)';el.style.animation='';}
+    else{el.style.color='var(--red)';el.style.animation='pulse 1.2s infinite';}
+    // Barra de progreso de tiempo (0–60 min)
+    const barEl=document.getElementById('tbar_'+t.id);
+    if(barEl){
+      const pct=Math.min(100,(min/60)*100);
+      const col=min<30?'var(--green)':min<45?'var(--amber)':'var(--red)';
+      barEl.style.width=pct+'%';barEl.style.background=col;
+    }
+  });
+}
 function renderTareasActivas(){
   const el=document.getElementById('tareasActivasList');
   if(!S.tareasActivas.length){el.innerHTML=`<div class="empty"><div class="empty-icon">⚡</div><div class="empty-text">Sin tareas activas</div></div>`;return;}
@@ -1207,11 +1242,20 @@ function renderTareasActivas(){
     if (t.isRutina) return buildRutinaCardHtml(t);
     const _td2=(S.turno?.tareasDia||[]).find(x=>x.estado==='en_curso'&&x.tareaId===t.tareaId);
     const _ph=_td2?.horasEsperadas?'<span style="font-size:.6rem;color:var(--mid);margin-left:4px">'+_td2.horasEsperadas.toFixed(1)+'h plan</span>':'';
-    return `<div class="task-card"><div class="task-card-hdr is-active">
-    <div><div class="task-name">${t.tarea}<span id="ot_${t.id}" class="overtime-badge">⚠ Sobre tiempo</span></div><div class="task-meta">${t.cliente} · ${t.colaboradores.map(c=>c.nombre.split(' ')[0]).join(', ')}${_ph}</div></div>
-    <div style="text-align:right"><div class="task-timer" id="timer_${t.id}">${msHMS(Date.now()-t.inicio)}</div>
-    <button class="btn btn-indigo btn-sm" style="margin-top:4px" onclick="prepCerrarTarea('${t.id}')">⏹ Fin</button></div>
-  </div></div>`;
+    const min0=(Date.now()-t.inicio)/60000;
+    const timerCol=min0<30?'var(--green)':min0<45?'var(--amber)':'var(--red)';
+    const barW=Math.min(100,(min0/60)*100);
+    return '<div class="task-card">'+
+      '<div class="task-card-hdr is-active">'+
+        '<div><div class="task-name">'+t.tarea+'</div>'+
+        '<div class="task-meta">'+t.cliente+' · '+t.colaboradores.map(c=>c.nombre.split(' ')[0]).join(', ')+_ph+'</div></div>'+
+        '<div style="text-align:right">'+
+          '<div class="task-timer" id="timer_'+t.id+'" style="color:'+timerCol+'">'+msHMS(Date.now()-t.inicio)+'</div>'+
+          '<button class="btn btn-indigo btn-sm" style="margin-top:4px" data-tid="'+t.id+'" onclick="prepCerrarTarea(this.dataset.tid)">⏹ Fin</button>'+
+        '</div>'+
+      '</div>'+
+      '<div style="height:4px;background:var(--border)"><div id="tbar_'+t.id+'" style="height:100%;width:'+barW+'%;background:'+timerCol+';transition:width 1s,background 1s;border-radius:0 2px 2px 0"></div></div>'+
+    '</div>';
   }).join('');
 }
 function selPersonaCierre(pid){
@@ -1234,9 +1278,16 @@ function buildPersonaSelector(t){
 function prepCerrarTarea(id){
   S.cerrandoId=id;const t=S.tareasActivas.find(x=>x.id===id);if(!t)return;
   document.getElementById('cerrarTareaInfo').innerHTML='<b>'+t.tarea+'</b> · '+t.cliente+'<br>'+t.colaboradores.map(c=>c.nombre).join(', ')+'<br>⏱ '+new Date(t.inicio).toLocaleTimeString();
-  const pw=document.getElementById('cerrarPersonaWrap');if(pw)pw.innerHTML=buildPersonaSelector(t);
   const tcCat=S.tareasCat.find(x=>x.id===t.tareaId);
-  const isSinProd=tcCat?.sinProd||t.sinProd||false;
+  const isSinProd=tcCat?.sinProd||t.sinProd||t.isEspecial||t.isToolbox||false;
+  // sinProd (Supervisión, Almuerzo, Baño, Toolbox): siempre cierra todos, no pide selector
+  const pw=document.getElementById('cerrarPersonaWrap');
+  if(isSinProd){
+    S._cerrandoPersonaId='todos';
+    if(pw) pw.innerHTML='';
+  } else {
+    if(pw) pw.innerHTML=buildPersonaSelector(t);
+  }
   const qtyRow=document.querySelector('.qty-row');
   if(qtyRow) qtyRow.style.display=isSinProd?'none':'flex';
   document.getElementById('cantLabel').textContent=t.prod>0?'Cantidad ejecutada ('+t.unidad+'s)':'Cantidad ejecutada';
@@ -2666,19 +2717,18 @@ async function iniciarTareaDia(tdId){
   if(!S.turno) return;
   const td=S.turno.tareasDia.find(t=>t.id===tdId);
   if(!td) return;
-  td.estado='en_curso';
-  await save();
-  renderTareasDia();
-  // Open nueva tarea modal pre-filled
-  await showModal('modalNuevaTarea');
-  const tSel=document.getElementById('tTarea');
-  const cSel=document.getElementById('tCliente');
-  const cantEl=document.getElementById('tCantPlan');
-  if(tSel) tSel.value=td.tareaId;
-  if(cSel) cSel.value=td.clienteId||'';
-  prepModalTarea();
-  // Store reference to match on close
+  // NO setear en_curso hasta que el usuario confirme la tarea (evita bug de estado colgado)
   S._iniciandoTareaDiaId=tdId;
+  // showModal llama prepModalTarea() internamente → reconstruye los selects
+  await showModal('modalNuevaTarea');
+  // Setear valores DESPUÉS de que prepModalTarea pobló las opciones
+  const nTareaSel=document.getElementById('nTareaSel');
+  const nClienteSel=document.getElementById('nClienteSel');
+  if(nTareaSel) nTareaSel.value=td.tareaId||'';
+  if(nClienteSel && td.clienteId) nClienteSel.value=td.clienteId;
+  // Limpiar buscador
+  const srch=document.getElementById('nTareaSearch');
+  if(srch) srch.value='';
 }
 async function eliminarTareaDia(tdId){
   if(!S.turno) return;
@@ -2822,12 +2872,40 @@ function showNextTaskPanel(){
   if(!list) return;
   list.innerHTML='';
   const srch=document.getElementById('nextTaskSearch');if(srch)srch.value='';
+
+  // ── PRIMERO: tareas pendientes del plan del día ──
+  const planPend=(S.turno.tareasDia||[]).filter(t=>t.estado==='pendiente');
+  if(planPend.length){
+    const planHdr=document.createElement('div');
+    planHdr.style.cssText='font-family:\'Barlow Condensed\',sans-serif;font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--purple);margin-bottom:5px;margin-top:2px';
+    planHdr.textContent='📌 Del plan del día';
+    list.appendChild(planHdr);
+    planPend.forEach(td=>{
+      const btn=document.createElement('button');
+      btn.dataset.tareaId=td.tareaId;
+      btn.style.cssText='width:100%;border:2px solid var(--purple);border-radius:8px;padding:9px 12px;background:#FAF5FF;cursor:pointer;display:flex;justify-content:space-between;align-items:center;text-align:left;margin-bottom:6px';
+      const cant=td.cantEsperada?td.cantEsperada+' '+td.unidad+'s esperados':'';
+      const hrs=td.horasEsperadas?td.horasEsperadas.toFixed(1)+'h estimadas':'';
+      btn.innerHTML='<div><div style="font-weight:800;font-size:.85rem;color:var(--purple)">📌 '+td.tarea+'</div>'+
+        '<div style="font-size:.7rem;color:#5B21B6;margin-top:1px">'+(td.cliente||'')+(cant?' · '+cant:'')+(hrs?' · '+hrs:'')+'</div></div>'+
+        '<span style="font-size:.7rem;background:var(--purple);color:#fff;padding:3px 10px;border-radius:20px;font-weight:700;flex-shrink:0">▶ Iniciar</span>';
+      btn.onclick=()=>{ hideModal('modalNextTask'); iniciarTareaDia(td.id); };
+      list.appendChild(btn);
+    });
+    // Separador antes del catálogo
+    const sep=document.createElement('div');
+    sep.style.cssText='font-family:\'Barlow Condensed\',sans-serif;font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid);margin:8px 0 5px';
+    sep.textContent='O del catálogo';
+    list.appendChild(sep);
+  }
+
+  // ── LUEGO: catálogo completo ──
   S.tareasCat.forEach(tc=>{
     const pr=tc.sinProd?'Sin productividad':(tc.prod>0?tc.prod+' '+tc.unidad+'s/h':'');
     const btn=document.createElement('button');
     btn.dataset.tareaId=tc.id;
     btn.style.cssText='width:100%;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;background:#fff;cursor:pointer;display:flex;justify-content:space-between;align-items:center;text-align:left;margin-bottom:0';
-    btn.innerHTML='<div><div style="font-weight:700;font-size:.85rem;color:var(--dark)">'+tc.nombre+'</div>'+(pr?'<div style="font-size:.7rem;color:var(--mid)">'+pr+'</div>':'')+'</div><span style="font-size:.7rem;background:var(--indigo);color:#fff;padding:2px 8px;border-radius:20px;font-weight:700;flex-shrink:0">▶</span>';
+    btn.innerHTML='<div><div style="font-weight:700;font-size:.85rem">'+tc.nombre+'</div>'+(pr?'<div style="font-size:.7rem;color:var(--mid)">'+pr+'</div>':'')+'</div><span style="font-size:.7rem;background:var(--indigo);color:#fff;padding:2px 8px;border-radius:20px;font-weight:700;flex-shrink:0">▶</span>';
     btn.onclick=()=>startNextTarea(tc.id);
     list.appendChild(btn);
   });
@@ -3604,6 +3682,17 @@ async function seedCatalogo() {
 }
 
 // ═══ RONDA 7: UX ═══
+function confirmarSinTarea(){
+  // Mostrar advertencia en el propio modal antes de cerrar
+  const warn=document.getElementById('nextTaskSinAsignar');
+  if(warn){
+    warn.style.display='block';
+    // Dar 3 segundos para que lea y luego cerrar
+    setTimeout(()=>{ warn.style.display='none'; hideModal('modalNextTask'); }, 3000);
+  } else {
+    hideModal('modalNextTask');
+  }
+}
 function filtrarSelectTarea(q, selId) {
   const sel = document.getElementById(selId);
   if (!sel) return;
