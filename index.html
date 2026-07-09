@@ -931,7 +931,9 @@ async function doLogin(){
   if(btn&&btn.disabled) return;
   if(btn){btn.textContent='INICIANDO...';btn.disabled=true;}
   try{
-    // Default admin if no users yet
+    // Wait for init() to finish loading users from Supabase (if still in progress)
+    if(!_initDone) await Promise.race([_initPromise,new Promise(r=>setTimeout(r,10000))]);
+    // Default admin if no users configured yet
     if((!S.usuarios||!S.usuarios.length)&&user==='admin'&&pass==='admin123'){
       currentUser={nombre:'Administrador',username:'admin',rol:'admin'};
       const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('Sin respuesta del servidor (15s). Verifica tu conexión.')),15000));
@@ -3783,7 +3785,9 @@ function checkTamañoS() {
   return mb;
 }
 
-init().then(()=>{
+let _initDone=false;
+let _initPromise=init().then(()=>{ _initDone=true; }).catch(()=>{ _initDone=true; });
+_initPromise.then(()=>{
   startClock();
   // Sync from DB every 30s to reflect admin changes in supervisor view
   setInterval(async()=>{
