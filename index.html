@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Control de Horas — DP World</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+// Fallback: si el script principal falla, al menos el login se ve
+window.addEventListener('load',function(){
+  var ls=document.getElementById('loginScreen');
+  if(ls) ls.style.display='flex';
+});
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
@@ -280,7 +287,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
     </div>
     <div class="login-fields">
       <div class="field"><label>Usuario</label><input type="text" id="loginUser" placeholder="Tu usuario" autocomplete="username"></div>
-      <div class="field"><label>Contraseña</label><input type="password" id="loginPass" placeholder="••••••" autocomplete="current-password"></div>
+      <div class="field"><label>Contraseña</label><input type="password" id="loginPass" placeholder="••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <div class="login-err" id="loginErr">Usuario o contraseña incorrectos</div>
       <button class="btn btn-indigo btn-full" style="padding:13px;font-size:.85rem;border-radius:10px;letter-spacing:.08em" onclick="doLogin()">INICIAR SESIÓN</button>
     </div>
@@ -804,8 +811,8 @@ hr{border:none;border-top:1px solid var(--border);margin:2px 0}
 <script>
 const SUPA_URL='https://nfqunrphpkopfodmcwar.supabase.co';
 const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5mcXVucnBocGtvcGZvZG1jd2FyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NzI1NjgsImV4cCI6MjA5MjU0ODU2OH0.KdiHB3Vh8uHzVxBaQvmXDBhZRsyWf-4K095Znvrb_jg';
-const {createClient}=supabase;
-const db=createClient(SUPA_URL,SUPA_KEY);
+let db;
+try{ const {createClient}=supabase; db=createClient(SUPA_URL,SUPA_KEY); }catch(e){ console.error('Supabase init failed:',e); }
 
 let S={
   colaboradores:[],tareasCat:[],clientes:[],usuarios:[],
@@ -918,16 +925,31 @@ async function doLogin(){
   const user=document.getElementById('loginUser').value.trim().toLowerCase();
   const pass=document.getElementById('loginPass').value;
   const errEl=document.getElementById('loginErr');
+  const btn=document.querySelector('#loginScreen button');
   errEl.style.display='none';
-  // Default admin if no users yet
-  if((!S.usuarios||!S.usuarios.length)&&user==='admin'&&pass==='admin123'){
-    currentUser={nombre:'Administrador',username:'admin',rol:'admin'};
-    await startApp();return;
+  if(!user||!pass){errEl.textContent='Ingresa tu usuario y contraseña.';errEl.style.display='block';return;}
+  if(btn&&btn.disabled) return;
+  if(btn){btn.textContent='INICIANDO...';btn.disabled=true;}
+  try{
+    // Default admin if no users yet
+    if((!S.usuarios||!S.usuarios.length)&&user==='admin'&&pass==='admin123'){
+      currentUser={nombre:'Administrador',username:'admin',rol:'admin'};
+      const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('Sin respuesta del servidor (15s). Verifica tu conexión.')),15000));
+      await Promise.race([startApp(),timeout]);
+      return;
+    }
+    const found=(S.usuarios||[]).find(u=>u.username===user&&u.pass===pass);
+    if(!found){errEl.textContent='Usuario o contraseña incorrectos';errEl.style.display='block';return;}
+    currentUser=found;
+    const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('Sin respuesta del servidor (15s). Verifica tu conexión.')),15000));
+    await Promise.race([startApp(),timeout]);
+  }catch(e){
+    currentUser=null;
+    errEl.textContent=e.message||'Error al iniciar sesión.';
+    errEl.style.display='block';
+  }finally{
+    if(btn){btn.textContent='INICIAR SESIÓN';btn.disabled=false;}
   }
-  const found=(S.usuarios||[]).find(u=>u.username===user&&u.pass===pass);
-  if(!found){errEl.style.display='block';return;}
-  currentUser=found;
-  await startApp();
 }
 function doLogout(){currentUser=null;document.getElementById('loginScreen').style.display='flex';document.getElementById('appScreen').classList.add('hidden');}
 async function startApp(){
