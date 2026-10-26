@@ -38,20 +38,23 @@ body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--t);min-hei
 .hidden{display:none!important}
 b,strong{font-weight:700}
 
-/* LOGIN — tarjeta blanca sobre índigo, igual que Last Mile */
-.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--pk)}
-.login-card{background:#fff;color:#1a1760;border-radius:20px;padding:36px 28px;width:100%;max-width:360px;box-shadow:0 8px 40px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:20px;text-align:center}
-.login-logo img{height:70px;margin:0 auto;display:block;object-fit:contain}
-.login-sub{font-size:.7rem;color:var(--primary);font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-top:8px}
-.login-fields{display:flex;flex-direction:column;gap:12px;text-align:left}
-.login-card .field label{color:#777;font-family:'Barlow',sans-serif;font-size:10px;letter-spacing:1px}
-.login-card .field input{background:#fff;color:#1a1760;border:1.5px solid #ddd;padding:11px 12px;font-size:14px}
-.login-card .field input:focus{border-color:var(--primary);background:#f8f8ff}
-.login-card .field input::placeholder{color:#bbb}
-.login-card .btn-indigo{background:var(--primary);font-size:17px;padding:13px;border-radius:7px;letter-spacing:.5px;box-shadow:none}
-.login-card .btn-indigo:hover{background:var(--pk)}
-.login-err{background:rgba(220,0,50,.06);border:1px solid rgba(220,0,50,.2);color:#c0002a;border-radius:7px;padding:9px 12px;font-size:12px;font-weight:600;display:none}
-.login-footer{font-size:10px;color:#bbb;letter-spacing:.04em}
+/* LOGIN — misma pantalla que el Cotizador 3PL: degradado índigo y tarjeta blanca */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,#1A1060 0%,#2D1B8E 50%,#1A1060 100%)}
+.login-card{background:#fff;color:#1B1B2F;border-radius:16px;padding:28px 24px;width:100%;max-width:360px;box-shadow:0 8px 32px rgba(26,16,96,.14);display:flex;flex-direction:column;gap:18px;text-align:center;animation:lgUp .3s ease}
+@keyframes lgUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+.login-logo img{height:48px;margin:0 auto 6px;display:block;object-fit:contain}
+.login-sub{font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:#1A1060;text-transform:uppercase;letter-spacing:.08em;margin-top:4px}
+.login-ref{font-size:.72rem;color:#64748B;margin-top:4px}
+.login-fields{display:flex;flex-direction:column;gap:16px;text-align:left}
+.login-card .field{gap:6px}
+.login-card .field label{color:#64748B;font-family:'Barlow',sans-serif;font-size:.65rem;letter-spacing:.07em}
+.login-card .field input{background:#F8F9FC;color:#1B1B2F;border:1.5px solid #E2E8F0;border-radius:10px;padding:12px 14px;font-size:.9rem;font-weight:500}
+.login-card .field input:focus{border-color:#1A1060;background:#fff;box-shadow:0 0 0 3px rgba(26,16,96,.08)}
+.login-card .field input::placeholder{color:#94A3B8}
+.login-card .btn-indigo{background:#1A1060;border-color:#1A1060;font-size:1rem;font-weight:800;padding:13px;border-radius:10px;letter-spacing:.08em;box-shadow:none}
+.login-card .btn-indigo:hover{background:#2A1F8F}
+.login-err{background:#FEE;border:1px solid #FCC;color:#E8003D;border-radius:8px;padding:10px 12px;font-size:.78rem;font-weight:600;display:none}
+.login-footer{font-size:.65rem;color:#94A3B8;letter-spacing:.07em}
 .modo-prueba{display:inline-block;margin-top:8px;background:rgba(245,162,11,.15);color:#b36b00;border:1px solid rgba(245,162,11,.4);border-radius:20px;padding:2px 10px;font-size:10px;font-weight:700;letter-spacing:1px}
 
 /* HEADER — blanco con logo, como Control de Rampas */
@@ -336,7 +339,8 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
   <div class="login-card">
     <div class="login-logo">
       <img src="assets/dpworld-logo-fondo-claro.png" alt="DP World">
-      <div class="login-sub">3PL Panamá · Control de Horas</div>
+      <div class="login-sub">Control de Horas</div>
+      <div class="login-ref">DAL · Colón Logistics Park · Panamá</div>
       <span class="modo-prueba hidden" id="modoPrueba">MODO PRUEBA</span>
     </div>
     <div class="login-fields">
