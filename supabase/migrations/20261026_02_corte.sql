@@ -17,3 +17,6 @@ update public.kv_store set value = (value::jsonb - 'usuarios')::text where value
 -- grant select, insert, update, delete on table public.kv_store to anon, authenticated;
 -- alter policy "allow all" on public.kv_store using (true) with check (true);
 -- (la app anterior requiere además volver a cargar 'usuarios' en el JSON)
+
+-- 3) Endurecer search_path (aviso del linter de Supabase)
+alter function public.ch_key_ok(text) set search_path = public;
