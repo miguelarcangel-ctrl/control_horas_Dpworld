@@ -158,6 +158,7 @@ async function newPage(browser, opts = {}) {
     r.cantT1 = t1.cant; r.pendT1 = !!t1.cantPend;
     r.pausa = (actDe('c2') || {}).causa;
     await liberar(['c1']);                                           // Picking sin contar → pendiente
+    r.pide = !document.getElementById('modalCantidad').classList.contains('hidden'); hideModal('modalCantidad');
     r.pend = pendientes().map(h => h.tareaId).join();
     r.cards = document.querySelectorAll('#equipoList .pc').length;
     r.libre = !!document.querySelector('#equipoList .pc.st-libre');
@@ -167,8 +168,11 @@ async function newPage(browser, opts = {}) {
   ok(tb.parcial && tb.sigue === 'c2', 'tablero: asignar otra tarea saca a la persona del grupo y registra sus horas');
   ok(tb.cantT1 === 10 && !tb.pendT1, 'tablero: el contador de la tarjeta queda como cantidad al terminar');
   ok(tb.pausa === 'bano', 'tablero: pausa de un toque (baño) cierra la tarea anterior');
-  ok(tb.pend === 't2', 'tablero: tarea sin cantidad queda pendiente');
+  ok(tb.pend === 't2' && tb.pide, 'tablero: al terminar sin cantidad la pide de inmediato y, si no se pone, queda pendiente');
   ok(tb.cards === 3 && tb.libre, 'tablero: una tarjeta por persona; libre en rojo');
+  const sinAct = await page.evaluate(async () => { const n = S.historial.length; await liberar(['c3']); return { n: S.historial.length === n, msg: document.getElementById('toast').textContent }; });
+  ok(sinAct.n && /No hay ninguna tarea/.test(sinAct.msg), 'terminar sin tarea en curso avisa y no registra nada');
+  ok(await page.evaluate(() => { _sel = new Set(['c3']); pintarSel(); const d = document.getElementById('tbTerminar').disabled; limpiarSel(); return d; }), 'botón Terminar tarea desactivado si nadie seleccionado tiene tarea');
   await page.evaluate(async () => { await liberar(S.turno.equipo.map(c => c.id)); });
   await page.evaluate(() => prepCerrarTurno()); await page.waitForTimeout(200);
   ok(await page.isVisible('#modalCantidad') && await page.isHidden('#modalCerrarTurno'), 'no deja cerrar el turno con cantidades pendientes');
