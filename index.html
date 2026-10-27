@@ -396,6 +396,7 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 .tb-bar{position:fixed;left:0;right:0;bottom:0;z-index:250;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:var(--surf);border-top:1px solid var(--b2);box-shadow:0 -6px 20px rgba(0,0,0,.18)}
 .tb-bar-in{max-width:760px;margin:0 auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .tb-bar-in .btn:not(.btn-sm){flex:1;justify-content:center;padding:11px 8px}
+.tb-bar-in .btn:disabled{opacity:.4;cursor:not-allowed}
 .tb-bar-n{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.1rem;color:var(--t);min-width:22px;text-align:center}
 body.con-sel .main{padding-bottom:90px}
 body.con-sel .toast{bottom:96px}
@@ -507,7 +508,7 @@ body.con-sel .toast{bottom:96px}
     <span class="tb-bar-n" id="tbBarN">0</span>
     <button class="btn btn-green" onclick="abrirAsignar()">▶ Asignar tarea</button>
     <button class="btn btn-amber" onclick="abrirPausa()">⏸ Pausa</button>
-    <button class="btn btn-ghost" onclick="liberarSel()">⏹ Terminar</button>
+    <button class="btn btn-ghost" id="tbTerminar" onclick="liberarSel()">⏹ Terminar tarea</button>
     <button class="btn btn-ghost btn-sm" onclick="limpiarSel()" aria-label="Quitar selección">✕</button>
   </div>
 </div>
@@ -1684,7 +1685,17 @@ async function pausar(pids, tipo, haceMin){
     inicio:ini,fin:null,prod:0,unidad:'',sinProd:true,isEspecial:true,causa:tipo,por:quien()});
   await trasCambio(PAUSAS[tipo].n+' · '+pids.length+' persona(s)');
 }
-async function liberar(pids){ if(!S.turno||!pids.length) return; cerrarActividad(pids,Date.now()); await trasCambio('Actividad terminada'); }
+async function liberar(pids){
+  if(!S.turno||!pids.length) return;
+  const conAct=pids.filter(id=>actDe(id));
+  if(!conAct.length){ showToast('No hay ninguna tarea o pausa en curso para terminar','error'); return; }
+  const que=[...new Set(conAct.map(id=>actDe(id).tarea))].join(', '), nombres=conAct.map(id=>(S.turno.equipo.find(c=>c.id===id)||{}).nombre||'').map(n=>n.split(' ')[0]).join(', ');
+  const antes=new Set(S.historial.map(h=>h.id));
+  cerrarActividad(conAct,Date.now());
+  await trasCambio(que+' terminada · '+nombres+' queda'+(conAct.length>1?'n':'')+' sin tarea');
+  // Si la tarea mide productividad y no se contó, se pide la cantidad ahora (se puede dejar para después)
+  const falta=S.historial.find(h=>!antes.has(h.id)&&h.cantPend); if(falta) abrirCantidad({id:falta.id});
+}
 async function trasCambio(msg){
   limpiarSel(); hideModal('modalAsignar'); hideModal('modalPausa');
   await save(); renderEquipo(); renderHistorial(); renderTareasDia(); updateBanner();
@@ -1700,6 +1711,7 @@ function pintarSel(){
   document.querySelectorAll('#equipoList .pc').forEach(el=>el.classList.toggle('sel',_sel.has(el.dataset.pid)));
   const bar=document.getElementById('tbBar'); bar.classList.toggle('hidden',!_sel.size); document.body.classList.toggle('con-sel',_sel.size>0);
   document.getElementById('tbBarN').textContent=_sel.size;
+  const term=document.getElementById('tbTerminar'); if(term){ const hay=[..._sel].some(id=>actDe(id)); term.disabled=!hay; term.title=hay?'':'Las personas seleccionadas no tienen tarea en curso'; }
 }
 function asignarDesdeBanner(){ if(!_sel.size) selLibres(); if(_sel.size) abrirAsignar(); }
 
@@ -1711,7 +1723,7 @@ function renderEquipo(){
   el.innerHTML=S.turno.equipo.map((c,i)=>{
     const a=actDe(c.id), est=!a?'libre':a.isEspecial?'pausa':'tarea';
     let info;
-    if(est==='libre') info='<span style="color:var(--red-t);font-weight:700">● Sin asignar</span>';
+    if(est==='libre') info=`<span style="color:var(--red-t);font-weight:700">● Sin tarea</span> <span class="muted">desde ${new Date(libreDesde(c.id)).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit',hour12:false})}</span>`;
     else if(est==='pausa') info=`${(PAUSAS[a.causa]||{}).i||'⏸'} <b>${esc(a.tarea)}</b>`;
     else info=`▶ <b>${esc(a.tarea)}</b> · ${esc(a.cliente)}${a.colaboradores.length>1?` · ${a.colaboradores.length} pers.`:''}`;
     const cnt=est==='tarea'&&pideCantidad(a)?`<div class="pc-cnt" onclick="event.stopPropagation()">
