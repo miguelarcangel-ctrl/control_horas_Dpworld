@@ -363,6 +363,50 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 /* QR */
 .qr-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
 .qr-box{width:260px;height:260px;border:3px solid var(--green);border-radius:12px;overflow:hidden;background:#000;box-shadow:0 0 20px var(--gg)}
+/* TABLERO POR PERSONA */
+.tb-hint{font-size:.74rem;color:var(--t3);margin-bottom:2px}
+.tablero{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.pc{position:relative;border:1.5px solid var(--b1);border-left:4px solid var(--b2);border-radius:10px;padding:9px 10px;background:rgba(var(--fg),.03);cursor:pointer;display:flex;flex-direction:column;gap:5px;user-select:none;touch-action:manipulation;transition:border-color .12s,background .12s;min-height:96px}
+.pc.st-tarea{border-left-color:var(--green)}
+.pc.st-pausa{border-left-color:var(--amber);background:rgba(245,162,11,.06)}
+.pc.st-libre{border-left-color:var(--red);background:rgba(232,0,61,.05)}
+.pc.sel{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary) inset;background:rgba(62,60,144,.14)}
+[data-theme="light"] .pc.sel{background:rgba(26,16,96,.07)}
+.pc.sel::after{content:'✓';position:absolute;top:6px;right:8px;width:18px;height:18px;border-radius:50%;background:var(--primary);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.pc-top{display:flex;align-items:center;gap:7px;min-width:0}
+.pc-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;color:#fff;flex-shrink:0}
+.pc-name{font-weight:700;font-size:.84rem;color:var(--t);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc-role{font-size:.62rem;color:var(--t3)}
+.pc-est{font-size:.74rem;color:var(--t2);line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.pc-est b{color:var(--t)}
+.pc-timer{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.05rem;font-variant-numeric:tabular-nums;color:var(--green)}
+.st-pausa .pc-timer{color:var(--amber)}.st-libre .pc-timer{color:var(--red-t)}
+.pc-cnt{display:flex;align-items:center;gap:4px;margin-top:auto}
+.pc-cnt button{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.8rem;border:1px solid var(--b2);background:var(--card);color:var(--t);border-radius:6px;min-width:34px;height:30px;cursor:pointer;touch-action:manipulation}
+.pc-cnt button:active{transform:scale(.95)}
+.pc-cnt .pc-val{flex:1;text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.05rem;color:var(--t);cursor:pointer;line-height:1}
+.pc-cnt .pc-val small{display:block;font-size:.58rem;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px}
+.tb-bar{position:fixed;left:0;right:0;bottom:0;z-index:250;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:var(--surf);border-top:1px solid var(--b2);box-shadow:0 -6px 20px rgba(0,0,0,.18)}
+.tb-bar-in{max-width:760px;margin:0 auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tb-bar-in .btn:not(.btn-sm){flex:1;justify-content:center;padding:11px 8px}
+.tb-bar-n{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.1rem;color:var(--t);min-width:22px;text-align:center}
+body.con-sel .main{padding-bottom:90px}
+.asig-list{display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow-y:auto}
+.asig-ttl{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);margin-top:4px}
+.asig-btn{width:100%;text-align:left;border:1.5px solid var(--b1);border-radius:9px;padding:11px 12px;background:rgba(var(--fg),.03);color:var(--t);font-family:'Barlow',sans-serif;font-size:.9rem;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.asig-btn:active{background:rgba(0,195,137,.12);border-color:var(--green)}
+.asig-btn.plan{border-color:var(--purple)}
+.asig-btn small{font-weight:500;font-size:.68rem;color:var(--t3)}
+.pausa-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.pausa-grid button{border:1.5px solid var(--b1);border-radius:10px;padding:14px 8px;background:rgba(var(--fg),.03);color:var(--t);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.85rem;text-transform:uppercase;letter-spacing:.04em}
+.pausa-grid button span{font-size:1.5rem}
+.cant-big{display:flex;gap:8px;align-items:center}
+.cant-big input{text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.8rem!important;padding:8px!important}
+.cant-big .btn{padding:14px 16px;font-size:1rem}
+.pend-row{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid rgba(245,162,11,.35);background:rgba(245,162,11,.06);border-radius:8px;padding:9px 11px;cursor:pointer}
+.pend-row .li-name{white-space:normal}
+.turno-stats{grid-template-columns:repeat(4,1fr)!important}
+.tp-pend{order:2}
 /* LOGO Y TEMA */
 .hdr-logo .logo-oscuro{display:none}
 [data-theme="dark"] .hdr-logo .logo-claro{display:none}
@@ -374,7 +418,7 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 /* PANEL DEL TURNO — celular: una columna en el orden de siempre */
 .turno-panel{display:flex;flex-direction:column;gap:11px}
 .tp-col{display:contents}
-.turno-banner{order:0}.tp-equipo{order:1}.tp-tareas{order:2}.tp-hist{order:3}.tp-dia{order:4}
+.turno-banner{order:0}.tp-equipo{order:1}.tp-pend{order:2}.tp-dia{order:3}.tp-hist{order:4}
 
 /* INSIGHTS — celular: una columna */
 .ins-grid{display:flex;flex-direction:column;gap:11px}
@@ -450,6 +494,15 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="tb-bar hidden" id="tbBar">
+  <div class="tb-bar-in">
+    <span class="tb-bar-n" id="tbBarN">0</span>
+    <button class="btn btn-green" onclick="abrirAsignar()">▶ Asignar tarea</button>
+    <button class="btn btn-amber" onclick="abrirPausa()">⏸ Pausa</button>
+    <button class="btn btn-ghost" onclick="liberarSel()">⏹ Terminar</button>
+    <button class="btn btn-ghost btn-sm" onclick="limpiarSel()" aria-label="Quitar selección">✕</button>
+  </div>
+</div>
 <!-- APP -->
 <div id="appScreen" class="hidden">
 
@@ -495,8 +548,9 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
         </div>
         <div class="turno-stats">
           <div class="t-stat"><div class="t-stat-val g" id="tDisp">0h</div><div class="t-stat-label">Disponibles</div></div>
-          <div class="t-stat"><div class="t-stat-val a" id="tUsadas">0h</div><div class="t-stat-label">Usadas</div></div>
-          <div class="t-stat"><div class="t-stat-val g" id="tLibres">0h</div><div class="t-stat-label">Libres</div></div>
+          <div class="t-stat"><div class="t-stat-val a" id="tUsadas">0h</div><div class="t-stat-label">Trabajadas</div></div>
+          <div class="t-stat"><div class="t-stat-val a" id="tNoProd">0h</div><div class="t-stat-label">No productivas</div></div>
+          <div class="t-stat"><div class="t-stat-val g" id="tLibres">0h</div><div class="t-stat-label">Sin registrar</div></div>
         </div>
         <div>
           <div class="hora-legend"><span id="tEquipoLbl">—</span><span id="tPct">0%</span></div>
@@ -506,18 +560,19 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
         <div class="turno-actions">
           <button id="toolboxBtn" class="btn btn-sm" style="display:none;background:#F59E0B;color:#fff;border:none;border-radius:6px;padding:6px 11px;font-weight:700;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer" onclick="showToolboxScreen()">🦺 Toolbox</button>
           <button class="btn btn-sm" style="background:var(--purple);color:#fff;border:none;border-radius:6px;padding:6px 11px;font-weight:700;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer" onclick="openModalPlanTarea()">📌 Plan</button>
-          <button class="btn btn-sm" style="background:#6B7280;color:#fff;border:none;border-radius:6px;padding:6px 11px;font-weight:700;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer" onclick="openModalPlantilla()">📋</button>
-          <button class="btn btn-green btn-sm" onclick="showModal('modalNuevaTarea')">+ Tarea</button>
+          <button class="btn btn-sm" style="background:#6B7280;color:#fff;border:none;border-radius:6px;padding:6px 11px;font-weight:700;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer" onclick="openModalPlantilla()">📋 Plantillas</button>
+          <button class="btn btn-green btn-sm" onclick="asignarDesdeBanner()">+ Tarea</button>
           <button class="btn btn-ghost-w btn-sm" onclick="prepCerrarTurno()">⏹ Cerrar Turno</button>
         </div>
       </div>
       <div class="tp-col tp-side">
-      <div class="sec tp-equipo">
-        <div class="sec-hdr" onclick="toggleSec('sEquipo','cEquipo')">
-          <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">👥 Equipo del Turno</span></div>
-          <span class="chevron open" id="cEquipo">▼</span>
+      <!-- CANTIDADES PENDIENTES -->
+      <div class="sec tp-pend hidden" id="secPendientes">
+        <div class="sec-hdr">
+          <div class="sec-hdr-left"><div class="sec-accent" style="background:var(--amber)"></div><span class="sec-title">✍️ Cantidades pendientes</span></div>
+          <span class="badge ba" id="pendCount">0</span>
         </div>
-        <div class="sec-body" id="sEquipo"><div id="equipoList"></div></div>
+        <div class="sec-body" id="pendientesList"></div>
       </div>
       <!-- TAREAS DEL DÍA -->
       <div class="sec tp-dia" id="secTareasDia" style="display:none">
@@ -531,14 +586,14 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
       </div>
       </div>
       <div class="tp-col tp-main">
-      <div class="sec tp-tareas">
-        <div class="sec-hdr" onclick="toggleSec('sTareas','cTareas')">
-          <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">⚡ Tareas Activas</span></div>
-          <span class="chevron open" id="cTareas">▼</span>
+      <div class="sec tp-equipo">
+        <div class="sec-hdr">
+          <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">👥 Equipo</span></div>
+          <div class="sec-hdr-actions"><button class="btn btn-ghost btn-sm" onclick="selLibres()">Seleccionar libres</button></div>
         </div>
-        <div class="sec-body" id="sTareas">
-          <div id="tareasActivasList"></div>
-          <button class="btn btn-green btn-full" onclick="showModal('modalNuevaTarea')">+ Registrar Tarea</button>
+        <div class="sec-body">
+          <div class="tb-hint" id="tbHint">Toca a una o varias personas para asignarles una tarea o una pausa.</div>
+          <div class="tablero" id="equipoList"></div>
         </div>
       </div>
       <div class="sec tp-hist">
@@ -914,6 +969,7 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
         </select>
       </div>
     </div>
+    <div class="field"><label>Tipo de tiempo</label><select id="tcClase"><option value="productiva">Productiva (operación para el cliente)</option><option value="apoyo">Apoyo (supervisión, limpieza, capacitación, inventario interno)</option></select></div>
     <div class="field" id="tcExcelField"><label>Nombre en el Excel de ventas, por cliente</label><div id="tcExcel" style="display:flex;flex-direction:column;gap:6px"></div></div>
     <div class="field" id="tcEficField"><label>% Eficiencia para dimensionador</label><input type="number" id="tcEfic" placeholder="Ej. 85" min="1" max="100"></div>
     <div class="info-box" id="tcEficInfo">Prod. efectiva = Prod. Objetivo × % Eficiencia</div>
@@ -922,6 +978,33 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
       <input type="checkbox" id="tcSinProd" style="width:18px;height:18px;cursor:pointer" onchange="toggleSinProd()">
     </div>
     <button class="btn btn-green btn-full" onclick="guardarTareaCat()">💾 Guardar</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="modalAsignar">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title" id="asigTitulo">▶ Asignar tarea</span><span class="modal-close" onclick="hideModal('modalAsignar')">✕</span></div>
+    <div class="field"><label>Cliente</label><div class="chip-wrap" id="asigClientes"></div></div>
+    <div class="field"><label>Empezó</label><div class="chip-wrap" id="asigHace"></div></div>
+    <input type="search" id="asigBuscar" placeholder="🔍 Buscar tarea…" oninput="renderAsigTareas()">
+    <div id="asigTareas" class="asig-list"></div>
+  </div>
+</div>
+<div class="overlay hidden" id="modalPausa">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title" id="pausaTitulo">⏸ Pausa</span><span class="modal-close" onclick="hideModal('modalPausa')">✕</span></div>
+    <div class="field"><label>Empezó</label><div class="chip-wrap" id="pausaHace"></div></div>
+    <div class="pausa-grid" id="pausaOpciones"></div>
+    <div class="li-sub">El tiempo en pausa cuenta como <b>no productivo</b> con su causa. El almuerzo no cuenta como hora pagada.</div>
+  </div>
+</div>
+<div class="overlay hidden" id="modalCantidad">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title">✍️ Cantidad ejecutada</span><span class="modal-close" onclick="hideModal('modalCantidad')">✕</span></div>
+    <div class="info-box" id="cantInfo"></div>
+    <div class="cant-big"><button class="btn btn-ghost" onclick="cantAjustar(-1)">−1</button><input type="number" id="cantValor" min="0" inputmode="decimal"><button class="btn btn-ghost" onclick="cantAjustar(1)">+1</button></div>
+    <div class="chip-wrap" id="cantRapidas"></div>
+    <button class="btn btn-green btn-full" onclick="guardarCantidad()">💾 Guardar</button>
   </div>
 </div>
 
@@ -1045,35 +1128,54 @@ function costoCargo(cargo, fecha){
 const esAlmuerzo=t=>!!t&&(t.tareaId==='_almuerzo'||t.tarea==='Almuerzo');
 function horasTarea(t,now){ return t.fin?(t.durH!=null?t.durH:(t.fin-t.inicio)/3600000):((now||Date.now())-t.inicio)/3600000; }
 /* Motor de un turno. Cuenta HORAS-PERSONA (2 personas × 1 h = 2 h).
-   El almuerzo no consume horas productivas (ya está descontado de la jornada).
-   Pagado = base + sobretiempo · Productivo = horas trabajadas (hasta la base) + sobretiempo · Perdido = horas ociosas. */
+   El almuerzo no consume horas pagadas (ya está descontado de la jornada).
+   Cada hora pagada cae en un grupo: productiva (tareas), apoyo (supervisión, limpieza, capacitación, toolbox),
+   no productiva con causa (baño, permiso, espera, reunión) o sin registrar.
+   Turno en curso: la base de cada persona son las horas ya transcurridas (no se cuenta como perdido lo que aún no pasa).
+   Pagado = base + sobretiempo · Productivo = horas trabajadas (productivas + apoyo) hasta la base + sobretiempo · Perdido = el resto. */
+const CAUSAS_NP=['bano','permiso','espera','reunion'];
+function claseDe(t){
+  if(t.isToolbox) return 'apoyo';
+  if(t.isEspecial||String(t.tareaId||'')[0]==='_') return 'noprod';
+  const tc=(S.tareasCat||[]).find(x=>x.id===t.tareaId);
+  return tc&&tc.clase==='apoyo'?'apoyo':'productiva';
+}
+const causaDe=t=>t.causa||String(t.tareaId||'').replace(/^_/,'')||'otra';
 function calcTurno(turno, hist, activas, now){
   if(!turno) return null;
-  const cfg=getConfig();
+  const cfg=getConfig(); now=now||Date.now();
   const hp=turno.hpPorPersona!=null?turno.hpPorPersona:horasJornada('completa',turno.fecha);
+  const enCurso=!turno.fin, transcurrido=enCurso?Math.max(0,msH(now-(turno.inicio||now))):Infinity;
   const mST=cfg.multSobretiempo||1.5;
-  const per={};
-  (turno.equipo||[]).forEach(c=>{per[c.id]={c,h:0,base:hp};});
+  const per={}, nuevo=(c,base)=>({c,h:0,prod:0,apoyo:0,noprod:0,causas:{},alm:0,base});
+  (turno.equipo||[]).forEach(c=>{per[c.id]=nuevo(c,hp);});
   [...(hist||[]),...(activas||[])].forEach(t=>{
-    if(esAlmuerzo(t)) return;
     const d=horasTarea(t,now);
-    (t.colaboradores||[]).forEach(c=>{ if(!per[c.id]) per[c.id]={c,h:0,base:0}; per[c.id].h+=d; });
+    (t.colaboradores||[]).forEach(c=>{ if(!per[c.id]) per[c.id]=nuevo(c,0); const p=per[c.id];
+      if(esAlmuerzo(t)){ p.alm+=d; return; }
+      p.h+=d; const k=claseDe(t); p[k==='productiva'?'prod':k]+=d; if(k==='noprod'){ const ca=causaDe(t); p.causas[ca]=(p.causas[ca]||0)+d; } });
   });
-  let pagado=0,productivo=0,usadas=0,libres=0,extra=0;
+  let pagado=0,productivo=0,usadas=0,libres=0,extra=0,prodH=0,apoyoH=0,noprodH=0,perdNP=0,baseTot=0,regTot=0; const causas={};
   Object.values(per).forEach(p=>{
     const co=(S.colaboradores||[]).find(x=>x.id===p.c.id)||p.c;
     p.rate=costoCargo(co.cargo||'operador',turno.fecha).hora;
+    if(enCurso) p.base=Math.min(p.base,Math.max(0,transcurrido-p.alm));
+    const trab=p.prod+p.apoyo;
     p.extra=Math.max(0,p.h-p.base); p.libre=Math.max(0,p.base-p.h);
     p.pagado=p.rate*p.base+p.rate*mST*p.extra;
-    p.productivo=p.rate*Math.min(p.h,p.base)+p.rate*mST*p.extra;
-    p.blend=p.h>0?p.productivo/p.h:p.rate;
-    pagado+=p.pagado; productivo+=p.productivo; usadas+=p.h; libres+=p.libre; extra+=p.extra;
+    p.productivo=p.rate*Math.min(trab,p.base)+p.rate*mST*Math.min(p.extra,trab);
+    p.perdidoNP=p.rate*Math.min(p.noprod,Math.max(0,p.base-Math.min(trab,p.base)));
+    p.blend=trab>0?p.productivo/trab:p.rate;
+    pagado+=p.pagado; productivo+=p.productivo; usadas+=trab; libres+=p.libre; extra+=p.extra;
+    prodH+=p.prod; apoyoH+=p.apoyo; noprodH+=p.noprod; perdNP+=p.perdidoNP; baseTot+=p.base; regTot+=Math.min(p.h,p.base);
+    Object.entries(p.causas).forEach(([k,v])=>causas[k]=(causas[k]||0)+v);
   });
   const disp=turno.horasProd!=null?turno.horasProd:(turno.equipo||[]).length*hp;
-  return {per,hp,pagado,productivo,perdido:Math.max(0,pagado-productivo),
-    efic:pagado>0?Math.round(productivo/pagado*100):0,usadas,disp,libres,extra,
-    pct:disp>0?Math.min(100,(disp-libres)/disp*100):0,
-    costoTarea(t){ if(esAlmuerzo(t)) return 0; const d=horasTarea(t,now);
+  const perdido=Math.max(0,pagado-productivo);
+  return {per,hp,pagado,productivo,perdido,perdidoNP:Math.min(perdNP,perdido),perdidoSinReg:Math.max(0,perdido-perdNP),
+    efic:pagado>0?Math.round(productivo/pagado*100):0,usadas,disp,libres,extra,prodH,apoyoH,noprodH,causas,baseH:baseTot,
+    pct:baseTot>0?Math.min(100,regTot/baseTot*100):0,
+    costoTarea(t){ if(esAlmuerzo(t)||claseDe(t)==='noprod') return 0; const d=horasTarea(t,now);
       return (t.colaboradores||[]).reduce((s,c)=>s+d*((per[c.id]&&per[c.id].blend)||costoCargo(c.cargo||'operador',turno.fecha).hora),0); },
     horasPersonaTarea(t){ return esAlmuerzo(t)?0:horasTarea(t,now)*(t.colaboradores||[]).length; }
   };
@@ -1147,7 +1249,7 @@ function normalizeS(){
   ['clientes','tareasCat','colaboradores','solicitudes','turnosProgramados','turnosHistorial','tareasActivas','historial','rutinas','plantillas','temaHSE','maestro']
     .forEach(k=>{ if(!Array.isArray(S[k])) S[k]=[]; });
   S.config=getConfig();
-  S.tareasCat.forEach(t=>{if(!t.efic)t.efic=85;});
+  S.tareasCat.forEach(t=>{if(!t.efic)t.efic=85; if(!t.clase) t.clase=/supervis|limpiez|capacitac|toolbox|reuni|acomodo|gestion de almacen/i.test(normTxt(t.nombre))?'apoyo':'productiva';});
   if(S.turno&&!S.turno.tareasDia) S.turno.tareasDia=[];
 }
 function applyRemote(value){
@@ -1423,7 +1525,8 @@ function updateBanner(){
   const dispH=k.disp,usH=k.usadas,libH=k.libres,pct=k.pct;
   document.getElementById('tDisp').textContent=dispH.toFixed(1)+'h';
   document.getElementById('tUsadas').textContent=usH.toFixed(1)+'h';
-  const lEl=document.getElementById('tLibres');lEl.textContent=libH.toFixed(1)+'h';lEl.className='t-stat-val '+(libH<0.5?'r':libH<2?'a':'g');
+  const lEl=document.getElementById('tLibres');lEl.textContent=libH.toFixed(1)+'h';lEl.className='t-stat-val '+(libH<0.25?'g':libH<1?'a':'r');
+  const nEl=document.getElementById('tNoProd');if(nEl){nEl.textContent=k.noprodH.toFixed(1)+'h';nEl.title=Object.entries(k.causas).map(([c,v])=>((PAUSAS[c]||{}).n||c)+': '+v.toFixed(1)+' h').join(' · ');}
   document.getElementById('horaBar').style.width=pct+'%';document.getElementById('tPct').textContent=Math.round(pct)+'%';
   const _tbBtn=document.getElementById('toolboxBtn');if(_tbBtn)_tbBtn.style.display=(S.turno&&!S.turno.toolboxDone)?'inline-block':'none';
   const ops=S.turno.equipo.filter(c=>c.cargo==='operador').length,ags=S.turno.equipo.filter(c=>c.cargo==='ag').length;
@@ -1437,9 +1540,9 @@ function updateBanner(){
       const ec=k.efic>=85?'var(--green)':k.efic>=70?'var(--amber)':'var(--red)';
       kpiEl.style.display='flex';
       kpiEl.innerHTML='<span class="kpi-tag">Admin</span>'+
-        '<span>Pagado <b>$'+k.pagado.toFixed(0)+'</b></span>'+
+        '<span>Pagado a la fecha <b>$'+k.pagado.toFixed(0)+'</b></span>'+
         '<span>Productivo <b style="color:var(--green)">$'+k.productivo.toFixed(0)+'</b></span>'+
-        '<span>Perdido <b style="color:var(--red)">$'+k.perdido.toFixed(0)+'</b></span>'+
+        '<span>Perdido <b style="color:var(--red)">$'+k.perdido.toFixed(0)+'</b> <span class="muted">(pausas $'+k.perdidoNP.toFixed(0)+' · sin registrar $'+k.perdidoSinReg.toFixed(0)+')</span></span>'+
         '<span>Efic. <b style="color:'+ec+'">'+(k.efic<70?'⚠ ':'')+k.efic+'%</b></span>';
     } else {
       kpiEl.style.display='none';
@@ -1447,21 +1550,203 @@ function updateBanner(){
   }
 }
 
-// ═══ EQUIPO ═══
+// ═══ TABLERO POR PERSONA ═══
+// El supervisor registra qué hace cada persona AHORA: asignar una tarea o una pausa cierra la actividad anterior
+// en ese mismo momento. La cantidad se cuenta en la tarjeta o queda pendiente (obligatoria antes de cerrar el turno).
 const COLORS=['#2D2B6B','#00C389','#7C5CBF','#E8003D','#F59E0B','#0EA5E9','#10B981'];
+const PAUSAS={bano:{n:'Baño',i:'🚻'},permiso:{n:'Permiso',i:'📝'},espera:{n:'Espera / tiempo muerto',i:'⏳'},reunion:{n:'Reunión',i:'💬'},almuerzo:{n:'Almuerzo',i:'🍽'}};
+let _sel=new Set();
+const quien=()=>currentUser?currentUser.username:'';
+const iniciales=n=>String(n||'').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
+const actDe=pid=>S.tareasActivas.find(t=>(t.colaboradores||[]).some(x=>x.id===pid));
+// Pide cantidad si la tarea del catálogo mide productividad
+function pideCantidad(t){ if(!t||t.isEspecial||t.isToolbox||esAlmuerzo(t)) return false; const tc=S.tareasCat.find(x=>x.id===t.tareaId); return !!(tc&&!tc.sinProd&&(tc.prod||0)>0); }
+// Desde cuándo está libre una persona (fin de su última actividad, toolbox o inicio del turno)
+function libreDesde(pid){
+  let d=S.turno?(S.turno.toolboxFin||S.turno.inicio):Date.now();
+  S.historial.forEach(h=>{ if((h.colaboradores||[]).some(c=>c.id===pid)&&h.fin>d) d=h.fin; });
+  return d;
+}
+function completarCantidad(h, cant){
+  h.cant=cant; h.realProd=h.durH>0&&cant>0?cant/h.durH:0;
+  h.efic=h.prod>0&&cant>0?(h.realProd/h.prod)*100:null; h.cantPend=false; h.cantPor=quien();
+}
+// Cierra la actividad actual de estas personas en el instante ts
+function cerrarActividad(pids, ts){
+  const ids=new Set(pids);
+  S.tareasActivas.slice().forEach(t=>{
+    const salen=(t.colaboradores||[]).filter(c=>ids.has(c.id)); if(!salen.length) return;
+    const fin=Math.max(ts,t.inicio), durH=msH(fin-t.inicio), base={...t,fin,durH,nota:t.nota||'',porFin:quien(),excel:actividadExcel(t.tareaId,t.clienteId)};
+    delete base.cantAcum;
+    if(salen.length===(t.colaboradores||[]).length){
+      const h={...base,cant:0,realProd:0,efic:null};
+      if(pideCantidad(t)){ if(t.cantAcum>0) completarCantidad(h,t.cantAcum); else h.cantPend=true; }
+      S.historial.push(h);
+      S.tareasActivas=S.tareasActivas.filter(x=>x.id!==t.id);
+      const td=t.tdId&&(S.turno.tareasDia||[]).find(x=>x.id===t.tdId); if(td){ td.estado='completada'; td.tareaActivaId=t.id; }
+    } else {
+      // Sale parte del grupo: sus horas quedan registradas; la cantidad la lleva quien termina la tarea
+      S.historial.push({...base,id:uid(),colaboradores:salen,cant:0,realProd:0,efic:null,parcial:true});
+      t.colaboradores=t.colaboradores.filter(c=>!ids.has(c.id));
+    }
+  });
+}
+// Hora de inicio elegida (ahora o hace N min), nunca antes del turno ni del inicio de la actividad actual
+function inicioPara(pids, haceMin){
+  let ts=Date.now()-(haceMin||0)*60000;
+  const minimo=Math.max(S.turno.inicio,...pids.map(pid=>{const a=actDe(pid);return a?a.inicio+60000:libreDesde(pid);}));
+  return Math.min(Date.now(),Math.max(ts,minimo));
+}
+async function asignarTarea(pids, tareaId, clienteId, haceMin, tdId){
+  if(!S.turno||!pids.length) return;
+  const tc=S.tareasCat.find(t=>t.id===tareaId), cli=S.clientes.find(c=>c.id===clienteId);
+  if(!tc||!cli){ showToast('Elige tarea y cliente','error'); return; }
+  const ini=inicioPara(pids,haceMin);
+  cerrarActividad(pids,ini);
+  const td=tdId?(S.turno.tareasDia||[]).find(x=>x.id===tdId):(S.turno.tareasDia||[]).find(x=>x.estado==='pendiente'&&x.tareaId===tareaId&&(!x.clienteId||x.clienteId===clienteId));
+  if(td) td.estado='en_curso';
+  S.tareasActivas.push({id:uid(),tareaId,tarea:tc.nombre,clienteId,cliente:cli.nombre,colaboradores:S.turno.equipo.filter(c=>pids.includes(c.id)),
+    inicio:ini,fin:null,nota:'',prod:tc.prod,unidad:tc.unidad,cantAcum:0,tdId:td?td.id:null,por:quien()});
+  S.turno.ultCliente=clienteId;
+  await trasCambio(tc.nombre+' · '+pids.length+' persona(s)');
+}
+async function pausar(pids, tipo, haceMin){
+  if(!S.turno||!pids.length) return;
+  const ini=inicioPara(pids,haceMin);
+  cerrarActividad(pids,ini);
+  S.tareasActivas.push({id:uid(),tareaId:'_'+tipo,tarea:PAUSAS[tipo].n,clienteId:null,cliente:'Interno',colaboradores:S.turno.equipo.filter(c=>pids.includes(c.id)),
+    inicio:ini,fin:null,prod:0,unidad:'',sinProd:true,isEspecial:true,causa:tipo,por:quien()});
+  await trasCambio(PAUSAS[tipo].n+' · '+pids.length+' persona(s)');
+}
+async function liberar(pids){ if(!S.turno||!pids.length) return; cerrarActividad(pids,Date.now()); await trasCambio('Actividad terminada'); }
+async function trasCambio(msg){
+  limpiarSel(); hideModal('modalAsignar'); hideModal('modalPausa');
+  await save(); renderEquipo(); renderHistorial(); renderTareasDia(); updateBanner();
+  if(!document.getElementById('viewInsights').classList.contains('hidden')) renderInsights();
+  if(msg) showToast(msg);
+}
+
+// Selección
+function togglePersona(pid){ _sel.has(pid)?_sel.delete(pid):_sel.add(pid); pintarSel(); }
+function selLibres(){ _sel=new Set(S.turno.equipo.filter(c=>!actDe(c.id)).map(c=>c.id)); if(!_sel.size) showToast('No hay personas libres','info'); pintarSel(); }
+function limpiarSel(){ _sel.clear(); pintarSel(); }
+function pintarSel(){
+  document.querySelectorAll('#equipoList .pc').forEach(el=>el.classList.toggle('sel',_sel.has(el.dataset.pid)));
+  const bar=document.getElementById('tbBar'); bar.classList.toggle('hidden',!_sel.size); document.body.classList.toggle('con-sel',_sel.size>0);
+  document.getElementById('tbBarN').textContent=_sel.size;
+}
+function asignarDesdeBanner(){ if(!_sel.size) selLibres(); if(_sel.size) abrirAsignar(); }
+
+// Tarjetas
 function renderEquipo(){
-  const el=document.getElementById('equipoList');if(!S.turno){el.innerHTML='';return;}
+  const el=document.getElementById('equipoList'); if(!el) return;
+  if(!S.turno){ el.innerHTML=''; limpiarSel(); return; }
+  [..._sel].forEach(id=>{ if(!S.turno.equipo.some(c=>c.id===id)) _sel.delete(id); });
   el.innerHTML=S.turno.equipo.map((c,i)=>{
-    const act=S.tareasActivas.find(t=>(t.colaboradores||[]).some(x=>x.id===c.id));
-    let spLabel='';
-    if(!act) spLabel='<span class="sp sp-idle">⏸ Disponible</span>';
-    else if(act.tarea==='Almuerzo') spLabel='<span class="sp sp-lunch">🍽 Almuerzo</span>';
-    else if(act.isRutina){const v=(act.rutinaPasos||[]).filter(p=>p.validado).length,total=(act.rutinaPasos||[]).length;spLabel='<span class="sp sp-active" style="background:#7C5CBF;color:#fff">🔄 '+act.tarea.substring(0,12)+' '+v+'/'+total+'</span>';}
-    else spLabel='<span class="sp sp-active">▶ '+act.tarea.substring(0,16)+'</span>';
-    const sp=spLabel;
-    const init=c.nombre.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
-    return `<div class="op-card"><div class="op-left"><div class="op-av" style="background:${COLORS[i%COLORS.length]}">${init}</div><div><div class="op-name">${c.nombre}</div><div class="op-role">${c.cargo==='operador'?'Operador':'Ayudante General'}</div></div></div><div>${sp}</div></div>`;
+    const a=actDe(c.id), est=!a?'libre':a.isEspecial?'pausa':'tarea';
+    let info;
+    if(est==='libre') info='<span style="color:var(--red-t);font-weight:700">● Sin asignar</span>';
+    else if(est==='pausa') info=`${(PAUSAS[a.causa]||{}).i||'⏸'} <b>${esc(a.tarea)}</b>`;
+    else info=`▶ <b>${esc(a.tarea)}</b> · ${esc(a.cliente)}${a.colaboradores.length>1?` · ${a.colaboradores.length} pers.`:''}`;
+    const cnt=est==='tarea'&&pideCantidad(a)?`<div class="pc-cnt" onclick="event.stopPropagation()">
+      <button onclick="sumarCant('${a.id}',-1)" aria-label="Restar 1">−</button>
+      <div class="pc-val" onclick="editarCantActiva('${a.id}')">${a.cantAcum||0}<small>${esc(a.unidad||'unid')}s</small></div>
+      <button onclick="sumarCant('${a.id}',1)">+1</button><button onclick="sumarCant('${a.id}',5)">+5</button></div>`:'';
+    return `<div class="pc st-${est}${_sel.has(c.id)?' sel':''}" data-pid="${c.id}" onclick="togglePersona('${c.id}')">
+      <div class="pc-top"><div class="pc-av" style="background:${COLORS[i%COLORS.length]}">${iniciales(c.nombre)}</div>
+        <div style="min-width:0;flex:1"><div class="pc-name">${esc(c.nombre)}</div><div class="pc-role">${c.cargo==='operador'?'Operador':'Ayudante General'}</div></div></div>
+      <div class="pc-est">${info}</div>
+      <div class="pc-timer" id="pt_${c.id}">${msHMS(Date.now()-(a?a.inicio:libreDesde(c.id)))}</div>${cnt}</div>`;
   }).join('');
+  pintarSel();
+}
+function renderTareasActivas(){ renderEquipo(); }
+function updateTimers(){
+  if(!S.turno) return;
+  S.turno.equipo.forEach(c=>{ const el=document.getElementById('pt_'+c.id); if(!el) return; const a=actDe(c.id); el.textContent=msHMS(Date.now()-(a?a.inicio:libreDesde(c.id))); });
+}
+async function sumarCant(tid, n){
+  const t=S.tareasActivas.find(x=>x.id===tid); if(!t) return;
+  t.cantAcum=Math.max(0,(t.cantAcum||0)+n); renderEquipo(); await save();
+}
+
+// Hoja "Asignar tarea"
+let _asig={cli:null,hace:0,tdId:null};
+function chipsHace(elId, actual, fn){
+  document.getElementById(elId).innerHTML=[0,5,15,30].map(m=>`<div class="chip${m===actual?' selected':''}" onclick="${fn}(${m})">${m?'hace '+m+' min':'Ahora'}</div>`).join('');
+}
+function abrirAsignar(tdId){
+  if(!_sel.size){ showToast('Toca primero a las personas','info'); return; }
+  const ult=S.turno.ultCliente||(S.historial.slice().reverse().find(h=>h.clienteId)||{}).clienteId;
+  _asig={cli:S.clientes.some(c=>c.id===ult)?ult:(S.clientes[0]||{}).id,hace:0,tdId:tdId||null};
+  const td=tdId&&(S.turno.tareasDia||[]).find(x=>x.id===tdId); if(td&&td.clienteId) _asig.cli=td.clienteId;
+  const nombres=S.turno.equipo.filter(c=>_sel.has(c.id)).map(c=>c.nombre.split(' ')[0]);
+  document.getElementById('asigTitulo').textContent='▶ '+nombres.join(', ');
+  document.getElementById('asigBuscar').value='';
+  renderAsigCli(); chipsHace('asigHace',0,'setAsigHace'); renderAsigTareas();
+  showModal('modalAsignar');
+}
+function renderAsigCli(){ document.getElementById('asigClientes').innerHTML=S.clientes.map(c=>`<div class="chip${c.id===_asig.cli?' selected':''}" onclick="_asig.cli='${c.id}';renderAsigCli()">${esc(c.nombre)}</div>`).join(''); }
+function setAsigHace(m){ _asig.hace=m; chipsHace('asigHace',m,'setAsigHace'); }
+function frecuencias(){
+  const f={}; [...S.turnosHistorial.slice(-20).flatMap(t=>t.historial||[]),...S.historial].forEach(h=>{ if(h.tareaId&&h.tareaId[0]!=='_') f[h.tareaId]=(f[h.tareaId]||0)+1; });
+  return f;
+}
+function renderAsigTareas(){
+  const q=normTxt(document.getElementById('asigBuscar').value), f=frecuencias();
+  const btn=(t,extra,cls)=>`<button class="asig-btn ${cls||''}" onclick="elegirTarea('${t.id}')"><span>${esc(t.nombre)}</span><small>${extra||''}</small></button>`;
+  const tareas=S.tareasCat.filter(t=>!esAlmuerzo({tarea:t.nombre})&&(!q||normTxt(t.nombre).includes(q)));
+  let h='';
+  const plan=(S.turno.tareasDia||[]).filter(x=>x.estado==='pendiente'&&(!q||normTxt(x.tarea).includes(q)));
+  if(plan.length){ h+='<div class="asig-ttl">📌 Plan del día</div>'+plan.map(x=>`<button class="asig-btn plan" onclick="_asig.tdId='${x.id}';${x.clienteId?`_asig.cli='${x.clienteId}';`:''}elegirTarea('${x.tareaId}')"><span>📌 ${esc(x.tarea)}</span><small>${x.cantEsperada?x.cantEsperada+' '+esc(x.unidad||'')+'s':''}</small></button>`).join(''); }
+  const frec=!q?tareas.filter(t=>f[t.id]).sort((a,b)=>f[b.id]-f[a.id]).slice(0,6):[];
+  if(frec.length) h+='<div class="asig-ttl">⭐ Frecuentes</div>'+frec.map(t=>btn(t,f[t.id]+' veces')).join('');
+  h+='<div class="asig-ttl">'+(q?'Resultados':'Todas')+'</div>'+(tareas.length?tareas.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(t=>btn(t,t.prod>0?t.prod+' '+t.unidad+'s/h':'')).join(''):'<div class="empty-text">Sin resultados</div>');
+  document.getElementById('asigTareas').innerHTML=h;
+}
+function elegirTarea(tareaId){ asignarTarea([..._sel],tareaId,_asig.cli,_asig.hace,_asig.tdId); }
+
+// Hoja "Pausa"
+let _pausaHace=0;
+function abrirPausa(){
+  if(!_sel.size){ showToast('Toca primero a las personas','info'); return; }
+  _pausaHace=0; chipsHace('pausaHace',0,'setPausaHace');
+  document.getElementById('pausaTitulo').textContent='⏸ '+S.turno.equipo.filter(c=>_sel.has(c.id)).map(c=>c.nombre.split(' ')[0]).join(', ');
+  document.getElementById('pausaOpciones').innerHTML=Object.entries(PAUSAS).map(([k,v])=>`<button onclick="pausar([..._sel],'${k}',_pausaHace)"><span>${v.i}</span>${v.n}</button>`).join('');
+  showModal('modalPausa');
+}
+function setPausaHace(m){ _pausaHace=m; chipsHace('pausaHace',m,'setPausaHace'); }
+async function liberarSel(){ await liberar([..._sel]); }
+
+// Cantidades: en una tarea activa o pendiente de una tarea cerrada
+let _cantRef=null;
+function abrirCantidad(ref){
+  _cantRef=ref; const t=ref.activa?S.tareasActivas.find(x=>x.id===ref.id):S.historial.find(x=>x.id===ref.id); if(!t) return;
+  const td=t.tdId&&(S.turno.tareasDia||[]).find(x=>x.id===t.tdId);
+  document.getElementById('cantInfo').innerHTML=`<b>${esc(t.tarea)}</b> · ${esc(t.cliente)}<br>${(t.colaboradores||[]).map(c=>esc(c.nombre.split(' ')[0])).join(', ')} · ${ref.activa?'en curso':(t.durH||0).toFixed(1)+' h'}${t.prod>0?' · objetivo '+t.prod+' '+esc(t.unidad)+'s/h':''}`;
+  const v=ref.activa?(t.cantAcum||0):(t.cant||'');
+  document.getElementById('cantValor').value=v===0&&!ref.activa?'':v;
+  const sug=[td&&td.cantEsperada?td.cantEsperada:null,t.prod>0&&t.durH?Math.round(t.prod*t.durH):null].filter(Boolean);
+  document.getElementById('cantRapidas').innerHTML=sug.map((x,i)=>`<div class="chip" onclick="document.getElementById('cantValor').value=${x}">${i===0&&td&&td.cantEsperada?'Plan':'Objetivo'}: ${x}</div>`).join('');
+  showModal('modalCantidad'); setTimeout(()=>document.getElementById('cantValor').focus(),150);
+}
+function editarCantActiva(tid){ abrirCantidad({activa:true,id:tid}); }
+function cantAjustar(n){ const el=document.getElementById('cantValor'); el.value=Math.max(0,(parseFloat(el.value)||0)+n); }
+async function guardarCantidad(){
+  const v=parseFloat(document.getElementById('cantValor').value);
+  if(!(v>=0)){ showToast('Ingresa la cantidad','error'); return; }
+  if(_cantRef.activa){ const t=S.tareasActivas.find(x=>x.id===_cantRef.id); if(t) t.cantAcum=v; }
+  else { const h=S.historial.find(x=>x.id===_cantRef.id); if(h){ if(v===0&&!confirm('¿Registrar 0 unidades?')) return; completarCantidad(h,v); } }
+  hideModal('modalCantidad'); await save(); renderEquipo(); renderHistorial(); showToast('Cantidad guardada');
+}
+const pendientes=()=>S.historial.filter(h=>h.cantPend);
+function renderPendientes(){
+  const sec=document.getElementById('secPendientes'); if(!sec) return;
+  const p=pendientes(); sec.classList.toggle('hidden',!p.length);
+  document.getElementById('pendCount').textContent=p.length;
+  document.getElementById('pendientesList').innerHTML=p.map(h=>`<div class="pend-row" onclick="abrirCantidad({id:'${h.id}'})">
+    <div class="li-info"><div class="li-name">${esc(h.tarea)}</div><div class="li-sub">${esc(h.cliente)} · ${(h.colaboradores||[]).map(c=>esc(c.nombre.split(' ')[0])).join(', ')} · ${h.durH.toFixed(1)} h</div></div>
+    <span class="btn btn-amber btn-sm">✍️ Cantidad</span></div>`).join('');
 }
 
 // ═══ TAREAS ═══
@@ -1507,48 +1792,6 @@ async function iniciarTarea(){
     if(tdLink) tdLink.estado='en_curso';
   }
   await save();hideModal('modalNuevaTarea');renderTareasActivas();renderEquipo();renderTareasDia();if(!document.getElementById('viewInsights').classList.contains('hidden'))renderInsights();
-}
-function updateTimers(){
-  S.tareasActivas.forEach(t=>{
-    const el=document.getElementById('timer_'+t.id);
-    if(!el) return;
-    const min=(Date.now()-t.inicio)/60000;
-    el.textContent=msHMS(Date.now()-t.inicio);
-    // Semáforo de tiempo: verde <30min · ámbar 30-45 · rojo >45
-    if(min<30){el.style.color='var(--green)';el.style.animation='';}
-    else if(min<45){el.style.color='var(--amber)';el.style.animation='';}
-    else{el.style.color='var(--red)';el.style.animation='pulse 1.2s infinite';}
-    // Barra de progreso de tiempo (0–60 min)
-    const barEl=document.getElementById('tbar_'+t.id);
-    if(barEl){
-      const pct=Math.min(100,(min/60)*100);
-      const col=min<30?'var(--green)':min<45?'var(--amber)':'var(--red)';
-      barEl.style.width=pct+'%';barEl.style.background=col;
-    }
-  });
-}
-function renderTareasActivas(){
-  const el=document.getElementById('tareasActivasList');
-  if(!S.tareasActivas.length){el.innerHTML=`<div class="empty"><div class="empty-icon">⚡</div><div class="empty-text">Sin tareas activas</div></div>`;return;}
-  el.innerHTML=S.tareasActivas.map(t=>{
-    if (t.isRutina) return buildRutinaCardHtml(t);
-    const _td2=(S.turno?.tareasDia||[]).find(x=>x.estado==='en_curso'&&x.tareaId===t.tareaId);
-    const _ph=_td2?.horasEsperadas?'<span style="font-size:.6rem;color:var(--mid);margin-left:4px">'+_td2.horasEsperadas.toFixed(1)+'h plan</span>':'';
-    const min0=(Date.now()-t.inicio)/60000;
-    const timerCol=min0<30?'var(--green)':min0<45?'var(--amber)':'var(--red)';
-    const barW=Math.min(100,(min0/60)*100);
-    return '<div class="task-card">'+
-      '<div class="task-card-hdr is-active">'+
-        '<div><div class="task-name">'+t.tarea+'</div>'+
-        '<div class="task-meta">'+t.cliente+' · '+t.colaboradores.map(c=>c.nombre.split(' ')[0]).join(', ')+_ph+'</div></div>'+
-        '<div style="text-align:right">'+
-          '<div class="task-timer" id="timer_'+t.id+'" style="color:'+timerCol+'">'+msHMS(Date.now()-t.inicio)+'</div>'+
-          '<button class="btn btn-indigo btn-sm" style="margin-top:4px" data-tid="'+t.id+'" onclick="prepCerrarTarea(this.dataset.tid)">⏹ Fin</button>'+
-        '</div>'+
-      '</div>'+
-      '<div style="height:4px;background:var(--border)"><div id="tbar_'+t.id+'" style="height:100%;width:'+barW+'%;background:'+timerCol+';transition:width 1s,background 1s;border-radius:0 2px 2px 0"></div></div>'+
-    '</div>';
-  }).join('');
 }
 function selPersonaCierre(pid){
   S._cerrandoPersonaId=pid;
@@ -1640,19 +1883,22 @@ async function confirmarCierre(){
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
     osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.25);
   } catch(e) {}
-  await save();hideModal('modalCerrarTarea');renderTareasActivas();renderHistorial();renderEquipo();renderTareasDia();showToast('Tarea cerrada');setTimeout(showNextTaskPanel,300);
+  await save();hideModal('modalCerrarTarea');renderTareasActivas();renderHistorial();renderEquipo();renderTareasDia();showToast('Tarea cerrada');
 }
 function renderHistorial(){
+  renderPendientes();
   const el=document.getElementById('historialList');
   if(!S.historial.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Sin tareas completadas</div></div>`;return;}
   const tareaCards=[...S.historial].reverse().map(t=>{
     const eb=t.efic!=null?`<span class="badge ${t.efic>=90?'bg':t.efic>=70?'ba':'br'}">${Math.round(t.efic)}%</span>`:'';
     const rutBadge=t.isRutina?`<span class="badge bp">${t.pctCumplimiento||0}% cumpl.</span>`:'';
     const nP=(t.colaboradores||[]).length;
+    const pendB=t.cantPend?`<span class="badge ba" style="cursor:pointer" onclick="abrirCantidad({id:'${t.id}'})">✍️ Falta cantidad</span>`:'';
+    const claseB=claseDe(t)==='noprod'?'<span class="badge ba">No productivo</span>':claseDe(t)==='apoyo'?'<span class="badge bgy">Apoyo</span>':'';
     return `<div class="task-card"><div class="task-card-hdr is-done">
       <div><div class="task-name">${esc(t.tarea)}</div><div class="task-meta">${esc(t.cliente)} · ${esc(t.colaboradores.map(c=>c.nombre.split(' ')[0]).join(', '))}</div></div>
       <div style="text-align:right;display:flex;flex-direction:column;gap:3px;align-items:flex-end">
-        <span class="badge bgy">${t.durH.toFixed(1)}h${nP>1?' × '+nP:''}</span>${eb}${rutBadge}
+        <span class="badge bgy">${t.durH.toFixed(1)}h${nP>1?' × '+nP:''}</span>${eb}${rutBadge}${pendB}${claseB}
       </div></div>
       ${t.cant?`<div class="task-card-body"><div class="task-meta">✅ ${t.cant} ${esc(t.unidad)}s${t.realProd?' · '+t.realProd.toFixed(1)+' '+esc(t.unidad)+'s/h':''}</div></div>`:''}
     </div>`;
@@ -1679,23 +1925,24 @@ function renderHistorial(){
 // ═══ CERRAR TURNO ═══
 function prepCerrarTurno(){
   if(!S.turno)return;
-  // advertir si hay tareas activas abiertas
+  // Termina lo que siga en curso (las cantidades contadas se conservan)
   if(S.tareasActivas.length>0){
     const nombres=S.tareasActivas.map(t=>t.tarea+' ('+t.colaboradores.map(c=>c.nombre.split(' ')[0]).join(', ')+')').join('\n• ');
-    if(!confirm('⚠️ Hay '+S.tareasActivas.length+' tarea(s) aún activa(s):\n• '+nombres+'\n\nSe cerrarán automáticamente sin registrar cantidad.\n¿Continuar?'))return;
-    S.tareasActivas.forEach(t=>{
-      const fin=Date.now(),dH=msH(fin-t.inicio);
-      S.historial.push({...t,fin,cant:0,nota:'Cierre automático al cerrar turno',durH:dH,realProd:0,efic:null,sinProd:true});
-    });
-    S.tareasActivas=[];
+    if(!confirm('Hay '+S.tareasActivas.length+' actividad(es) en curso:\n• '+nombres+'\n\nSe terminarán ahora. ¿Continuar?'))return;
+    cerrarActividad(S.turno.equipo.map(c=>c.id).concat(S.tareasActivas.flatMap(t=>t.colaboradores.map(c=>c.id))),Date.now());
+    limpiarSel(); save(); renderAll();
   }
-  const k=engVivo();
+  // Las cantidades son obligatorias para medir productividad
+  const pend=pendientes();
+  if(pend.length){ renderPendientes(); showToast('Completa '+pend.length+' cantidad(es) pendiente(s) antes de cerrar el turno','error');
+    abrirCantidad({id:pend[0].id}); return; }
+  const k=calcTurno({...S.turno,fin:Date.now()},S.historial,[],Date.now());
   const jornadaLbl=S.turno.jornada==='media'?'Media jornada':'Jornada completa';
   const isAdminView=currentUser?.rol==='admin';
   document.getElementById('cTurnoResumen').innerHTML=
     'Fecha: <b>'+S.turno.fecha+' '+S.turno.hora+'</b> · '+jornadaLbl+'<br>'+
     'Horas disponibles: <b>'+k.disp.toFixed(1)+' h</b> ('+k.hp+' h × '+S.turno.equipo.length+' personas)<br>'+
-    'Trabajadas: <b>'+k.usadas.toFixed(1)+' h</b> · Libres: <b>'+k.libres.toFixed(1)+' h</b>'+(k.extra>0.05?' · Sobretiempo: <b>'+k.extra.toFixed(1)+' h</b>':'')+'<br>'+
+    'Productivas: <b>'+k.prodH.toFixed(1)+' h</b> · Apoyo: <b>'+k.apoyoH.toFixed(1)+' h</b> · No productivas: <b>'+k.noprodH.toFixed(1)+' h</b> · Sin registrar: <b>'+k.libres.toFixed(1)+' h</b>'+(k.extra>0.05?' · Sobretiempo: <b>'+k.extra.toFixed(1)+' h</b>':'')+'<br>'+
     'Tareas completadas: <b>'+S.historial.length+'</b>'+
     (isAdminView?'<br>Costo pagado: <b>$'+k.pagado.toFixed(2)+'</b> · Productivo: <b>$'+k.productivo.toFixed(2)+'</b> · Perdido: <b style="color:var(--red)">$'+k.perdido.toFixed(2)+'</b>':'');
   const jw=document.getElementById('justWrap');jw.style.display=k.libres>0.5?'flex':'none';
@@ -1705,7 +1952,8 @@ async function confirmarCierreTurno(){
   if(!S.turno)return;
   if(document.getElementById('justWrap').style.display!=='none'&&!document.getElementById('justCausa').value){alert('Selecciona la causa de las horas libres');return;}
   const finTs=Date.now();
-  const k=calcTurno(S.turno,S.historial,[],finTs);
+  if(pendientes().length){ showToast('Hay cantidades pendientes','error'); return; }
+  const k=calcTurno({...S.turno,fin:finTs},S.historial,[],finTs);
   S.turnosHistorial.push({...S.turno,fin:finTs,historial:[...S.historial],
     justCausa:document.getElementById('justCausa').value,
     justNota:document.getElementById('justNota').value,
@@ -1817,6 +2065,7 @@ function openModalTareaCat(id){
     document.getElementById('tcSinProd').checked=false;
   }
   renderTcExcel(id?(S.tareasCat.find(x=>x.id===id)||{}).excel||{}:{});
+  document.getElementById('tcClase').value=id?((S.tareasCat.find(x=>x.id===id)||{}).clase||'productiva'):'productiva';
   toggleSinProd();
   updateTcEficInfo();
   document.getElementById('tcProd').oninput=updateTcEficInfo;
@@ -1860,9 +2109,9 @@ async function guardarTareaCat(){
   if(ocupada){ showToast('Esa actividad del Excel ya está en «'+ocupada.nombre+'»','error'); return; }
   if(S.editingId){
     const t=S.tareasCat.find(x=>x.id===S.editingId);
-    t.nombre=nombre;t.desc=desc;t.prod=prod;t.unidad=unidad;t.efic=efic;t.sinProd=sinProd;t.excel=excel;
+    t.nombre=nombre;t.desc=desc;t.prod=prod;t.unidad=unidad;t.efic=efic;t.sinProd=sinProd;t.excel=excel;t.clase=document.getElementById('tcClase').value;
   } else {
-    S.tareasCat.push({id:uid(),nombre,desc,prod,unidad,efic,sinProd,excel});
+    S.tareasCat.push({id:uid(),nombre,desc,prod,unidad,efic,sinProd,excel,clase:document.getElementById('tcClase').value});
   }
   S.editingId=null;await save();hideModal('modalTareaCat');renderInsights();renderAll();showToast('Tarea guardada');
 }
@@ -2158,6 +2407,9 @@ function renderInsights(){
     <div class="stat-card"><div class="stat-label">Eficiencia</div><div class="stat-val ${eficGlobal>=80?'g':eficGlobal>=60?'a':'r'}" style="font-size:.85rem">${totPagado>0?eficGlobal+'%':'—'}</div><div class="stat-sub">productivo/pagado</div></div>
   </div></div>`;
 
+  // Distribución del tiempo pagado (admin): productivo · apoyo · no productivo por causa · sin registrar
+  if(isAdmin) h+=buildTiempoSection();
+
   // Config button (admin only)
   if(isAdmin){
     const cfg=getConfig();
@@ -2323,7 +2575,7 @@ function renderInsights(){
   if(isAdmin){
     // PLANTILLAS
     h+=buildPlantillasSection();
-    h+=buildRutinasSection();
+    // Rutinas QR ocultas (los datos se conservan): h+=buildRutinasSection();
     h+=buildToolboxSection();
 
     // DIMENSIONADOR HISTORICO
@@ -2401,6 +2653,37 @@ function renderInsights(){
       <button onclick="location.reload()" style="padding:8px 16px;background:#991B1B;color:#fff;border:none;border-radius:6px;cursor:pointer">Recargar</button>
     </div>`;
   }
+}
+
+// ═══ DISTRIBUCIÓN DEL TIEMPO ═══
+function buildTiempoSection(){
+  const turnos=[...S.turnosHistorial.map(t=>[t,engTurnoCerrado(t)]),...(S.turno?[[S.turno,engVivo()]]:[])];
+  if(!turnos.length) return '';
+  const tot={prod:0,apoyo:0,noprod:0,sin:0}, causas={}, col={};
+  turnos.forEach(([t,k])=>{
+    Object.values(k.per).forEach(p=>{
+      const sin=p.libre, o=col[p.c.id]||(col[p.c.id]={n:p.c.nombre,prod:0,apoyo:0,noprod:0,sin:0,base:0});
+      o.prod+=p.prod; o.apoyo+=p.apoyo; o.noprod+=p.noprod; o.sin+=sin; o.base+=Math.max(p.base,p.h);
+      tot.prod+=p.prod; tot.apoyo+=p.apoyo; tot.noprod+=p.noprod; tot.sin+=sin;
+      Object.entries(p.causas).forEach(([c,v])=>causas[c]=(causas[c]||0)+v);
+    });
+  });
+  const total=tot.prod+tot.apoyo+tot.noprod+tot.sin||1, pc=v=>Math.round(v/total*100);
+  const seg=(v,c,l)=>v>0?`<div title="${l}: ${v.toFixed(1)} h" style="width:${v/total*100}%;background:${c}"></div>`:'';
+  let h=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sTiempo','cTiempo')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">⏱ Distribución del tiempo pagado</span></div><span class="chevron open" id="cTiempo">▼</span></div><div class="sec-body" id="sTiempo">
+    <div style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--b1)">${seg(tot.prod,'var(--green)','Productivo')}${seg(tot.apoyo,'var(--blue)','Apoyo')}${seg(tot.noprod,'var(--amber)','No productivo')}${seg(tot.sin,'var(--red)','Sin registrar')}</div>
+    <div class="stat-row" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card"><div class="stat-label">Productivo</div><div class="stat-val g">${pc(tot.prod)}%</div><div class="stat-sub">${tot.prod.toFixed(1)} h</div></div>
+      <div class="stat-card"><div class="stat-label">Apoyo</div><div class="stat-val" style="color:var(--blue)">${pc(tot.apoyo)}%</div><div class="stat-sub">${tot.apoyo.toFixed(1)} h</div></div>
+      <div class="stat-card"><div class="stat-label">No productivo</div><div class="stat-val a">${pc(tot.noprod)}%</div><div class="stat-sub">${tot.noprod.toFixed(1)} h</div></div>
+      <div class="stat-card"><div class="stat-label">Sin registrar</div><div class="stat-val r">${pc(tot.sin)}%</div><div class="stat-sub">${tot.sin.toFixed(1)} h</div></div></div>`;
+  const cs=Object.entries(causas).sort((a,b)=>b[1]-a[1]);
+  if(cs.length) h+=`<div class="li-sub">No productivo por causa: ${cs.map(([c,v])=>`<b>${(PAUSAS[c]||{}).n||c}</b> ${v.toFixed(1)} h`).join(' · ')}</div>`;
+  h+=`<table class="rt-table"><tr><th>Colaborador</th><th>Productivo</th><th>Apoyo</th><th>No prod.</th><th>Sin reg.</th><th>% prod.</th></tr>`;
+  Object.values(col).sort((a,b)=>b.prod-a.prod).forEach(o=>{ const b=o.prod+o.apoyo+o.noprod+o.sin||1, pp=Math.round(o.prod/b*100);
+    h+=`<tr><td>${esc(o.n)}</td><td>${o.prod.toFixed(1)}</td><td>${o.apoyo.toFixed(1)}</td><td>${o.noprod.toFixed(1)}</td><td style="color:${o.sin>1?'var(--red-t)':'inherit'}">${o.sin.toFixed(1)}</td><td><b style="color:${pp>=70?'var(--green)':pp>=50?'var(--amber)':'var(--red-t)'}">${pp}%</b></td></tr>`; });
+  h+=`</table><div class="li-sub">Horas-persona de todos los turnos registrados${S.turno?' (incluye el turno en curso hasta ahora)':''}. Sin registrar = horas pagadas sin tarea ni pausa.</div></div></div>`;
+  return h;
 }
 
 // ═══ DASHBOARD TV ═══
@@ -3095,6 +3378,8 @@ async function iniciarTareaDia(tdId){
   if(!S.turno) return;
   const td=S.turno.tareasDia.find(t=>t.id===tdId);
   if(!td) return;
+  if(!_sel.size) selLibres();
+  if(_sel.size){ abrirAsignar(tdId); return; }
   // NO setear en_curso hasta que el usuario confirme la tarea (evita bug de estado colgado)
   S._iniciandoTareaDiaId=tdId;
   // showModal llama prepModalTarea() internamente → reconstruye los selects
