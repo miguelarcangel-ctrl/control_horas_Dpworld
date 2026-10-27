@@ -385,6 +385,7 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
   .overlay{align-items:center;padding:24px}
   .modal{border-radius:16px;border-bottom:1px solid var(--b2);max-width:620px;max-height:calc(100vh - 48px);padding:18px 22px 22px;box-shadow:0 20px 60px rgba(0,0,0,.35);animation:mIn .2s ease}
   .modal::before{display:none}
+  #modalMaestro .modal{max-width:880px}
   @keyframes mIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
 }
 
@@ -913,8 +914,7 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
         </select>
       </div>
     </div>
-    <div class="field"><label>Actividad del maestro (cobro)</label><select id="tcMaestro" onchange="updateTcMaestroInfo()"></select></div>
-    <div class="info-box" id="tcMaestroInfo" style="display:none"></div>
+    <div class="field" id="tcExcelField"><label>Nombre en el Excel de ventas, por cliente</label><div id="tcExcel" style="display:flex;flex-direction:column;gap:6px"></div></div>
     <div class="field" id="tcEficField"><label>% Eficiencia para dimensionador</label><input type="number" id="tcEfic" placeholder="Ej. 85" min="1" max="100"></div>
     <div class="info-box" id="tcEficInfo">Prod. efectiva = Prod. Objetivo × % Eficiencia</div>
     <div class="list-item" style="padding:10px 12px;cursor:pointer" onclick="toggleSinProd()">
@@ -927,9 +927,9 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 
 <div class="overlay hidden" id="modalMaestro">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title">📥 Importar maestro de tarifas</span><span class="modal-close" onclick="hideModal('modalMaestro')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title">📥 Homologar con el Excel de ventas</span><span class="modal-close" onclick="hideModal('modalMaestro')">✕</span></div>
     <div id="maestroPrev" style="display:flex;flex-direction:column;gap:10px"></div>
-    <button class="btn btn-green btn-full" onclick="aplicarImportMaestro()">✔ Aplicar importación</button>
+    <button class="btn btn-green btn-full" onclick="aplicarImportMaestro()">✔ Aplicar</button>
   </div>
 </div>
 <input type="file" id="maestroFile" accept=".xlsx,.xlsm,.xls" style="display:none" onchange="leerArchivoMaestro(this.files[0])">
@@ -1470,8 +1470,6 @@ function prepModalTarea(){
   S.tareasCat.forEach(t=>ts.innerHTML+=`<option value="${t.id}">${t.nombre}</option>`);
   const cs=document.getElementById('nClienteSel');cs.innerHTML='<option value="">— Seleccionar —</option>';
   S.clientes.forEach(c=>cs.innerHTML+=`<option value="${c.id}">${c.nombre}</option>`);
-  cs.onchange=()=>filtrarSelectTarea(document.getElementById('nTareaSearch').value||'','nTareaSel');
-  ts.onchange=()=>{ const m=maestroRow((S.tareasCat.find(x=>x.id===ts.value)||{}).mk); if(m&&m.clienteId) cs.value=m.clienteId; };
   const w=document.getElementById('colabTareaChips');w.innerHTML='';
   if(!S.turno)return;
   S.turno.equipo.forEach(c=>{
@@ -1611,12 +1609,12 @@ async function confirmarCierre(){
   if (t.isRutina && validados === 0) showToast('Advertencia: ningún paso fue validado', 'error');
   const cerrandoTodos=!personaId||personaId==='todos'||(t.colaboradores||[]).length<=1;
   if(cerrandoTodos){
-    S.historial.push({...t,fin,cant,nota,durH:dH,realProd:rp,efic,sinProd:tc?.sinProd||false,pctCumplimiento,isRutina:t.isRutina,rutinaPasos:t.rutinaPasos,cobro:snapCobro(t.tareaId,S.turno&&S.turno.fecha)});
+    S.historial.push({...t,fin,cant,nota,durH:dH,realProd:rp,efic,sinProd:tc?.sinProd||false,pctCumplimiento,isRutina:t.isRutina,rutinaPasos:t.rutinaPasos,excel:actividadExcel(t.tareaId,t.clienteId)});
     S.tareasActivas=S.tareasActivas.filter(x=>x.id!==S.cerrandoId);
   } else {
     const persona=(t.colaboradores||[]).find(c=>c.id===personaId);
     if(persona){
-      S.historial.push({...t,id:uid(),colaboradores:[persona],fin,cant,nota,durH:dH,realProd:rp,efic,sinProd:tc?.sinProd||false,pctCumplimiento,isRutina:t.isRutina,rutinaPasos:t.rutinaPasos,cobro:snapCobro(t.tareaId,S.turno&&S.turno.fecha)});
+      S.historial.push({...t,id:uid(),colaboradores:[persona],fin,cant,nota,durH:dH,realProd:rp,efic,sinProd:tc?.sinProd||false,pctCumplimiento,isRutina:t.isRutina,rutinaPasos:t.rutinaPasos,excel:actividadExcel(t.tareaId,t.clienteId)});
       const remaining=(t.colaboradores||[]).filter(c=>c.id!==personaId);
       if(!remaining.length) S.tareasActivas=S.tareasActivas.filter(x=>x.id!==S.cerrandoId);
       else t.colaboradores=remaining;
@@ -1818,20 +1816,20 @@ function openModalTareaCat(id){
     document.getElementById('tcEfic').value=85;
     document.getElementById('tcSinProd').checked=false;
   }
-  const tcm=document.getElementById('tcMaestro'), mkAct=id?(S.tareasCat.find(x=>x.id===id)||{}).mk:'';
-  tcm.innerHTML='<option value="">— Sin vínculo (solo horas, sin cobro) —</option>'+(S.maestro||[]).filter(m=>m.costoHora>0||m.k===mkAct)
-    .map(m=>`<option value="${m.k}"${m.k===mkAct?' selected':''}>${m.actividad} — ${m.cliente}</option>`).join('');
-  updateTcMaestroInfo();
+  renderTcExcel(id?(S.tareasCat.find(x=>x.id===id)||{}).excel||{}:{});
   toggleSinProd();
   updateTcEficInfo();
   document.getElementById('tcProd').oninput=updateTcEficInfo;
   document.getElementById('tcEfic').oninput=updateTcEficInfo;
   showModal('modalTareaCat');
 }
-function updateTcMaestroInfo(){
-  const m=maestroRow(document.getElementById('tcMaestro').value), el=document.getElementById('tcMaestroInfo');
-  el.style.display=m?'block':'none';
-  if(m) el.innerHTML=`<b>${m.cliente}</b> · ${m.categoria||'—'} · ${m.tipoActividad||''}<br>Tarifa <b>$${m.tarifa}</b> / unidad · Costo $${m.costoHora}/h${m.costoUnidad?` + $${m.costoUnidad}/unidad`:''}`;
+// Un selector por cliente con sus actividades del Excel
+function renderTcExcel(excel){
+  const wrap=document.getElementById('tcExcel'), M=S.maestro||[];
+  document.getElementById('tcExcelField').style.display=M.length?'':'none';
+  wrap.innerHTML=(S.clientes||[]).filter(c=>M.some(m=>m.clienteId===c.id)).map(c=>
+    `<div class="edit-row"><span style="min-width:110px;font-size:.75rem;color:var(--t2)">${c.nombre}</span><select data-cli="${c.id}"><option value="">— No aplica —</option>${
+      M.filter(m=>m.clienteId===c.id).map(m=>`<option value="${m.k}"${excel[c.id]===m.k?' selected':''}>${m.actividad}</option>`).join('')}</select></div>`).join('');
 }
 function toggleSinProd(){
   const checked=document.getElementById('tcSinProd')?.checked||false;
@@ -1857,12 +1855,14 @@ async function guardarTareaCat(){
   const desc=document.getElementById('tcDesc').value;
   const unidad=document.getElementById('tcUnidad').value;
   const sinProd=document.getElementById('tcSinProd')?.checked||false;
-  const mk=document.getElementById('tcMaestro').value||null;
+  const excel={}; document.querySelectorAll('#tcExcel select').forEach(x=>{ if(x.value) excel[x.dataset.cli]=x.value; });
+  const ocupada=Object.entries(excel).map(([cli,k])=>S.tareasCat.find(o=>o.id!==S.editingId&&(o.excel||{})[cli]===k)).find(Boolean);
+  if(ocupada){ showToast('Esa actividad del Excel ya está en «'+ocupada.nombre+'»','error'); return; }
   if(S.editingId){
     const t=S.tareasCat.find(x=>x.id===S.editingId);
-    t.nombre=nombre;t.desc=desc;t.prod=prod;t.unidad=unidad;t.efic=efic;t.sinProd=sinProd;t.mk=mk;
+    t.nombre=nombre;t.desc=desc;t.prod=prod;t.unidad=unidad;t.efic=efic;t.sinProd=sinProd;t.excel=excel;
   } else {
-    S.tareasCat.push({id:uid(),nombre,desc,prod,unidad,efic,sinProd,mk});
+    S.tareasCat.push({id:uid(),nombre,desc,prod,unidad,efic,sinProd,excel});
   }
   S.editingId=null;await save();hideModal('modalTareaCat');renderInsights();renderAll();showToast('Tarea guardada');
 }
@@ -1884,58 +1884,57 @@ async function guardarCliente(){
 }
 async function eliminarCliente(id){if(!confirm('¿Eliminar cliente?'))return;S.clientes=S.clientes.filter(x=>x.id!==id);await save();renderInsights();}
 
-// ═══ MAESTRO DE TARIFAS (importado del Excel "Informe de ventas") ═══
-// S.maestro: una fila por actividad + cliente, igual que Tabla_Maestro_Tarifas.
-// Las tareas del catálogo se vinculan a una fila (t.mk) y, al cerrarse, guardan una copia de la tarifa vigente (cobro).
+// ═══ ACTIVIDADES DEL EXCEL DE VENTAS (homologación) ═══
+// La app costea horas y personas; ventas y tarifas siguen en el Excel.
+// S.maestro: actividades del Excel que se costean por hora (COSTE HORA > 0), una por actividad + cliente.
+// Cada tarea genérica del catálogo dice, por cliente, cómo se llama en el Excel: t.excel = {clienteId: clave}.
 const normTxt=s=>String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 const maestroKey=(act,cli)=>normTxt(act)+'|'+normTxt(cli);
-const numOrNull=v=>{ if(v===''||v==null) return null; const n=Number(v); return isFinite(n)?n:null; };
 function maestroRow(mk){ return mk?(S.maestro||[]).find(m=>m.k===mk)||null:null; }
-function trimestre(fecha){ const m=fecha?new Date(fecha+'T12:00:00').getMonth():new Date().getMonth(); return Math.floor(m/3); }
-// Copia de la tarifa vigente que queda en cada tarea cerrada (no cambia si luego se edita el maestro)
-function snapCobro(tareaCatId, fecha){
-  const tc=(S.tareasCat||[]).find(x=>x.id===tareaCatId), m=tc&&maestroRow(tc.mk);
-  if(!m) return null;
-  return {actividad:m.actividad,cliente:m.cliente,tarifa:m.tarifa||0,costoHora:m.costoHora||0,costoUnidad:m.costoUnidad||0,
-    categoria:m.categoria||'',tipoActividad:m.tipoActividad||'',subActividad:m.subActividad||'',centro:m.centro||'',
-    prodObj:(m.prodObj||[])[trimestre(fecha)]??null};
+// Nombre y clasificación en el Excel de una tarea hecha para un cliente (se guarda al cerrar la tarea)
+function actividadExcel(tareaCatId, clienteId){
+  const tc=(S.tareasCat||[]).find(x=>x.id===tareaCatId), m=tc&&tc.excel&&maestroRow(tc.excel[clienteId]);
+  return m?{actividad:m.actividad,categoria:m.categoria,tipoActividad:m.tipoActividad,subActividad:m.subActividad}:null;
 }
-// Filas (matriz) de la hoja → filas del maestro. Ubica el encabezado por nombre de columna.
+// Filas (matriz) de la hoja → actividades con costo por hora. Ubica el encabezado por nombre de columna.
 function parseMaestroAOA(aoa){
-  const hi=aoa.findIndex(r=>(r||[]).some(c=>normTxt(c)==='actividad')&&(r||[]).some(c=>normTxt(c)==='tarifa'));
-  if(hi<0) throw new Error('No se encontró el encabezado ACTIVIDAD / TARIFA en la hoja');
+  const hi=aoa.findIndex(r=>(r||[]).some(c=>normTxt(c)==='actividad')&&(r||[]).some(c=>normTxt(c)==='coste hora'));
+  if(hi<0) throw new Error('No se encontró el encabezado ACTIVIDAD / COSTE HORA en la hoja');
   const H=aoa[hi].map(normTxt), col=n=>H.indexOf(n);
-  const C={act:col('actividad'),tar:col('tarifa'),cli:col('cliente'),ord:col('orden'),ch:col('coste hora'),cu:col('coste unidad'),
-    cat:col('categoria'),tipo:col('tipo actividad'),sub:col('sub actividad'),centro:col('centro'),
-    p:[col('prod obj t1'),col('prod obj t2'),col('prod obj t3'),col('prod obj t4')]};
-  const rows=[], vistos=new Set();
+  const C={act:col('actividad'),cli:col('cliente'),ch:col('coste hora'),cat:col('categoria'),tipo:col('tipo actividad'),sub:col('sub actividad')};
+  const filas=[], vistos=new Set(); let sinHora=0;
   for(let i=hi+1;i<aoa.length;i++){
     const r=aoa[i]||[], act=String(r[C.act]??'').trim();
     if(!act) continue;
+    if(!(Number(r[C.ch])>0)){ sinHora++; continue; }   // transporte, almacenaje, TI, gastos: siguen solo en el Excel
     const cli=String(r[C.cli]??'').trim(), k=maestroKey(act,cli);
-    if(vistos.has(k)) continue; vistos.add(k);   // actividad repetida para el mismo cliente: vale la primera, como el BUSCARV
+    if(vistos.has(k)) continue; vistos.add(k);          // repetida para el mismo cliente: vale la primera, como el BUSCARV
     const txt=j=>j<0?'':String(r[j]??'').trim();
-    rows.push({id:k,k,actividad:act,cliente:cli,orden:numOrNull(r[C.ord]),tarifa:numOrNull(r[C.tar])||0,costoHora:numOrNull(r[C.ch])||0,
-      costoUnidad:numOrNull(r[C.cu])||0,categoria:txt(C.cat),tipoActividad:txt(C.tipo),subActividad:txt(C.sub),centro:txt(C.centro),
-      prodObj:C.p.map(j=>j<0?null:numOrNull(r[j]))});
+    filas.push({id:k,k,actividad:act,cliente:cli,categoria:txt(C.cat),tipoActividad:txt(C.tipo),subActividad:txt(C.sub)});
   }
-  if(!rows.length) throw new Error('La hoja no tiene actividades');
-  return rows;
+  if(!filas.length) throw new Error('La hoja no tiene actividades con costo por hora');
+  return {filas,sinHora};
 }
-// Sugerencia de vínculo para tareas actuales (por palabras en común)
-const _SINON={descargue:'descarga',cargar:'cargue',movimiendo:'movimiento',paleetas:'paletas',pallets:'pallet',paletas:'pallet',paleta:'pallet',sider:'siders',reubicado:'reubicado',dpworld:'dp world'};
-function _tokens(s){ return new Set(normTxt(s).replace(/dpworld/g,'dp world').split(' ').map(w=>_SINON[w]||w).map(w=>w.length>4?w.replace(/s$/,''):w).filter(w=>w.length>2&&!['con','del','las','los','para','por'].includes(w))); }
-function sugerirMaestro(nombre, filas){
-  const a=_tokens(nombre); let best=null,bs=0;
-  filas.forEach(m=>{ const b=_tokens(m.actividad); let inter=0; a.forEach(w=>{if(b.has(w))inter++;});
-    if(!inter) return;
-    const sc=inter/Math.max(1,Math.min(a.size,b.size)+0.5*Math.abs(a.size-b.size));
-    if((sc>=0.5||inter>=2)&&sc+inter*0.01>bs){bs=sc+inter*0.01;best=m;} });
-  return best;
+// Sugerencia de tarea genérica para una actividad del Excel (por palabras en común, sin el nombre del cliente)
+const _SINON={descargue:'descarga',cargar:'cargue',movimiendo:'movimiento',paleetas:'paletas',pallets:'pallet',paletas:'pallet',paleta:'pallet',sider:'siders',dpworld:'dp world'};
+const _VACIAS=['con','del','las','los','para','por','area','zona'];
+function _tokens(s,quitar){ const q=new Set(quitar?_tokens(quitar):[]);
+  return new Set(normTxt(s).replace(/dpworld/g,'dp world').split(' ').map(w=>_SINON[w]||w).map(w=>w.length>4?w.replace(/s$/,''):w)
+    .filter(w=>w.length>2&&!_VACIAS.includes(w)&&!q.has(w))); }
+function puntaje(actividad, cliente, nombreTarea){
+  const a=_tokens(actividad,cliente), b=_tokens(nombreTarea); let inter=0; a.forEach(w=>{if(b.has(w))inter++;});
+  if(!inter) return 0;
+  const sc=inter/Math.max(1,Math.min(a.size,b.size)+0.5*Math.abs(a.size-b.size));
+  return (sc>=0.5||inter>=2||inter===b.size)?sc+inter*0.01:0;   // o todas las palabras de la tarea están en la actividad
 }
 function clientePorNombre(nombre){
   const n=normTxt(nombre).replace(/\bpanama\b/g,'').trim(); if(!n) return null;
   return (S.clientes||[]).find(c=>{ const x=normTxt(c.nombre).replace(/\bpanama\b/g,'').trim(); return x===n||x.startsWith(n)||n.startsWith(x); })||null;
+}
+// Nombre de tarea genérica a partir de la actividad del Excel: sin el cliente entre paréntesis
+function nombreGenerico(f){
+  let s=f.actividad.replace(/\(([^)]*)\)/g,(m,x)=>normTxt(x)&&normTxt(f.cliente).includes(normTxt(x))?'':m).replace(/\s+/g,' ').trim();
+  return s.charAt(0).toUpperCase()+s.slice(1).toLowerCase();
 }
 let _maestroPend=null;
 function abrirImportMaestro(){ const f=document.getElementById('maestroFile'); f.value=''; f.click(); }
@@ -1943,65 +1942,65 @@ async function leerArchivoMaestro(file){
   if(!file) return;
   try{
     const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
-    const hoja=wb.SheetNames.find(n=>/maestro\s+de\s+tarifas/i.test(n))||wb.SheetNames.find(n=>/tarifa/i.test(n));
+    const hoja=wb.SheetNames.find(n=>/maestro\s+de\s+tarifas/i.test(n))||wb.SheetNames.find(n=>/maestro/i.test(n));
     if(!hoja) throw new Error('El archivo no tiene la hoja "MAESTRO DE TARIFAS"');
     prepImportMaestro(parseMaestroAOA(XLSX.utils.sheet_to_json(wb.Sheets[hoja],{header:1,defval:''})), file.name);
-  }catch(e){ console.error(e); showToast('No se pudo leer el maestro: '+e.message,'error'); }
+  }catch(e){ console.error(e); showToast('No se pudo leer el archivo: '+e.message,'error'); }
 }
-// Vista previa: qué cambia y cómo se vinculan las tareas actuales
-function prepImportMaestro(filas, archivo){
-  const prev=new Map((S.maestro||[]).map(m=>[m.k,m]));
-  const nuevas=filas.filter(f=>!prev.has(f.k));
-  const cambios=filas.filter(f=>{const p=prev.get(f.k);return p&&(p.tarifa!==f.tarifa||p.costoHora!==f.costoHora||p.costoUnidad!==f.costoUnidad);});
-  const cliNuevos=[...new Set(filas.map(f=>f.cliente).filter(c=>c&&!clientePorNombre(c)))];
-  const deTurno=filas.filter(f=>f.costoHora>0);
-  const sinVinculo=(S.tareasCat||[]).filter(t=>!t.mk||!filas.some(f=>f.k===t.mk));
+// Vista previa: a qué tarea genérica corresponde cada actividad del Excel
+function prepImportMaestro(res, archivo){
+  const {filas,sinHora}=res;
+  const tareas=(S.tareasCat||[]).filter(t=>!esAlmuerzo({tarea:t.nombre}));
+  const asignadoA=k=>tareas.find(t=>Object.values(t.excel||{}).includes(k));
+  // Sugerencias: primero lo ya homologado; luego la mejor tarea libre para ese cliente; si no hay, crear una genérica
+  const elegido={}, ocupado=new Set();
+  filas.forEach(f=>{ const t=asignadoA(f.k); if(t){ elegido[f.k]=t.id; ocupado.add(t.id+'|'+normTxt(f.cliente)); } });
+  const cand=[];
+  filas.filter(f=>!elegido[f.k]).forEach(f=>tareas.forEach(t=>{ const p=puntaje(f.actividad,f.cliente,t.nombre); if(p) cand.push({f,t,p}); }));
+  cand.sort((a,b)=>b.p-a.p).forEach(({f,t})=>{ const o=t.id+'|'+normTxt(f.cliente); if(elegido[f.k]||ocupado.has(o)) return; elegido[f.k]=t.id; ocupado.add(o); });
+  // Sobretiempo y horas extras los calcula la app; el Toolbox tiene su propio registro
+  filas.forEach(f=>{ if(!elegido[f.k]) elegido[f.k]=/sobretiempo|horas extras|toolbox/i.test(f.actividad)?'':'nueva'; });
   _maestroPend={filas,archivo};
-  const money=n=>'$'+(+n||0).toLocaleString('en-US',{maximumFractionDigits:4});
-  let h=`<div class="info-box"><b>${archivo||'Maestro'}</b> · ${filas.length} actividades (${deTurno.length} de mano de obra para el turno, ${filas.length-deTurno.length} cargos: transporte, almacenaje, TI, gastos).</div>
-  <div class="stat-row"><div class="stat-card"><div class="stat-label">Nuevas</div><div class="stat-val g">${nuevas.length}</div></div>
-  <div class="stat-card"><div class="stat-label">Tarifa cambia</div><div class="stat-val ${cambios.length?'a':''}">${cambios.length}</div></div>
-  <div class="stat-card"><div class="stat-label">Clientes nuevos</div><div class="stat-val">${cliNuevos.length}</div></div></div>`;
-  if(cliNuevos.length) h+=`<div class="li-sub">Se crearán: ${cliNuevos.join(' · ')}</div>`;
-  if(cambios.length){
-    h+=`<div class="sub-ttl">Cambios de tarifa (aplican desde hoy; lo ya registrado conserva su tarifa)</div><table class="rt-table"><tr><th>Actividad</th><th>Antes</th><th>Ahora</th></tr>`;
-    cambios.forEach(f=>{const p=prev.get(f.k);h+=`<tr><td>${f.actividad}<div class="muted" style="font-size:.66rem">${f.cliente}</div></td><td>${money(p.tarifa)} · ${money(p.costoHora)}/h</td><td><b>${money(f.tarifa)}</b> · ${money(f.costoHora)}/h</td></tr>`;});
-    h+=`</table>`;
-  }
-  if(sinVinculo.length){
-    h+=`<div class="sub-ttl">Vincula las tareas actuales del turno (${sinVinculo.length})</div>
-    <div class="li-sub">Revisa la sugerencia de cada una. Las que vincules conservan su nombre y su histórico; las actividades del maestro que no se vinculen se agregan al catálogo.</div>`;
-    sinVinculo.forEach(t=>{const sug=sugerirMaestro(t.nombre,deTurno), sel=(t.mk&&deTurno.some(f=>f.k===t.mk))?t.mk:(sug&&sug.k);
-      const opts=deTurno.map(f=>`<option value="${f.k}"${f.k===sel?' selected':''}>${f.actividad} — ${f.cliente}</option>`).join('');
-      h+=`<div class="field"><label>${t.nombre}</label><select class="mVinc" data-tid="${t.id}"><option value="">— No vincular (solo horas, sin cobro) —</option>${opts}</select></div>`;
-    });
-  }
+  const cliNuevos=[...new Set(filas.map(f=>f.cliente).filter(c=>c&&!clientePorNombre(c)))];
+  let h=`<div class="info-box"><b>${archivo||'Excel'}</b> · ${filas.length} actividades con costo por hora. ${sinHora} sin costo por hora (transporte, almacenaje, TI, gastos) quedan solo en el Excel.</div>
+  <div class="li-sub">Elige la <b>tarea genérica</b> de la app para cada actividad del Excel. Una tarea puede servir a varios clientes, pero solo a una actividad por cliente. La fila que se exporte al Excel llevará el nombre de la izquierda. Sobretiempo y horas extras no son tareas: la app los calcula con las horas de cada persona.</div>`;
+  if(cliNuevos.length) h+=`<div class="li-sub">Clientes que se crearán: <b>${cliNuevos.join(' · ')}</b></div>`;
+  const optsTareas=tareas.map(t=>`<option value="${t.id}">${t.nombre}</option>`).join('');
+  h+=`<table class="rt-table"><tr><th>Actividad en el Excel</th><th style="width:44%">Tarea de la app</th></tr>`;
+  filas.forEach(f=>{
+    const ops=`<option value="">— No usar —</option><option value="nueva">➕ Crear «${nombreGenerico(f)}»</option>${optsTareas}`.replace(`value="${elegido[f.k]}"`,`value="${elegido[f.k]}" selected`);
+    h+=`<tr><td>${f.actividad}<div class="muted" style="font-size:.66rem">${f.cliente}${f.categoria?' · '+f.categoria:''}</div></td><td><select class="mVinc" data-k="${f.k}">${ops}</select></td></tr>`;
+  });
+  h+=`</table>`;
   document.getElementById('maestroPrev').innerHTML=h;
   showModal('modalMaestro');
 }
 async function aplicarImportMaestro(){
   if(!_maestroPend) return;
-  const {filas}=_maestroPend, hoy=fechaLocal(new Date());
-  const prev=new Map((S.maestro||[]).map(m=>[m.k,m]));
-  // 1) clientes
-  filas.forEach(f=>{ if(f.cliente&&!clientePorNombre(f.cliente)) S.clientes.push({id:uid(),nombre:f.cliente,desc:'Desde maestro de tarifas'}); });
-  // 2) maestro con historial de tarifas
-  S.maestro=filas.map(f=>{ const p=prev.get(f.k), hist=p?[...(p.hist||[])]:[];
-    if(p&&(p.tarifa!==f.tarifa||p.costoHora!==f.costoHora||p.costoUnidad!==f.costoUnidad)) hist.push({hasta:hoy,tarifa:p.tarifa,costoHora:p.costoHora,costoUnidad:p.costoUnidad});
-    return {...f,clienteId:(clientePorNombre(f.cliente)||{}).id||null,desde:p&&!hist.length?p.desde:hoy,hist}; });
-  // 3) vínculos elegidos para las tareas actuales
-  document.querySelectorAll('#maestroPrev .mVinc').forEach(sel=>{ const t=S.tareasCat.find(x=>x.id===sel.dataset.tid); if(t) t.mk=sel.value||null; });
-  // 4) actividades de mano de obra sin tarea vinculada → nuevas tareas del catálogo
-  let nuevas=0;
-  S.maestro.filter(m=>m.costoHora>0&&!S.tareasCat.some(t=>t.mk===m.k)).forEach(m=>{
-    const n=normTxt(m.actividad), unidad=/contenedor|furgon/.test(n)?'contenedor':/bulto|caja/.test(n)?'bulto':/pallet|paleta|sider|rack/.test(n)?'pallet':'unidad';
-    S.tareasCat.push({id:uid(),nombre:m.actividad,desc:m.cliente,prod:m.prodObj.find(x=>x>0)||0,unidad,efic:85,sinProd:!m.tarifa&&!m.prodObj.some(x=>x>0),mk:m.k});
-    nuevas++;
+  const {filas,archivo}=_maestroPend, sel={};
+  document.querySelectorAll('#maestroPrev .mVinc').forEach(s=>sel[s.dataset.k]=s.value);
+  // Una actividad por tarea y cliente
+  const usado={}, choques=[];
+  filas.forEach(f=>{ const v=sel[f.k]; if(!v||v==='nueva') return; const o=v+'|'+normTxt(f.cliente); if(usado[o]) choques.push(f.actividad+' / '+usado[o]); else usado[o]=f.actividad; });
+  if(choques.length){ showToast('Una tarea tiene dos actividades del mismo cliente: '+choques[0],'error'); return; }
+  filas.forEach(f=>{ if(f.cliente&&!clientePorNombre(f.cliente)) S.clientes.push({id:uid(),nombre:f.cliente,desc:'Desde el Excel de ventas'}); });
+  S.maestro=filas.map(f=>({...f,clienteId:(clientePorNombre(f.cliente)||{}).id||null}));
+  // Rehace la homologación según lo elegido (conserva tareas, nombres e histórico)
+  S.tareasCat.forEach(t=>{ t.excel={}; });
+  let nuevas=0; const creadas={};
+  S.maestro.forEach(m=>{
+    let v=sel[m.k]; if(!v||!m.clienteId) return;
+    if(v==='nueva'){ const nom=nombreGenerico(m), key=normTxt(nom);
+      let t=creadas[key]&&!creadas[key].excel[m.clienteId]?creadas[key]:null;
+      if(!t){ const n=normTxt(nom), unidad=/contenedor|furgon/.test(n)?'contenedor':/bulto|caja/.test(n)?'bulto':/pallet|paleta|sider|rack/.test(n)?'pallet':'unidad';
+        t={id:uid(),nombre:nom,desc:'',prod:0,unidad,efic:85,sinProd:false,excel:{}}; S.tareasCat.push(t); creadas[key]=t; nuevas++; }
+      v=t.id; }
+    const t=S.tareasCat.find(x=>x.id===v); if(t) t.excel[m.clienteId]=m.k;
   });
-  S.maestroInfo={archivo:_maestroPend.archivo||'',fecha:hoy,filas:S.maestro.length};
+  S.maestroInfo={archivo:archivo||'',fecha:fechaLocal(new Date()),filas:S.maestro.length};
   _maestroPend=null;
   await save(); hideModal('modalMaestro'); renderInsights(); renderAll();
-  showToast('Maestro importado · '+S.maestro.length+' actividades · '+nuevas+' tareas nuevas','success');
+  showToast('Actividades del Excel homologadas · '+nuevas+' tarea(s) nueva(s)','success');
 }
 
 // ═══ EXCEL EXPORT ═══
@@ -2358,10 +2357,10 @@ function renderInsights(){
     h+=`</div></div>`;
 
     // TAREAS
-    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sTarCat','cTarCat')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">📋 Catálogo de Tareas</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalTareaCat()">+ Nueva</button><button class="btn btn-indigo btn-sm" onclick="event.stopPropagation();abrirImportMaestro()" title="Importar el maestro de tarifas desde el Excel de ventas">📥 Maestro</button><button class="btn btn-purple btn-sm" onclick="event.stopPropagation();seedCatalogo()" title="Cargar catálogo estándar de bodega multicuentas">📋 Estándar</button><span class="chevron open" id="cTarCat">▼</span></div></div><div class="sec-body" id="sTarCat">`;
-    {const mi=S.maestroInfo, sinV=S.tareasCat.filter(t=>!maestroRow(t.mk)&&!esAlmuerzo({tarea:t.nombre})).length;
-     h+=mi?`<div class="info-box">Maestro de tarifas: <b>${mi.filas}</b> actividades · ${mi.archivo} · importado ${mi.fecha}${sinV?` · <b style="color:var(--amber)">${sinV} tarea(s) sin vínculo</b> (no generan cobro)`:''}</div>`
-       :`<div class="warn-box">Aún no hay maestro de tarifas. Usa <b>📥 Maestro</b> y elige tu Excel de ventas para vincular cada tarea con su actividad de cobro.</div>`;}
+    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sTarCat','cTarCat')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">📋 Catálogo de Tareas</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalTareaCat()">+ Nueva</button><button class="btn btn-indigo btn-sm" onclick="event.stopPropagation();abrirImportMaestro()" title="Homologar tareas con las actividades del Excel de ventas">📥 Excel</button><button class="btn btn-purple btn-sm" onclick="event.stopPropagation();seedCatalogo()" title="Cargar catálogo estándar de bodega multicuentas">📋 Estándar</button><span class="chevron open" id="cTarCat">▼</span></div></div><div class="sec-body" id="sTarCat">`;
+    {const mi=S.maestroInfo, sinV=S.tareasCat.filter(t=>!Object.keys(t.excel||{}).length&&!esAlmuerzo({tarea:t.nombre})).length;
+     h+=mi?`<div class="info-box">Actividades del Excel: <b>${mi.filas}</b> con costo por hora · ${mi.archivo} · ${mi.fecha}${sinV?` · <b style="color:var(--amber)">${sinV} tarea(s) sin nombre en el Excel</b>`:''}</div>`
+       :`<div class="warn-box">Usa <b>📥 Excel</b> y elige tu Excel de ventas para homologar las tareas con las actividades del maestro (solo las que tienen costo por hora).</div>`;}
     if(!S.tareasCat.length)h+=`<div class="empty"><div class="empty-text">Sin tareas</div></div>`;
     S.tareasCat.forEach(t=>{
       const pr=calcProdReal(t.id);
@@ -2370,8 +2369,8 @@ function renderInsights(){
       const prStr=pr!=null?pr.toFixed(1)+' '+t.unidad+'s/h':'Sin datos';
       const prCol=pr!=null&&t.prod>0?(pr/t.prod*100)>=ef?'var(--green)':'var(--amber)':'var(--mid)';
       const sinProdBadge=t.sinProd?'<span class="badge bgy" style="font-size:.58rem">Sin Productividad</span>':'';
-      const mr=maestroRow(t.mk);
-      const vincBadge=(S.maestro||[]).length?(mr?`<span class="badge bi" style="font-size:.58rem" title="${mr.actividad}">${mr.cliente} · ${mr.tarifa?'$'+mr.tarifa:'sin venta'}</span>`:'<span class="badge ba" style="font-size:.58rem">Sin vínculo</span>'):'';
+      const exc=Object.keys(t.excel||{}).map(c=>(S.clientes.find(x=>x.id===c)||{}).nombre).filter(Boolean);
+      const vincBadge=(S.maestro||[]).length&&!esAlmuerzo({tarea:t.nombre})?(exc.length?`<span class="badge bi" style="font-size:.58rem" title="Nombre en el Excel configurado para: ${exc.join(', ')}">Excel · ${exc.length} cliente(s)</span>`:'<span class="badge ba" style="font-size:.58rem">Sin nombre en Excel</span>'):'';
       h+=`<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:5px">
         <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
           <div style="display:flex;align-items:center;gap:6px"><span class="li-name">${t.nombre}</span>${sinProdBadge}${vincBadge}</div>
@@ -4078,10 +4077,7 @@ function filtrarSelectTarea(q, selId) {
   const val = sel.value;
   sel.innerHTML = '<option value="">— Seleccionar —</option>';
   const lower = q.toLowerCase();
-  // En "Nueva tarea", con cliente elegido se muestran sus tareas y las generales (sin vínculo)
-  const cliSel = selId === 'nTareaSel' ? (document.getElementById('nClienteSel') || {}).value : '';
-  const delCliente = t => { if (!cliSel) return true; const m = maestroRow(t.mk); return !m || !m.clienteId || m.clienteId === cliSel; };
-  (S.tareasCat || []).filter(t => (!q || t.nombre.toLowerCase().includes(lower)) && delCliente(t)).forEach(t => {
+  (S.tareasCat || []).filter(t => !q || t.nombre.toLowerCase().includes(lower)).forEach(t => {
     const opt = document.createElement('option');
     opt.value = t.id; opt.textContent = t.nombre;
     if (t.id === val) opt.selected = true;

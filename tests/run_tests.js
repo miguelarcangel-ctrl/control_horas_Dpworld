@@ -109,39 +109,37 @@ async function newPage(browser, opts = {}) {
   ok(await page.evaluate(() => window.__SRV.rows.ctrl_horas_test.value.config.tarifaOperador === 60), 'tarifa operador editable y guardada');
   ok(await page.evaluate(() => Math.abs(costoCargo('operador').dia - 64.2) < 0.01), 'nueva tarifa aplica al cálculo ($60 × 1.07)');
 
-  // 9b) Maestro de tarifas: importación, vínculo, tarifa congelada al cerrar y cambio de tarifa
+  // 9b) Homologación con el Excel de ventas: solo actividades con costo por hora; tareas genéricas + nombre por cliente
   const AOA = [['MAESTRO TARIFAS 2026'], [],
     ['', 'ACTIVIDAD', 'TARIFA', 'CLIENTE', 'ORDEN ', 'COSTE HORA', 'Prod Obj T1', 'Prod Obj T2', 'Prod Obj T3', 'Prod Obj T4', 'CATEGORIA', 'TIPO ACTIVIDAD', 'SUB-ACTIVIDAD', 'COSTE UNIDAD', 'CENTRO'],
-    ['', 'DESCARGA DE CONTENEDOR', 108, 'CERNAC', 1, 6.69, 20, 20, 20, 25, 'PAYROLL', 'DOOR LOGISTIC', 'MANIP', 0, 'CLP'],
+    ['', 'DESCARGA DE CONTENEDOR', 108, 'CERNAC', 1, 6.69, '', '', '', '', 'PAYROLL', 'DOOR LOGISTIC', 'MANIP', 0, 'CLP'],
     ['', 'DESCARGA DE CONTENEDOR', 999, 'CERNAC', 2, 6.69, '', '', '', '', 'PAYROLL', 'DOOR LOGISTIC', 'MANIP', 0, 'CLP'],
-    ['', 'PICKING', 0.9, 'ALICORP', 3, 6.69, '', '', '', '', 'PAYROLL', 'DOOR LOGISTIC', 'MANIP', '', ''],
-    ['', 'TRANSPORTE 1X40', 160, 'CERNAC', 4, 0, 0, 0, 0, 0, 'TRANSPORTES ', 'TRANSPORTES ', 'TRANSPORTES', 150, 'CLP'],
-    ['', 'MANEJO DE INGRESO', 20, 'CERNAC', 5, 0, '', '', '', '', 'TRANSPORTES', 'TRANSPORTES', 'TRANSPORTES', '', 'CLP'],
-    ['', 'MANEJO DE INGRESO', 25, 'Otro Cliente', 6, 0, '', '', '', '', 'ENTRADAS', 'MOD', 'MANIP', '', 'CLP'],
+    ['', 'PICKING DE MERCANCIA', 0, 'CERNAC', 3, 6.69, '', '', '', '', 'PAYROLL', 'DOOR LOGISTIC', 'MANIP', '', ''],
+    ['', 'PICKING (ALICORP)', 0.9, 'ALICORP', 4, 6.69, '', '', '', '', 'PAYROLL', 'DOOR LOGISTIC', 'MANIP', '', ''],
+    ['', 'TRANSPORTE 1X40', 160, 'CERNAC', 5, 0, 0, 0, 0, 0, 'TRANSPORTES ', 'TRANSPORTES ', 'TRANSPORTES', 150, 'CLP'],
+    ['', 'VAS TRASIEGO DE 6 PACK', 10, 'Otro Cliente', 6, 6.69, '', '', '', '', 'OVAS', 'DOOR LOGISTIC', 'MANIP', '', ''],
     ['', '', '', '', '', '']];
   await page.evaluate(aoa => prepImportMaestro(parseMaestroAOA(aoa), 'prueba.xlsx'), AOA); await page.waitForTimeout(200);
-  const sug = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#maestroPrev .mVinc')].map(s => [s.dataset.tid, s.value])));
-  ok(sug.t1 === 'descarga de contenedor|cernac' && sug.t2 === 'picking|alicorp', 'maestro: sugiere vínculo de las tareas actuales');
+  const sug = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#maestroPrev .mVinc')].map(s => [s.dataset.k, s.value])));
+  ok(Object.keys(sug).length === 4 && !('transporte 1x40|cernac' in sug), 'Excel: solo actividades con costo por hora (transporte queda fuera)');
+  ok(sug['descarga de contenedor|cernac'] === 't1' && sug['picking de mercancia|cernac'] === 't2' && sug['picking alicorp|alicorp'] === 't2', 'Excel: sugiere la tarea genérica para cada cliente');
+  ok(sug['vas trasiego de 6 pack|otro cliente'] === 'nueva', 'Excel: sin tarea parecida propone crear una genérica');
   await page.evaluate(() => aplicarImportMaestro()); await page.waitForTimeout(300);
-  const mst = await page.evaluate(() => ({ n: S.maestro.length, d: maestroRow('descarga de contenedor|cernac').tarifa, cat: maestroRow('transporte 1x40|cernac').categoria,
-    cli: S.clientes.map(c => c.nombre), mi: S.maestro.filter(m => m.actividad === 'MANEJO DE INGRESO').map(m => m.tarifa).join(','),
-    enCat: S.tareasCat.some(t => t.mk === 'transporte 1x40|cernac'), pobj: maestroRow('descarga de contenedor|cernac').prodObj[3] }));
-  ok(mst.n === 5 && mst.d === 108, 'maestro: 5 actividades; actividad repetida usa la primera fila ($108, como el BUSCARV)');
-  ok(mst.mi === '20,25', 'maestro: misma actividad con distinto cliente conserva su tarifa (20 / 25)');
-  ok(mst.cli.includes('Otro Cliente') && mst.cli.filter(c => /cernac/i.test(c)).length === 1, 'maestro: crea solo los clientes que faltan');
-  ok(mst.cat === 'TRANSPORTES' && !mst.enCat, 'maestro: limpia espacios en categoría; cargos sin horas no entran al catálogo del turno');
-  ok(mst.pobj === 25, 'maestro: objetivo por trimestre (T4)');
-  await page.evaluate(() => { S.tareasActivas.push({ id: 'actM', tareaId: 't2', tarea: 'Picking', clienteId: 'k2', cliente: 'Alicorp', colaboradores: [S.turno.equipo[0]], inicio: Date.now() - 3600000, prod: 60, unidad: 'caja' });
-    prepCerrarTarea('actM'); document.getElementById('cantEjec').value = '100'; return confirmarCierre(); }); await page.waitForTimeout(300);
-  const cob = await page.evaluate(() => (S.historial.find(h => h.tareaId === 't2' && h.cant === 100) || {}).cobro);
-  ok(cob && cob.tarifa === 0.9 && cob.actividad === 'PICKING' && cob.costoHora === 6.69, 'al cerrar, la tarea guarda la tarifa vigente del maestro');
-  const AOA2 = JSON.parse(JSON.stringify(AOA)); AOA2[5][2] = 1.2;
-  await page.evaluate(aoa => { prepImportMaestro(parseMaestroAOA(aoa), 'prueba2.xlsx'); return aplicarImportMaestro(); }, AOA2); await page.waitForTimeout(300);
-  const t2 = await page.evaluate(() => ({ nueva: maestroRow('picking|alicorp').tarifa, hist: maestroRow('picking|alicorp').hist.map(h => h.tarifa).join(','),
-    vieja: (S.historial.find(h => h.tareaId === 't2' && h.cant === 100) || {}).cobro.tarifa, vinc: S.tareasCat.find(t => t.id === 't2').mk }));
-  ok(t2.nueva === 1.2 && t2.hist === '0.9' && t2.vieja === 0.9, 'cambio de tarifa: aplica desde hoy y no reescribe lo ya registrado');
-  ok(t2.vinc === 'picking|alicorp', 'reimportar conserva los vínculos');
-  ok(await page.evaluate(() => window.__SRV.rows.ctrl_horas_test.value.maestro.length === 5), 'maestro se guarda en el servidor');
+  const st = await page.evaluate(() => ({ n: S.maestro.length, t2: S.tareasCat.find(t => t.id === 't2').excel, cli: S.clientes.map(c => c.nombre),
+    nueva: S.tareasCat.find(t => t.nombre === 'Vas trasiego de 6 pack'), dup: S.tareasCat.filter(t => /picking/i.test(t.nombre)).length }));
+  ok(st.n === 4 && Object.keys(st.t2).length === 2, 'Excel: una tarea genérica sirve a dos clientes con su propio nombre');
+  ok(st.dup === 1, 'Excel: no duplica tareas por cliente');
+  ok(st.nueva && st.cli.includes('Otro Cliente') && st.cli.filter(c => /cernac/i.test(c)).length === 1, 'Excel: crea la tarea genérica y solo los clientes que faltan');
+  await page.evaluate(() => { S.tareasActivas.push({ id: 'actM', tareaId: 't2', tarea: 'Picking', clienteId: 'k2', cliente: 'Alicorp', colaboradores: [S.turno.equipo[0], S.turno.equipo[1]], inicio: Date.now() - 3600000, prod: 60, unidad: 'caja' });
+    prepCerrarTarea('actM'); S._cerrandoPersonaId = 'todos'; document.getElementById('cantEjec').value = '100'; return confirmarCierre(); }); await page.waitForTimeout(300);
+  const h = await page.evaluate(() => { const x = S.historial.find(h => h.tareaId === 't2' && h.cant === 100); return { ex: x.excel, hp: engVivo().horasPersonaTarea(x) }; });
+  ok(h.ex && h.ex.actividad === 'PICKING (ALICORP)' && h.ex.categoria === 'PAYROLL', 'al cerrar, la tarea guarda su nombre en el Excel según el cliente');
+  ok(Math.abs(h.hp - 2) < 0.02, 'horas-persona de la tarea: 1 h × 2 personas = 2 h');
+  await page.evaluate(aoa => prepImportMaestro(parseMaestroAOA(aoa), 'prueba2.xlsx'), AOA); await page.waitForTimeout(200);
+  ok(await page.evaluate(() => document.querySelector('#maestroPrev .mVinc[data-k="picking alicorp|alicorp"]').value === 't2'), 'reimportar conserva la homologación');
+  await page.evaluate(() => { document.querySelector('#maestroPrev .mVinc[data-k="picking de mercancia|cernac"]').value = 't1'; return aplicarImportMaestro(); }); await page.waitForTimeout(200);
+  ok(await page.evaluate(() => Object.keys(S.tareasCat.find(t => t.id === 't1').excel).length === 1), 'no permite dos actividades del mismo cliente en una tarea');
+  ok(await page.evaluate(() => window.__SRV.rows.ctrl_horas_test.value.maestro.length === 4), 'homologación se guarda en el servidor');
 
   // 10) Sesión persistente
   await page.reload(); await page.waitForTimeout(700);
