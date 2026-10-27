@@ -141,6 +141,62 @@ async function newPage(browser, opts = {}) {
   ok(await page.evaluate(() => Object.keys(S.tareasCat.find(t => t.id === 't1').excel).length === 1), 'no permite dos actividades del mismo cliente en una tarea');
   ok(await page.evaluate(() => window.__SRV.rows.ctrl_horas_test.value.maestro.length === 4), 'homologación se guarda en el servidor');
 
+  // 9c) Tablero por persona: cambiar de tarea cierra la anterior; cantidades pendientes; 4 grupos de tiempo
+  await page.evaluate(() => hideModal('modalMaestro'));
+  await page.click('#navSupBtn'); await page.waitForTimeout(200);
+  const tb = await page.evaluate(async () => {
+    cerrarActividad(S.turno.equipo.map(c => c.id), Date.now()); S.historial.forEach(h => h.cantPend = false);
+    await asignarTarea(['c1', 'c2'], 't1', 'k1', 0);
+    const a = S.tareasActivas.find(t => t.tareaId === 't1');
+    await sumarCant(a.id, 5); await sumarCant(a.id, 5);
+    const r = { grupo: a.colaboradores.length, por: a.por };
+    await asignarTarea(['c1'], 't2', 'k2', 0);                       // c1 cambia: sale del grupo
+    r.parcial = !!S.historial.find(h => h.tareaId === 't1' && h.parcial && h.colaboradores[0].id === 'c1');
+    r.sigue = S.tareasActivas.find(t => t.tareaId === 't1').colaboradores.map(c => c.id).join();
+    await pausar(['c2'], 'bano', 0);                                 // c2 a pausa: termina t1 con la cantidad contada
+    const t1 = S.historial.filter(h => h.tareaId === 't1' && !h.parcial).pop();
+    r.cantT1 = t1.cant; r.pendT1 = !!t1.cantPend;
+    r.pausa = (actDe('c2') || {}).causa;
+    await liberar(['c1']);                                           // Picking sin contar → pendiente
+    r.pend = pendientes().map(h => h.tareaId).join();
+    r.cards = document.querySelectorAll('#equipoList .pc').length;
+    r.libre = !!document.querySelector('#equipoList .pc.st-libre');
+    return r;
+  });
+  ok(tb.grupo === 2 && tb.por === 'admin', 'tablero: asigna una tarea a 2 personas a la vez (registrado por)');
+  ok(tb.parcial && tb.sigue === 'c2', 'tablero: asignar otra tarea saca a la persona del grupo y registra sus horas');
+  ok(tb.cantT1 === 10 && !tb.pendT1, 'tablero: el contador de la tarjeta queda como cantidad al terminar');
+  ok(tb.pausa === 'bano', 'tablero: pausa de un toque (baño) cierra la tarea anterior');
+  ok(tb.pend === 't2', 'tablero: tarea sin cantidad queda pendiente');
+  ok(tb.cards === 3 && tb.libre, 'tablero: una tarjeta por persona; libre en rojo');
+  await page.evaluate(async () => { await liberar(S.turno.equipo.map(c => c.id)); });
+  await page.evaluate(() => prepCerrarTurno()); await page.waitForTimeout(200);
+  ok(await page.isVisible('#modalCantidad') && await page.isHidden('#modalCerrarTurno'), 'no deja cerrar el turno con cantidades pendientes');
+  await page.fill('#cantValor', '40'); await page.evaluate(() => guardarCantidad()); await page.waitForTimeout(200);
+  const pk = await page.evaluate(() => { const h = S.historial.filter(h => h.tareaId === 't2').pop(); return { p: pendientes().length, cant: h.cant, efic: h.efic != null }; });
+  ok(pk.p === 0 && pk.cant === 40 && pk.efic, 'cantidad pendiente completada calcula productividad');
+  const H = 3600000, b = Date.parse('2026-10-20T13:00:00Z');
+  const tg = await page.evaluate(({ H, b }) => {
+    const c = S.colaboradores[0], T = (id, tareaId, ini, dur, extra) => ({ id, tareaId, tarea: id, colaboradores: [c], inicio: b + ini * H, fin: b + (ini + dur) * H, durH: dur, ...extra });
+    const k = calcTurno({ fecha: '2026-10-20', inicio: b, fin: b + 9 * H, equipo: [c], hpPorPersona: 8 },
+      [T('p', 't1', 0, 4), T('s', 't3', 4, 1), T('ba', '_bano', 5, .5, { isEspecial: true, causa: 'bano' }), T('al', '_almuerzo', 6, 1, { tarea: 'Almuerzo', isEspecial: true })], [], b + 9 * H);
+    const r = k.per[c.id].rate;
+    return { prod: k.prodH, apoyo: k.apoyoH, np: k.noprodH, sin: k.libres, okProd: Math.abs(k.productivo - r * 5) < .01, okNP: Math.abs(k.perdidoNP - r * .5) < .01, okSin: Math.abs(k.perdidoSinReg - r * 2.5) < .01 };
+  }, { H, b });
+  ok(tg.prod === 4 && tg.apoyo === 1 && tg.np === .5 && Math.abs(tg.sin - 2.5) < 1e-9, 'tiempos: 4 h productivas · 1 h apoyo · 0.5 h baño · 2.5 h sin registrar (almuerzo fuera)');
+  ok(tg.okProd && tg.okNP && tg.okSin, 'tiempos: costo trabajado 5 h · perdido por pausas 0.5 h · sin registrar 2.5 h');
+  ok(await page.evaluate(() => { const k = engVivo(); return k.baseH <= 3 * 3 + 0.1 && k.baseH > 8; }), 'turno en curso: la base son las horas transcurridas (3 h × 3), no la jornada completa');
+
+  // 9d) Avisos y app instalable
+  const av = await page.evaluate(() => { const ok15 = (revisarAlertas(), [..._avisados].some(k => k.startsWith('libre|'))); S.config.alertaLibreMin = 0.001; revisarAlertas(); S.config.alertaLibreMin = 15; if (ok15) return {}; return { libre: [..._avisados].some(k => k.startsWith('libre|')), toast: document.getElementById('toast').textContent }; });
+  ok(av.libre && /Sin tarea asignada/.test(av.toast), 'aviso: persona sin tarea pasado el umbral (y no antes)');
+  ok(await page.evaluate(() => { const n = _avisados.size; revisarAlertas(); return _avisados.size === n; }), 'aviso: no se repite el mismo aviso');
+  ok(await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())), 'app instalable: service worker registrado');
+  ok(await page.evaluate(async () => (await (await fetch('manifest.webmanifest')).json()).icons.length >= 2), 'app instalable: manifest con íconos');
+  await page.evaluate(() => exportExcel(null));
+  const x2 = await page.evaluate(() => window.__xlsx.w.s.slice(-5).map(s => s[1][0]));
+  ok(x2[0].includes('Tipo de tiempo') && x2[1].includes('Horas sin registrar') && x2[4].includes('% productivo'), 'Excel: columnas de tiempos y nombre en Excel');
+
   // 10) Sesión persistente
   await page.reload(); await page.waitForTimeout(700);
   ok(await page.isVisible('#appScreen'), 'al recargar no pide login (sesión guardada)');
