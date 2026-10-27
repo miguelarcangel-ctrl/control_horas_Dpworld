@@ -4,10 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Control de Horas — DP World</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1A1060">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Control Horas">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <script>
 // Tema: 'auto' (sigue al equipo), 'light' o 'dark'. El Dashboard TV siempre es oscuro.
-(function(){var p='auto';try{p=localStorage.getItem('ch_tema')||'auto';}catch(e){}
+(function(){var p='light';try{p=localStorage.getItem('ch_tema')||'light';}catch(e){}
   var dark=p==='dark'||(p==='auto'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);
   if(location.search.indexOf('tv=1')>=0)dark=true;
   document.documentElement.setAttribute('data-theme',dark?'dark':'light');})();
@@ -162,7 +169,7 @@ b,strong{font-weight:700}
 /* FORMULARIOS */
 .field{display:flex;flex-direction:column;gap:4px}
 .field label{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:1px}
-.field input,.field select,.field textarea,select,input[type=number],input[type=text],input[type=date],input[type=time],input[type=password],textarea{width:100%;border:1.5px solid var(--b1);border-radius:7px;padding:9px 11px;font-family:'Barlow',sans-serif;font-size:14px;color:var(--t);background:rgba(var(--fg),.04);outline:none;transition:border-color .15s,background .15s}
+.field input,.field select,.field textarea,select,input[type=number],input[type=text],input[type=search],input[type=date],input[type=time],input[type=password],textarea{width:100%;border:1.5px solid var(--b1);border-radius:7px;padding:9px 11px;font-family:'Barlow',sans-serif;font-size:14px;color:var(--t);background:rgba(var(--fg),.04);outline:none;transition:border-color .15s,background .15s}
 .field input:focus,.field select:focus,.field textarea:focus,select:focus,input:focus,textarea:focus{border-color:var(--green);background:rgba(0,195,137,.04)}
 select option{background:var(--surf);color:var(--t)}
 input::placeholder,textarea::placeholder{color:var(--t4)}
@@ -391,6 +398,7 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 .tb-bar-in .btn:not(.btn-sm){flex:1;justify-content:center;padding:11px 8px}
 .tb-bar-n{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.1rem;color:var(--t);min-width:22px;text-align:center}
 body.con-sel .main{padding-bottom:90px}
+body.con-sel .toast{bottom:96px}
 .asig-list{display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow-y:auto}
 .asig-ttl{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);margin-top:4px}
 .asig-btn{width:100%;text-align:left;border:1.5px solid var(--b1);border-radius:9px;padding:11px 12px;background:rgba(var(--fg),.03);color:var(--t);font-family:'Barlow',sans-serif;font-size:.9rem;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -468,7 +476,7 @@ body.con-sel .main{padding-bottom:90px}
 @media (min-width:1600px){
   .main{max-width:1520px}
 }
-@media (max-width:520px){.hdr-txt{display:none}.hdr{padding:0 10px}.nav-btn{padding:6px 8px}.hdr-user{max-width:96px}}
+@media (max-width:520px){#navTvBtn{display:none}.hdr-txt{display:none}.hdr{padding:0 10px}.nav-btn{padding:6px 8px}.hdr-user{max-width:96px}}
 @media print{body{background:#fff;color:#000}}
 </style>
 </head>
@@ -520,7 +528,9 @@ body.con-sel .main{padding-bottom:90px}
         <span class="notif-badge hidden" id="notifBadge">0</span>
       </button>
       <button class="nav-btn ghost" id="navTvBtn" onclick="openDashboard()">TV</button>
-      <button class="nav-btn ghost theme-btn" id="themeBtn" onclick="cycleTheme()" title="Tema" aria-label="Cambiar tema">🌓</button>
+      <button class="nav-btn ghost theme-btn" id="themeBtn" onclick="cycleTheme()" title="Tema" aria-label="Cambiar tema">☀️</button>
+      <button class="nav-btn ghost hidden" id="notifBtn" onclick="activarAvisos()" title="Activar avisos" aria-label="Avisos">🔕</button>
+      <button class="nav-btn ghost hidden" id="installBtn" onclick="instalarApp()" title="Instalar la app en este equipo">⬇ Instalar</button>
       <span class="hdr-user" id="hdrUser" onclick="doLogout()">— · Salir</span>
     </div>
   </div>
@@ -824,6 +834,11 @@ body.con-sel .main{padding-bottom:90px}
       <div class="field"><label>Factor de carga (x)</label><input type="number" id="cfgFactor" min="1" max="3" step="0.01"></div>
       <div class="field"></div>
     </div>
+    <div class="sub-ttl">Avisos al supervisor</div>
+    <div class="field-row">
+      <div class="field"><label>Sin tarea más de (min)</label><input type="number" id="cfgAlLibre" min="5" step="5"></div>
+      <div class="field"><label>Tarea abierta más de (h)</label><input type="number" id="cfgAlTarea" min="0.5" step="0.5"></div>
+    </div>
     <div class="info-box" id="cfgResumen"></div>
     <button class="btn btn-green btn-full" onclick="guardarConfig()">💾 Guardar Configuración</button>
   </div>
@@ -1088,7 +1103,7 @@ const SESS_KEY='ch_sesion_'+STATE_KEY, BK_KEY='ch_backup_'+STATE_KEY;
 const RUNTIME_KEYS=['cerrandoId','reabriendoId','editingId','usuarios'];
 
 const DEFAULT_CONFIG={horaInicio:'08:00',horaFin:'17:00',horasAlmuerzo:1,multSobretiempo:1.5,horasSabado:4,multSabado:1.0,horasDomingo:0,multDomingo:2.0,
-  tarifaOperador:50,tarifaAG:36,factorCarga:1.07};
+  tarifaOperador:50,tarifaAG:36,factorCarga:1.07,alertaLibreMin:15,alertaTareaH:3};
 let S={
   colaboradores:[],tareasCat:[],clientes:[],
   turno:null,tareasActivas:[],historial:[],
@@ -1379,9 +1394,58 @@ function showToast(msg,type='success'){
 }
 
 // ═══ NAV ═══
+// ═══ APP INSTALABLE Y AVISOS ═══
+let _instalar=null;
+if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(e=>console.warn('Service worker:',e));
+window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); _instalar=e; document.getElementById('installBtn')?.classList.remove('hidden'); });
+window.addEventListener('appinstalled',()=>{ _instalar=null; document.getElementById('installBtn')?.classList.add('hidden'); showToast('App instalada','success'); });
+async function instalarApp(){
+  if(!_instalar){ showToast('En iPhone: botón Compartir → "Agregar a inicio"','info'); return; }
+  _instalar.prompt(); await _instalar.userChoice; _instalar=null; document.getElementById('installBtn').classList.add('hidden');
+}
+const avisosEstado=()=>!('Notification' in window)?'no':Notification.permission;
+function pintarAvisos(){
+  const b=document.getElementById('notifBtn'); if(!b) return; const st=avisosEstado();
+  b.classList.toggle('hidden',st==='no'||IS_TV); b.textContent=st==='granted'?'🔔':'🔕';
+  b.title=st==='granted'?'Avisos activados':st==='denied'?'Avisos bloqueados en el navegador':'Activar avisos';
+}
+async function activarAvisos(){
+  const st=avisosEstado();
+  if(st==='denied'){ showToast('Los avisos están bloqueados: habilítalos en la configuración del navegador','error'); return; }
+  if(st!=='granted'&&(await Notification.requestPermission())!=='granted'){ pintarAvisos(); return; }
+  pintarAvisos(); notificar('Avisos activados','Te avisaremos si alguien queda sin tarea, si una tarea se alarga o si faltan cantidades.','ch-prueba');
+}
+async function notificar(titulo, cuerpo, tag){
+  showToast(titulo+': '+cuerpo,'info');
+  if(avisosEstado()!=='granted') return;
+  try{
+    const reg=navigator.serviceWorker&&await navigator.serviceWorker.getRegistration(), op={body:cuerpo,tag,icon:'assets/icon-192.png',badge:'assets/icon-192.png',renotify:true};
+    if(reg) await reg.showNotification(titulo,op); else new Notification(titulo,op);
+  }catch(e){ console.warn('Aviso:',e); }
+}
+const fmtH=h=>h>=1?Math.floor(h)+' h '+Math.round((h%1)*60)+' min':Math.round(h*60)+' min';
+let _avisados=new Set(); try{ _avisados=new Set(JSON.parse(sessionStorage.getItem('ch_avisados')||'[]')); }catch(e){}
+function avisarUnaVez(key, titulo, cuerpo){
+  if(_avisados.has(key)) return; _avisados.add(key);
+  try{ sessionStorage.setItem('ch_avisados',JSON.stringify([..._avisados].slice(-200))); }catch(e){}
+  notificar(titulo,cuerpo,key);
+}
+// Revisa cada 30 s: personas sin tarea, tareas o pausas largas y cantidades pendientes al final de la jornada
+function revisarAlertas(){
+  if(!S.turno||IS_TV||!currentUser) return;
+  const cfg=getConfig(), now=Date.now(), LIM_PAUSA={bano:1/3,almuerzo:1.25,permiso:2,espera:0.5,reunion:1};
+  S.turno.equipo.forEach(c=>{ if(actDe(c.id)) return; const d=libreDesde(c.id), min=(now-d)/60000;
+    if(min>=(cfg.alertaLibreMin||15)) avisarUnaVez('libre|'+c.id+'|'+d,'Sin tarea asignada',c.nombre+' lleva '+fmtH(min/60)+' sin tarea'); });
+  S.tareasActivas.forEach(t=>{ const h=msH(now-t.inicio), td=t.tdId&&(S.turno.tareasDia||[]).find(x=>x.id===t.tdId);
+    const lim=t.isEspecial?(LIM_PAUSA[t.causa]||1):td&&td.horasEsperadas?Math.max(td.horasEsperadas*1.5,0.5):(cfg.alertaTareaH||3);
+    if(h>=lim) avisarUnaVez('larga|'+t.id,t.isEspecial?'Pausa larga':'¿Sigue en curso?',t.tarea+' · '+t.colaboradores.map(c=>c.nombre.split(' ')[0]).join(', ')+' lleva '+fmtH(h)); });
+  const hoy=new Date(), hNow=hoy.getHours()+hoy.getMinutes()/60, p=pendientes().length;
+  if(p&&hNow>=hmToH(cfg.horaFin)-0.25) avisarUnaVez('pend|'+S.turno.id+'|'+p,'Cantidades pendientes',p+' tarea(s) sin cantidad. Complétalas para cerrar el turno.');
+}
+
 // ═══ TEMA (claro / oscuro / automático) ═══
 const TEMA_KEY='ch_tema', TEMA_NOMBRE={auto:'automático',light:'claro',dark:'oscuro'}, TEMA_ICONO={auto:'🌓',light:'☀️',dark:'🌙'};
-function temaPref(){ try{ return localStorage.getItem(TEMA_KEY)||'auto'; }catch(e){ return 'auto'; } }
+function temaPref(){ try{ return localStorage.getItem(TEMA_KEY)||'light'; }catch(e){ return 'light'; } }
 function aplicarTema(){
   const p=temaPref(), mq=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)');
   const dark=IS_TV||p==='dark'||(p==='auto'&&!!(mq&&mq.matches));
@@ -1389,12 +1453,13 @@ function aplicarTema(){
   const b=document.getElementById('themeBtn'); if(b){ b.textContent=TEMA_ICONO[p]; b.title='Tema: '+TEMA_NOMBRE[p]; }
 }
 function cycleTheme(){
-  const orden=['auto','light','dark'], n=orden[(orden.indexOf(temaPref())+1)%orden.length];
+  const orden=['light','dark','auto'], n=orden[(orden.indexOf(temaPref())+1)%orden.length];
   try{ localStorage.setItem(TEMA_KEY,n); }catch(e){}
   aplicarTema(); showToast('Tema '+TEMA_NOMBRE[n],'info');
 }
 if(window.matchMedia){ const mq=matchMedia('(prefers-color-scheme: dark)'); (mq.addEventListener?mq.addEventListener('change',aplicarTema):mq.addListener(aplicarTema)); }
 aplicarTema();
+pintarAvisos();
 
 function setNav(nav){
   document.getElementById('viewSupervisor').classList.toggle('hidden',nav!=='supervisor');
@@ -1443,7 +1508,8 @@ function hideModal(id){
 }
 
 // ═══ CLOCK ═══
-function startClock(){setInterval(()=>{if(!S.turno)return;document.getElementById('turnoReloj').textContent=msHMS(Date.now()-S.turno.inicio);updateBanner();updateTimers();},1000);}
+let _tic=0;
+function startClock(){setInterval(()=>{if(!S.turno)return;document.getElementById('turnoReloj').textContent=msHMS(Date.now()-S.turno.inicio);updateBanner();updateTimers();if(++_tic%30===0)revisarAlertas();},1000);}
 const msHMS=ms=>{const s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return`${pad(h)}:${pad(m)}:${pad(sec)}`;};
 const msH=ms=>ms/3600000;
 const pad=n=>String(n).padStart(2,'0');
@@ -2261,16 +2327,16 @@ function exportExcel(turnoId){
   const hora=ts=>ts?new Date(ts).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit',hour12:false}):'';
   const r2=n=>Math.round((n||0)*100)/100;
 
-  const detRows=[['Fecha','Hora inicio turno','Tarea','Cliente','Colaboradores','Personas','Inicio tarea','Fin tarea','Duración (h)','Horas-persona','Cantidad','Unidad','Prod. esperada (u/h)','Prod. real (u/h)','Eficiencia (%)','Costo ($)','Notas']];
+  const detRows=[['Fecha','Hora inicio turno','Tarea','Cliente','Colaboradores','Personas','Inicio tarea','Fin tarea','Duración (h)','Horas-persona','Cantidad','Unidad','Prod. esperada (u/h)','Prod. real (u/h)','Eficiencia (%)','Costo ($)','Notas','Tipo de tiempo','Causa','Actividad en Excel','Categoría Excel','Registrado por','Cantidad pendiente']];
   turnos.forEach(t=>{const k=engOf(t);(t.historial||[]).forEach(ta=>{
     const n=(ta.colaboradores||[]).length;
-    detRows.push([t.fecha,t.hora,ta.tarea,ta.cliente,(ta.colaboradores||[]).map(c=>c.nombre).join(', '),n,hora(ta.inicio),hora(ta.fin),r2(ta.durH),r2(k.horasPersonaTarea(ta)),ta.cant||0,ta.unidad||'',ta.prod||0,r2(ta.realProd),ta.efic!=null?Math.round(ta.efic):'',r2(k.costoTarea(ta)),ta.nota||'']);
+    detRows.push([t.fecha,t.hora,ta.tarea,ta.cliente,(ta.colaboradores||[]).map(c=>c.nombre).join(', '),n,hora(ta.inicio),hora(ta.fin),r2(ta.durH),r2(k.horasPersonaTarea(ta)),ta.cant||0,ta.unidad||'',ta.prod||0,r2(ta.realProd),ta.efic!=null?Math.round(ta.efic):'',r2(k.costoTarea(ta)),ta.nota||'',{productiva:'Productivo',apoyo:'Apoyo',noprod:'No productivo'}[claseDe(ta)],claseDe(ta)==='noprod'?((PAUSAS[causaDe(ta)]||{}).n||causaDe(ta)):'',(ta.excel||{}).actividad||'',(ta.excel||{}).categoria||'',ta.por||'',ta.cantPend?'Sí':'']);
   });});
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(detRows),'Detalle Tareas');
 
-  const turRows=[['Fecha','Hora inicio','Hora fin','Equipo','Personas','Jornada','Horas disponibles','Horas trabajadas','Horas libres','Sobretiempo (h)','Tareas','Costo pagado ($)','Costo productivo ($)','Costo perdido ($)','Eficiencia (%)','Causa horas libres','Detalle','Estado']];
+  const turRows=[['Fecha','Hora inicio','Hora fin','Equipo','Personas','Jornada','Horas disponibles','Horas trabajadas','Horas libres','Sobretiempo (h)','Tareas','Costo pagado ($)','Costo productivo ($)','Costo perdido ($)','Eficiencia (%)','Causa horas libres','Detalle','Estado','Horas productivas','Horas apoyo','Horas no productivas','Horas sin registrar']];
   turnos.forEach(t=>{const k=engOf(t);
-    turRows.push([t.fecha,t.hora,t.fin?hora(t.fin):'En curso',(t.equipo||[]).map(c=>c.nombre).join(', '),(t.equipo||[]).length,t.jornada==='media'?'Media':'Completa',r2(k.disp),r2(k.usadas),r2(k.libres),r2(k.extra),(t.historial||[]).length,r2(k.pagado),r2(k.productivo),r2(k.perdido),k.efic,t.justCausa||'',t.justNota||'',t.estado||'']);
+    turRows.push([t.fecha,t.hora,t.fin?hora(t.fin):'En curso',(t.equipo||[]).map(c=>c.nombre).join(', '),(t.equipo||[]).length,t.jornada==='media'?'Media':'Completa',r2(k.disp),r2(k.usadas),r2(k.libres),r2(k.extra),(t.historial||[]).length,r2(k.pagado),r2(k.productivo),r2(k.perdido),k.efic,t.justCausa||'',t.justNota||'',t.estado||'',r2(k.prodH),r2(k.apoyoH),r2(k.noprodH),r2(k.libres)]);
   });
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(turRows),'Resumen Turnos');
 
@@ -2284,9 +2350,9 @@ function exportExcel(turnoId){
   Object.entries(eficMap).forEach(([n,d])=>eficRows.push([n,d.count,r2(d.horas),d.cant,d.horas>0?r2(d.cant/d.horas):0,d.prod||0,d.eficCnt>0?Math.round(d.eficSum/d.eficCnt):'',d.unidad||'']));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(eficRows),'Eficiencia por Tarea');
 
-  const opMap={};turnos.forEach(t=>{const k=engOf(t);Object.values(k.per).forEach(p=>{const n=p.c.nombre;if(!opMap[n])opMap[n]={cargo:p.c.cargo,turnos:0,horas:0,extra:0,libre:0,costo:0};const o=opMap[n];o.turnos++;o.horas+=p.h;o.extra+=p.extra;o.libre+=p.libre;o.costo+=p.pagado;});});
-  const opRows=[['Colaborador','Cargo','Turnos','Horas trabajadas','Sobretiempo (h)','Horas libres','Costo pagado ($)']];
-  Object.entries(opMap).forEach(([n,d])=>opRows.push([n,d.cargo==='operador'?'Operador':'Ayudante General',d.turnos,r2(d.horas),r2(d.extra),r2(d.libre),r2(d.costo)]));
+  const opMap={};turnos.forEach(t=>{const k=engOf(t);Object.values(k.per).forEach(p=>{const n=p.c.nombre;if(!opMap[n])opMap[n]={cargo:p.c.cargo,turnos:0,horas:0,extra:0,libre:0,costo:0,prod:0,apoyo:0,noprod:0};const o=opMap[n];o.turnos++;o.horas+=p.prod+p.apoyo;o.extra+=p.extra;o.libre+=p.libre;o.costo+=p.pagado;o.prod+=p.prod;o.apoyo+=p.apoyo;o.noprod+=p.noprod;});});
+  const opRows=[['Colaborador','Cargo','Turnos','Horas trabajadas','Sobretiempo (h)','Horas sin registrar','Costo pagado ($)','Horas productivas','Horas apoyo','Horas no productivas','% productivo']];
+  Object.entries(opMap).forEach(([n,d])=>{const b=d.prod+d.apoyo+d.noprod+d.libre;opRows.push([n,d.cargo==='operador'?'Operador':'Ayudante General',d.turnos,r2(d.horas),r2(d.extra),r2(d.libre),r2(d.costo),r2(d.prod),r2(d.apoyo),r2(d.noprod),b>0?Math.round(d.prod/b*100):''])});
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(opRows),'Costos por Colaborador');
 
   XLSX.writeFile(wb,turnoId?`Turno_${turnos[0]?.fecha||'N/A'}.xlsx`:`Control_Horas_DPWorld_${fechaLocal(new Date())}.xlsx`);
@@ -2295,7 +2361,7 @@ function exportExcel(turnoId){
 // ═══ CONFIG ═══
 const CFG_FIELDS=[['cfgHoraInicio','horaInicio','t'],['cfgHoraFin','horaFin','t'],['cfgAlmuerzo','horasAlmuerzo'],['cfgMultSobre','multSobretiempo'],
   ['cfgHorasSab','horasSabado'],['cfgMultSab','multSabado'],['cfgHorasDom','horasDomingo'],['cfgMultDom','multDomingo'],
-  ['cfgTarOp','tarifaOperador'],['cfgTarAG','tarifaAG'],['cfgFactor','factorCarga']];
+  ['cfgTarOp','tarifaOperador'],['cfgTarAG','tarifaAG'],['cfgFactor','factorCarga'],['cfgAlLibre','alertaLibreMin'],['cfgAlTarea','alertaTareaH']];
 function openConfig(){
   const cfg=getConfig();
   CFG_FIELDS.forEach(([id,k])=>{const el=document.getElementById(id);el.value=cfg[k];el.oninput=updateCfgResumen;});

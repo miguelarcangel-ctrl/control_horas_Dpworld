@@ -187,6 +187,16 @@ async function newPage(browser, opts = {}) {
   ok(tg.okProd && tg.okNP && tg.okSin, 'tiempos: costo trabajado 5 h · perdido por pausas 0.5 h · sin registrar 2.5 h');
   ok(await page.evaluate(() => { const k = engVivo(); return k.baseH <= 3 * 3 + 0.1 && k.baseH > 8; }), 'turno en curso: la base son las horas transcurridas (3 h × 3), no la jornada completa');
 
+  // 9d) Avisos y app instalable
+  const av = await page.evaluate(() => { const ok15 = (revisarAlertas(), [..._avisados].some(k => k.startsWith('libre|'))); S.config.alertaLibreMin = 0.001; revisarAlertas(); S.config.alertaLibreMin = 15; if (ok15) return {}; return { libre: [..._avisados].some(k => k.startsWith('libre|')), toast: document.getElementById('toast').textContent }; });
+  ok(av.libre && /Sin tarea asignada/.test(av.toast), 'aviso: persona sin tarea pasado el umbral (y no antes)');
+  ok(await page.evaluate(() => { const n = _avisados.size; revisarAlertas(); return _avisados.size === n; }), 'aviso: no se repite el mismo aviso');
+  ok(await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())), 'app instalable: service worker registrado');
+  ok(await page.evaluate(async () => (await (await fetch('manifest.webmanifest')).json()).icons.length >= 2), 'app instalable: manifest con íconos');
+  await page.evaluate(() => exportExcel(null));
+  const x2 = await page.evaluate(() => window.__xlsx.w.s.slice(-5).map(s => s[1][0]));
+  ok(x2[0].includes('Tipo de tiempo') && x2[1].includes('Horas sin registrar') && x2[4].includes('% productivo'), 'Excel: columnas de tiempos y nombre en Excel');
+
   // 10) Sesión persistente
   await page.reload(); await page.waitForTimeout(700);
   ok(await page.isVisible('#appScreen'), 'al recargar no pide login (sesión guardada)');
