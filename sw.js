@@ -1,7 +1,7 @@
 // Service worker de Control de Horas: permite instalar la app, abrirla sin conexión y mostrar avisos.
 // La app se pide primero a la red (siempre la versión publicada); la copia guardada solo se usa sin conexión.
 // Supabase nunca se guarda en caché: los datos van siempre al servidor (sin conexión, la app usa su respaldo local).
-const CACHE = 'ch-v3';
+const CACHE = 'ch-v4';
 const BASE = ['./', './index.html', './manifest.webmanifest', './assets/icon-192.png', './assets/icon-512.png',
   './assets/dpworld-logo-fondo-claro.png', './assets/dpworld-logo-fondo-oscuro.png'];
 
@@ -27,10 +27,14 @@ self.addEventListener('fetch', e => {
     })));
   }
 });
-// Al tocar un aviso, enfoca la app (o la abre)
+// Al tocar un aviso: pone la app al frente y le dice qué abrir; si estaba cerrada, la abre en esa acción
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(cs => {
-    const c = cs.find(x => 'focus' in x); return c ? c.focus() : self.clients.openWindow('./index.html');
+  const data = e.notification.data || {};
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async cs => {
+    const c = cs.find(x => new URL(x.url).pathname.endsWith('/') || /index\.html$/.test(new URL(x.url).pathname)) || cs[0];
+    if (c) { try { await c.focus(); } catch (_) {} c.postMessage({ tipo: 'aviso', data }); return; }
+    const url = './index.html' + (data.accion ? '?aviso=' + encodeURIComponent(JSON.stringify(data)) : '');
+    return self.clients.openWindow(url);
   }));
 });

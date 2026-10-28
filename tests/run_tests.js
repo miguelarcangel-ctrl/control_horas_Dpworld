@@ -192,9 +192,33 @@ async function newPage(browser, opts = {}) {
   ok(await page.evaluate(() => { const k = engVivo(); return k.baseH <= 3 * 3 + 0.1 && k.baseH > 8; }), 'turno en curso: la base son las horas transcurridas (3 h × 3), no la jornada completa');
 
   // 9d) Avisos y app instalable
-  const av = await page.evaluate(() => { const ok15 = (revisarAlertas(), [..._avisados].some(k => k.startsWith('libre|'))); S.config.alertaLibreMin = 0.001; revisarAlertas(); S.config.alertaLibreMin = 15; if (ok15) return {}; return { libre: [..._avisados].some(k => k.startsWith('libre|')), toast: document.getElementById('toast').textContent }; });
-  ok(av.libre && /Sin tarea asignada/.test(av.toast), 'aviso: persona sin tarea pasado el umbral (y no antes)');
+  const av = await page.evaluate(() => { _avisados.clear(); _avisosApp = []; pintarAvisosApp(); const ok15 = (revisarAlertas(), [..._avisados].some(k => k.startsWith('libre|'))); S.config.alertaLibreMin = 0.001; revisarAlertas(); S.config.alertaLibreMin = 15; if (ok15) return {}; return { libre: [..._avisados].some(k => k.startsWith('libre|')), toast: document.getElementById('avisosApp').textContent }; });
+  ok(av.libre && /sin tarea/i.test(av.toast), 'aviso: persona sin tarea pasado el umbral (y no antes)');
   ok(await page.evaluate(() => { const n = _avisados.size; revisarAlertas(); return _avisados.size === n; }), 'aviso: no se repite el mismo aviso');
+  const acc = await page.evaluate(async () => {
+    const r = { tarjeta: document.querySelectorAll('#avisosApp .aviso-card').length > 0 };
+    const pid = _avisosApp.find(a => a.data && a.data.accion === 'libre').data.pid;
+    _avisosApp = _avisosApp.filter(a => !(a.data && a.data.accion === 'libre' && a.data.pid !== pid)); pintarAvisosApp();
+    tocarAviso(_avisosVista.findIndex(v => v.data.accion === 'libre')); r.asignar = !document.getElementById('modalAsignar').classList.contains('hidden') && _sel.has(pid) && _sel.size === 1;
+    hideModal('modalAsignar'); limpiarSel();
+    // Notificación tocada con la app abierta: el service worker manda un mensaje
+    S.historial.push({ id: 'pendX', tareaId: 't1', tarea: 'Descargue contenedor', cliente: 'CERNAC', colaboradores: [S.turno.equipo[0]], inicio: Date.now() - 3600000, fin: Date.now(), durH: 1, cant: 0, cantPend: true, prod: 20, unidad: 'pallet' });
+    navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { tipo: 'aviso', data: { accion: 'pend' } } }));
+    await new Promise(res => setTimeout(res, 100));
+    r.cantidad = !document.getElementById('modalCantidad').classList.contains('hidden') && _cantRef && _cantRef.id === 'pendX';
+    hideModal('modalCantidad'); S.historial = S.historial.filter(h => h.id !== 'pendX');
+    // Al asignarle tarea, la tarjeta del aviso desaparece sola
+    await asignarTarea([pid], 't1', 'k1', 0); revisarAlertas();
+    r.limpia = !_avisosApp.some(a => a.data && a.data.pid === pid && a.data.accion === 'libre');
+    await liberar([pid]); hideModal('modalCantidad'); S.historial.forEach(h => h.cantPend = false);
+    return r; });
+  ok(acc.tarjeta, 'aviso: aparece como tarjeta en la app');
+  const grp = await page.evaluate(() => { _avisosApp = S.turno.equipo.map(c => ({ key: 'libre|' + c.id + '|0', titulo: 'Sin tarea asignada', cuerpo: '', data: { accion: 'libre', pid: c.id, desde: 0 } })); pintarAvisosApp();
+    const n = document.querySelectorAll('#avisosApp .aviso-card').length; tocarAviso(0); const r = { n, sel: _sel.size, quedan: _avisosApp.length }; hideModal('modalAsignar'); limpiarSel(); return r; });
+  ok(grp.n === 1 && grp.sel === 3 && grp.quedan === 0, 'aviso: varias personas sin tarea en una sola tarjeta que las asigna juntas');
+  ok(acc.asignar, 'aviso «sin tarea»: al tocarlo abre Asignar con esa persona');
+  ok(acc.cantidad, 'notificación «cantidades pendientes»: al tocarla abre la cantidad');
+  ok(acc.limpia, 'aviso: la tarjeta se quita sola cuando se resuelve');
   ok(await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())), 'app instalable: service worker registrado');
   ok(await page.evaluate(async () => (await (await fetch('manifest.webmanifest')).json()).icons.length >= 2), 'app instalable: manifest con íconos');
   await page.evaluate(() => exportExcel(null));

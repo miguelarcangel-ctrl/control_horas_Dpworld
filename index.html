@@ -416,6 +416,12 @@ body.con-sel .toast{bottom:96px}
 .pend-row .li-name{white-space:normal}
 .turno-stats{grid-template-columns:repeat(4,1fr)!important}
 .tp-pend{order:2}
+/* AVISOS EN LA APP */
+.avisos-app{position:fixed;right:12px;bottom:16px;z-index:260;display:flex;flex-direction:column;gap:8px;max-width:min(380px,calc(100vw - 24px))}
+body.con-sel .avisos-app{bottom:90px}
+.aviso-card{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid rgba(245,162,11,.5);border-left:4px solid var(--amber);border-radius:10px;padding:10px 10px 10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.22);animation:lgUp .25s ease}
+.aviso-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:.78rem;color:var(--t2)}
+.aviso-txt b{font-family:'Barlow Condensed',sans-serif;font-size:.9rem;letter-spacing:.3px;color:var(--t)}
 /* LOGO Y TEMA */
 .hdr-logo .logo-oscuro{display:none}
 [data-theme="dark"] .hdr-logo .logo-claro{display:none}
@@ -503,6 +509,7 @@ body.con-sel .toast{bottom:96px}
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="avisos-app" id="avisosApp" aria-live="polite"></div>
 <div class="tb-bar hidden" id="tbBar">
   <div class="tb-bar-in">
     <span class="tb-bar-n" id="tbBarN">0</span>
@@ -1369,6 +1376,7 @@ async function startApp(){
   document.getElementById('tHora').value=now.toTimeString().slice(0,5);
   updateColabCosto();
   renderAll();
+  avisoDesdeUrl(); setTimeout(revisarAlertas,1500);
 }
 const fechaLocal=d=>new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().split('T')[0];
 
@@ -1414,34 +1422,89 @@ async function activarAvisos(){
   const st=avisosEstado();
   if(st==='denied'){ showToast('Los avisos están bloqueados: habilítalos en la configuración del navegador','error'); return; }
   if(st!=='granted'&&(await Notification.requestPermission())!=='granted'){ pintarAvisos(); return; }
-  pintarAvisos(); notificar('Avisos activados','Te avisaremos si alguien queda sin tarea, si una tarea se alarga o si faltan cantidades.','ch-prueba');
+  pintarAvisos(); notificar('Avisos activados','Te avisaremos si alguien queda sin tarea, si una tarea se alarga o si faltan cantidades. Toca el aviso para ir a la acción.','ch-prueba'); showToast('Avisos activados','success');
 }
-async function notificar(titulo, cuerpo, tag){
-  showToast(titulo+': '+cuerpo,'info');
+// Aviso del sistema (con permiso) + tarjeta en la app. "data" dice qué abrir al tocarlo.
+async function notificar(titulo, cuerpo, tag, data){
   if(avisosEstado()!=='granted') return;
   try{
-    const reg=navigator.serviceWorker&&await navigator.serviceWorker.getRegistration(), op={body:cuerpo,tag,icon:'assets/icon-192.png',badge:'assets/icon-192.png',renotify:true};
-    if(reg) await reg.showNotification(titulo,op); else new Notification(titulo,op);
+    const reg=navigator.serviceWorker&&await navigator.serviceWorker.getRegistration(), op={body:cuerpo,tag,icon:'assets/icon-192.png',badge:'assets/icon-192.png',renotify:true,data:data||{}};
+    if(reg) await reg.showNotification(titulo,op);
+    else { const n=new Notification(titulo,op); n.onclick=()=>{ window.focus(); manejarAviso(data); n.close(); }; }
   }catch(e){ console.warn('Aviso:',e); }
 }
 const fmtH=h=>h>=1?Math.floor(h)+' h '+Math.round((h%1)*60)+' min':Math.round(h*60)+' min';
 let _avisados=new Set(); try{ _avisados=new Set(JSON.parse(sessionStorage.getItem('ch_avisados')||'[]')); }catch(e){}
-function avisarUnaVez(key, titulo, cuerpo){
+let _avisosApp=[];   // tarjetas visibles en la app
+function avisarUnaVez(key, titulo, cuerpo, data){
+  if(!_avisosApp.some(a=>a.key===key)){ _avisosApp.push({key,titulo,cuerpo,data}); pintarAvisosApp(); }
   if(_avisados.has(key)) return; _avisados.add(key);
   try{ sessionStorage.setItem('ch_avisados',JSON.stringify([..._avisados].slice(-200))); }catch(e){}
-  notificar(titulo,cuerpo,key);
+  notificar(titulo,cuerpo,key,data);
 }
+const ACCION_AVISO={libre:'Asignar tarea',larga:'Ver tarea',pend:'Poner cantidad'};
+// Las personas sin tarea se agrupan en una sola tarjeta; como máximo 3 tarjetas a la vez
+let _avisosVista=[];
+function pintarAvisosApp(){
+  const el=document.getElementById('avisosApp'); if(!el) return;
+  const libres=_avisosApp.filter(a=>a.data&&a.data.accion==='libre'), otros=_avisosApp.filter(a=>!(a.data&&a.data.accion==='libre'));
+  _avisosVista=[];
+  if(libres.length===1) _avisosVista.push({...libres[0],keys:[libres[0].key]});
+  else if(libres.length>1) _avisosVista.push({titulo:libres.length+' personas sin tarea',
+    cuerpo:libres.map(a=>(S.turno.equipo.find(c=>c.id===a.data.pid)||{nombre:''}).nombre.split(' ')[0]).join(', '),
+    data:{accion:'libre',pids:libres.map(a=>a.data.pid)},keys:libres.map(a=>a.key)});
+  otros.forEach(a=>_avisosVista.push({...a,keys:[a.key]}));
+  el.innerHTML=_avisosVista.slice(0,3).map((a,i)=>`<div class="aviso-card"><div class="aviso-txt"><b>${esc(a.titulo)}</b><span>${esc(a.cuerpo)}</span></div>
+    ${a.data&&ACCION_AVISO[a.data.accion]?`<button class="btn btn-green btn-sm" onclick="tocarAviso(${i})">${ACCION_AVISO[a.data.accion]}</button>`:''}
+    <button class="btn btn-ghost btn-sm" onclick="cerrarAviso(${i})" aria-label="Cerrar aviso">✕</button></div>`).join('');
+}
+function quitarVista(i){ const v=_avisosVista[i]; if(!v) return null; _avisosApp=_avisosApp.filter(a=>!v.keys.includes(a.key)); pintarAvisosApp(); return v; }
+function cerrarAviso(i){ quitarVista(i); }
+function tocarAviso(i){ const v=quitarVista(i); if(v) manejarAviso(v.data); }
+// Lleva a la acción de cada aviso (desde la tarjeta o desde la notificación del sistema)
+function manejarAviso(data){
+  if(!data||!data.accion||!S.turno) return;
+  setNav('supervisor');
+  if(data.accion==='libre'){
+    const pids=(data.pids||[data.pid]).filter(id=>S.turno.equipo.some(c=>c.id===id)&&!actDe(id));
+    if(!pids.length){ showToast('Ya tienen una actividad asignada','info'); return; }
+    _sel=new Set(pids); pintarSel(); abrirAsignar();
+  } else if(data.accion==='larga'){
+    const t=S.tareasActivas.find(x=>x.id===data.tid); if(!t){ showToast('Esa tarea ya terminó','info'); return; }
+    _sel=new Set(t.colaboradores.map(c=>c.id)); pintarSel();
+    document.querySelector(`.pc[data-pid="${t.colaboradores[0].id}"]`)?.scrollIntoView({behavior:'smooth',block:'center'});
+    showToast('Si ya terminó, toca «Terminar tarea»; si cambió, «Asignar tarea»','info');
+  } else if(data.accion==='pend'){
+    const p=pendientes(); if(p.length) abrirCantidad({id:p[0].id}); else showToast('No quedan cantidades pendientes','info');
+  }
+}
+// Mensajes del service worker (al tocar una notificación con la app abierta)
+if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',e=>{ if(e.data&&e.data.tipo==='aviso') manejarAviso(e.data.data); });
 // Revisa cada 30 s: personas sin tarea, tareas o pausas largas y cantidades pendientes al final de la jornada
 function revisarAlertas(){
   if(!S.turno||IS_TV||!currentUser) return;
   const cfg=getConfig(), now=Date.now(), LIM_PAUSA={bano:1/3,almuerzo:1.25,permiso:2,espera:0.5,reunion:1};
+  // Quita tarjetas que ya no aplican
+  const antes=_avisosApp.length;
+  _avisosApp=_avisosApp.filter(a=>{ const d=a.data||{};
+    if(d.accion==='libre') return !actDe(d.pid)&&libreDesde(d.pid)===d.desde;
+    if(d.accion==='larga') return S.tareasActivas.some(t=>t.id===d.tid);
+    if(d.accion==='pend') return pendientes().length>0;
+    return true; });
+  if(_avisosApp.length!==antes) pintarAvisosApp();
   S.turno.equipo.forEach(c=>{ if(actDe(c.id)) return; const d=libreDesde(c.id), min=(now-d)/60000;
-    if(min>=(cfg.alertaLibreMin||15)) avisarUnaVez('libre|'+c.id+'|'+d,'Sin tarea asignada',c.nombre+' lleva '+fmtH(min/60)+' sin tarea'); });
+    if(min>=(cfg.alertaLibreMin||15)) avisarUnaVez('libre|'+c.id+'|'+d,'Sin tarea asignada',c.nombre+' lleva '+fmtH(min/60)+' sin tarea',{accion:'libre',pid:c.id,desde:d}); });
   S.tareasActivas.forEach(t=>{ const h=msH(now-t.inicio), td=t.tdId&&(S.turno.tareasDia||[]).find(x=>x.id===t.tdId);
     const lim=t.isEspecial?(LIM_PAUSA[t.causa]||1):td&&td.horasEsperadas?Math.max(td.horasEsperadas*1.5,0.5):(cfg.alertaTareaH||3);
-    if(h>=lim) avisarUnaVez('larga|'+t.id,t.isEspecial?'Pausa larga':'¿Sigue en curso?',t.tarea+' · '+t.colaboradores.map(c=>c.nombre.split(' ')[0]).join(', ')+' lleva '+fmtH(h)); });
+    if(h>=lim) avisarUnaVez('larga|'+t.id,t.isEspecial?'Pausa larga':'¿Sigue en curso?',t.tarea+' · '+t.colaboradores.map(c=>c.nombre.split(' ')[0]).join(', ')+' lleva '+fmtH(h),{accion:'larga',tid:t.id}); });
   const hoy=new Date(), hNow=hoy.getHours()+hoy.getMinutes()/60, p=pendientes().length;
-  if(p&&hNow>=hmToH(cfg.horaFin)-0.25) avisarUnaVez('pend|'+S.turno.id+'|'+p,'Cantidades pendientes',p+' tarea(s) sin cantidad. Complétalas para cerrar el turno.');
+  if(p&&hNow>=hmToH(cfg.horaFin)-0.25) avisarUnaVez('pend|'+S.turno.id+'|'+p,'Cantidades pendientes',p+' tarea(s) sin cantidad. Complétalas para cerrar el turno.',{accion:'pend'});
+}
+// Al abrir la app desde una notificación (?aviso=...) se ejecuta la acción cuando ya hay sesión y datos
+function avisoDesdeUrl(){
+  const qs=new URLSearchParams(location.search), q=qs.get('aviso'); if(!q) return;
+  qs.delete('aviso'); history.replaceState(null,'',location.pathname+(qs.toString()?'?'+qs:''));
+  try{ manejarAviso(JSON.parse(q)); }catch(e){}
 }
 
 // ═══ TEMA (claro / oscuro / automático) ═══
