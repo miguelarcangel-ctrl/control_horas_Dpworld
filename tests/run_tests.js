@@ -37,17 +37,17 @@ async function newPage(browser, opts = {}) {
 
   // 1) clave incorrecta
   await page.fill('#loginUser', 'admin'); await page.fill('#loginPass', 'mala');
-  await page.click('#loginScreen button'); await page.waitForTimeout(300);
+  await page.click('#loginBtn'); await page.waitForTimeout(300);
   ok((await page.textContent('#loginErr')).includes('incorrectos'), 'clave incorrecta rechazada');
   // admin/admin123 ya no existe
   await page.fill('#loginUser', 'admin'); await page.fill('#loginPass', 'admin123');
-  await page.click('#loginScreen button'); await page.waitForTimeout(300);
+  await page.click('#loginBtn'); await page.waitForTimeout(300);
   ok(await page.isHidden('#appScreen'), 'admin/admin123 ya no da acceso');
   await page.screenshot({ path: SHOTS + '/01_login.png' });
 
   // 2) login correcto
   await page.fill('#loginUser', 'admin'); await page.fill('#loginPass', 'secreto1');
-  await page.click('#loginScreen button'); await page.waitForTimeout(600);
+  await page.click('#loginBtn'); await page.waitForTimeout(600);
   ok(await page.isVisible('#appScreen'), 'login admin correcto');
   const disp = await page.textContent('#tDisp'), us = await page.textContent('#tUsadas'), lib = await page.textContent('#tLibres');
   console.log('   banner:', disp, us, lib);
@@ -211,7 +211,7 @@ async function newPage(browser, opts = {}) {
   // 11) Supervisor no ve Insights
   await page.evaluate(() => doLogout()); await page.waitForTimeout(300);
   await page.fill('#loginUser', 'super'); await page.fill('#loginPass', 'secreto2');
-  await page.click('#loginScreen button'); await page.waitForTimeout(600);
+  await page.click('#loginBtn'); await page.waitForTimeout(600);
   ok(await page.evaluate(() => ![...document.querySelectorAll('.dpw-item')].some(b => b.textContent.includes('Insights'))), 'supervisor no ve Insights en el menú');
   ok(await page.evaluate(() => document.getElementById('adminKPI').style.display !== 'flex'), 'supervisor no ve costos');
 

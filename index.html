@@ -14,8 +14,8 @@
 <link rel="stylesheet" href="dpw/dpw-shell.css">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <script>
-// Tema: 'auto' (sigue al equipo), 'light' o 'dark'. El Dashboard TV siempre es oscuro.
-(function(){var p='light';try{p=localStorage.getItem('ch_tema')||'light';}catch(e){}
+// Tema antes de pintar (skill linea-grafica, clave común dpw_tema; se respeta la preferencia vieja ch_tema). El Dashboard TV siempre es oscuro.
+(function(){var p;try{p=localStorage.getItem('dpw_tema')||localStorage.getItem('ch_tema');}catch(e){}
   var dark=p==='dark'||(p==='auto'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);
   if(location.search.indexOf('tv=1')>=0)dark=true;
   document.documentElement.setAttribute('data-theme',dark?'dark':'light');})();
@@ -452,6 +452,7 @@ body.con-sel .toast{bottom:96px}
 
 <!-- LOGIN: molde Last Mile, escena «bodega» -->
 <div id="loginScreen" class="dpw-login">
+  <button type="button" class="dpw-lg-install" data-dpw="instalar" hidden>Instalar app</button>
   <div class="dpw-lg-art" aria-hidden="true"><svg data-dpw-art></svg></div>
   <div class="dpw-lg-hero">
     <div class="dpw-lg-kick">DP World · Control de Horas</div>
@@ -495,8 +496,8 @@ body.con-sel .toast{bottom:96px}
       <div><div class="dpw-title">DP WORLD</div><div class="dpw-sub">Control de Horas <span class="sync-dot" id="syncDot" title="Sincronizado"></span></div></div>
     </div>
     <div class="dpw-hdr-r">
-      <button type="button" class="dpw-hbtn dpw-install dpw-hide-sm hidden" id="installBtn" onclick="instalarApp()" title="Instalar la app en este equipo">Instalar</button>
-      <button type="button" class="dpw-hbtn" id="themeBtn" onclick="cycleTheme()">Oscuro</button>
+      <button type="button" class="dpw-hbtn dpw-install dpw-hide-sm" data-dpw="instalar" hidden title="Instalar la app en este equipo">Instalar</button>
+      <button type="button" class="dpw-hbtn" data-dpw="tema">Oscuro</button>
       <span class="dpw-role dpw-hide-sm" id="hdrUser"></span>
       <button type="button" class="dpw-salir" onclick="doLogout()">Salir</button>
     </div>
@@ -1371,14 +1372,9 @@ function showToast(msg,type='success'){
 
 // ═══ NAV ═══
 // ═══ APP INSTALABLE Y AVISOS ═══
-let _instalar=null;
+// Botón Instalar: dpw/dpw-shell.js ([data-dpw="instalar"]); aquí solo el service worker y el mensaje en toast
+DPW.aviso=m=>showToast(m,'info');
 if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(e=>console.warn('Service worker:',e));
-window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); _instalar=e; document.getElementById('installBtn')?.classList.remove('hidden'); });
-window.addEventListener('appinstalled',()=>{ _instalar=null; document.getElementById('installBtn')?.classList.add('hidden'); showToast('App instalada','success'); });
-async function instalarApp(){
-  if(!_instalar){ showToast('En iPhone: botón Compartir → "Agregar a inicio"','info'); return; }
-  _instalar.prompt(); await _instalar.userChoice; _instalar=null; document.getElementById('installBtn').classList.add('hidden');
-}
 const avisosEstado=()=>!('Notification' in window)?'no':Notification.permission;
 function pintarAvisos(){
   pintarMenu();
@@ -1417,22 +1413,9 @@ function revisarAlertas(){
   if(p&&hNow>=hmToH(cfg.horaFin)-0.25) avisarUnaVez('pend|'+S.turno.id+'|'+p,'Cantidades pendientes',p+' tarea(s) sin cantidad. Complétalas para cerrar el turno.');
 }
 
-// ═══ TEMA (claro / oscuro / automático) ═══
-const TEMA_KEY='ch_tema', TEMA_NOMBRE={auto:'automático',light:'claro',dark:'oscuro'};
-function temaPref(){ try{ return localStorage.getItem(TEMA_KEY)||'light'; }catch(e){ return 'light'; } }
-function aplicarTema(){
-  const p=temaPref(), mq=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)');
-  const dark=IS_TV||p==='dark'||(p==='auto'&&!!(mq&&mq.matches));
-  document.documentElement.setAttribute('data-theme',dark?'dark':'light');
-  DPW.botonTema(document.getElementById('themeBtn'),!dark);
-}
-function cycleTheme(){
-  const n=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';
-  try{ localStorage.setItem(TEMA_KEY,n); }catch(e){}
-  aplicarTema(); showToast('Tema '+TEMA_NOMBRE[n],'info');
-}
-if(window.matchMedia){ const mq=matchMedia('(prefers-color-scheme: dark)'); (mq.addEventListener?mq.addEventListener('change',aplicarTema):mq.addListener(aplicarTema)); }
-aplicarTema();
+// ═══ TEMA: dpw/dpw-shell.js (claro/oscuro con el botón [data-dpw="tema"]). La Pantalla TV siempre es oscura. ═══
+if(IS_TV) document.documentElement.setAttribute('data-theme','dark');
+document.addEventListener('dpw:tema',e=>showToast('Tema '+(e.detail==='light'?'claro':'oscuro'),'info'));
 pintarAvisos();
 
 // Menú desplegable: todas las secciones de la app (molde Last Mile, sin íconos)
