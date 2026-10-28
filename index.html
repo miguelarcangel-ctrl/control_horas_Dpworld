@@ -11,6 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Control Horas">
+<link rel="stylesheet" href="dpw/dpw-shell.css">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <script>
 // Tema: 'auto' (sigue al equipo), 'light' o 'dark'. El Dashboard TV siempre es oscuro.
@@ -27,6 +28,8 @@ window.addEventListener('load',function(){
 });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="dpw/dpw-shell.js"></script>
+<script src="dpw/dpw-escenas.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
@@ -80,38 +83,10 @@ body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--t);min-hei
 .hidden{display:none!important}
 b,strong{font-weight:700}
 
-/* LOGIN — misma pantalla que el Cotizador 3PL: degradado índigo y tarjeta blanca */
-.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,#1A1060 0%,#2D1B8E 50%,#1A1060 100%)}
-.login-card{background:#fff;color:#1B1B2F;border-radius:16px;padding:28px 24px;width:100%;max-width:360px;box-shadow:0 8px 32px rgba(26,16,96,.14);display:flex;flex-direction:column;gap:18px;text-align:center;animation:lgUp .3s ease}
-@keyframes lgUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
-.login-logo img{height:48px;margin:0 auto 6px;display:block;object-fit:contain}
-.login-sub{font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:#1A1060;text-transform:uppercase;letter-spacing:.08em;margin-top:4px}
-.login-ref{font-size:.72rem;color:#64748B;margin-top:4px}
-.login-fields{display:flex;flex-direction:column;gap:16px;text-align:left}
-.login-card .field{gap:6px}
-.login-card .field label{color:#64748B;font-family:'Barlow',sans-serif;font-size:.65rem;letter-spacing:.07em}
-.login-card .field input{background:#F8F9FC;color:#1B1B2F;border:1.5px solid #E2E8F0;border-radius:10px;padding:12px 14px;font-size:.9rem;font-weight:500}
-.login-card .field input:focus{border-color:#1A1060;background:#fff;box-shadow:0 0 0 3px rgba(26,16,96,.08)}
-.login-card .field input::placeholder{color:#94A3B8}
-.login-card .btn-indigo{background:#1A1060;border-color:#1A1060;font-size:1rem;font-weight:800;padding:13px;border-radius:10px;letter-spacing:.08em;box-shadow:none}
-.login-card .btn-indigo:hover{background:#2A1F8F}
-.login-err{background:#FEE;border:1px solid #FCC;color:#E8003D;border-radius:8px;padding:10px 12px;font-size:.78rem;font-weight:600;display:none}
-.login-footer{font-size:.65rem;color:#94A3B8;letter-spacing:.07em}
+/* LOGIN, CINTA SUPERIOR Y MENÚ: dpw/dpw-shell.css (línea gráfica común, molde Last Mile) */
 .modo-prueba{display:inline-block;margin-top:8px;background:rgba(245,162,11,.15);color:#b36b00;border:1px solid rgba(245,162,11,.4);border-radius:20px;padding:2px 10px;font-size:10px;font-weight:700;letter-spacing:1px}
 
-/* HEADER — blanco con logo, como Control de Rampas */
-.hdr{background:var(--hdr-bg);border-bottom:1px solid var(--hdr-bd);padding:0 12px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.07);gap:8px}
-.hdr-l{display:flex;align-items:center;gap:9px;min-width:0}
-.hdr-logo img{height:34px;display:block}
-.hdr-title{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;color:var(--hdr-t);letter-spacing:.5px;line-height:1}
-.hdr-sub{font-size:9px;color:var(--hdr-sub);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;display:flex;align-items:center;gap:5px}
-.hdr-right{display:flex;align-items:center;gap:5px}
-.nav-btn{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.5px;text-transform:uppercase;padding:6px 10px;border-radius:6px;border:1px solid var(--nav-bd);cursor:pointer;display:flex;align-items:center;gap:4px;transition:all .15s;position:relative;background:var(--nav-bg);color:var(--nav-t);touch-action:manipulation}
-.nav-btn.active{background:var(--primary);border-color:var(--primary);color:#fff}
-.nav-btn.ghost:hover{background:var(--nav-hover);color:var(--hdr-t)}
-.hdr-user{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;color:var(--nav-t);padding:5px 9px;border:1px solid var(--nav-bd);border-radius:5px;background:var(--nav-bg);white-space:nowrap;cursor:pointer;max-width:130px;overflow:hidden;text-overflow:ellipsis}
-.hdr-user:hover{background:var(--nav-hover);color:var(--hdr-t)}
-.notif-badge{position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;border-radius:9px;min-width:17px;height:17px;padding:0 4px;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:800}
+.dpw-sub .sync-dot{margin-left:4px;vertical-align:1px}
 .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;box-shadow:0 0 5px var(--gg)}
 .sync-dot.sync{background:var(--amber);box-shadow:0 0 5px var(--ag)}
 .sync-dot.offline{background:var(--red);box-shadow:0 0 6px var(--rg);animation:pulse 1.2s infinite}
@@ -379,7 +354,7 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 .pc.st-libre{border-left-color:var(--red);background:rgba(232,0,61,.05)}
 .pc.sel{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary) inset;background:rgba(62,60,144,.14)}
 [data-theme="light"] .pc.sel{background:rgba(26,16,96,.07)}
-.pc.sel::after{content:'✓';position:absolute;top:6px;right:8px;width:18px;height:18px;border-radius:50%;background:var(--primary);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.pc.sel::after{content:'';position:absolute;top:6px;right:8px;width:18px;height:18px;border-radius:50%;background:var(--primary);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
 .pc-top{display:flex;align-items:center;gap:7px;min-width:0}
 .pc-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;color:#fff;flex-shrink:0}
 .pc-name{font-weight:700;font-size:.84rem;color:var(--t);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -417,10 +392,6 @@ body.con-sel .toast{bottom:96px}
 .turno-stats{grid-template-columns:repeat(4,1fr)!important}
 .tp-pend{order:2}
 /* LOGO Y TEMA */
-.hdr-logo .logo-oscuro{display:none}
-[data-theme="dark"] .hdr-logo .logo-claro{display:none}
-[data-theme="dark"] .hdr-logo .logo-oscuro{display:block}
-.theme-btn{font-size:14px;padding:5px 9px;line-height:1}
 [data-theme="light"] .stat-card{background:var(--card);box-shadow:var(--shadow)}
 [data-theme="light"] .sec{box-shadow:0 1px 3px rgba(26,16,96,.05)}
 
@@ -445,9 +416,6 @@ body.con-sel .toast{bottom:96px}
 /* PC: aprovechar el ancho */
 @media (min-width:1024px){
   body{font-size:15px}
-  .hdr{padding:0 28px;height:60px}
-  .hdr-logo img{height:38px}
-  .nav-btn{padding:7px 14px;font-size:13px}
   .main{max-width:1360px;padding:22px 28px 40px;gap:16px}
   .no-turno{max-width:760px;margin:24px auto 0;padding:32px 28px}
   .turno-panel{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(340px,1fr);gap:16px;align-items:start}
@@ -477,28 +445,32 @@ body.con-sel .toast{bottom:96px}
 @media (min-width:1600px){
   .main{max-width:1520px}
 }
-@media (max-width:520px){#navTvBtn{display:none}.hdr-txt{display:none}.hdr{padding:0 10px}.nav-btn{padding:6px 8px}.hdr-user{max-width:96px}}
 @media print{body{background:#fff;color:#000}}
 </style>
 </head>
 <body>
 
-<!-- LOGIN -->
-<div id="loginScreen" class="login-wrap">
-  <div class="login-card">
-    <div class="login-logo">
-      <img src="assets/dpworld-logo-fondo-claro.png" alt="DP World">
-      <div class="login-sub">Control de Horas</div>
-      <div class="login-ref">DAL · Colón Logistics Park · Panamá</div>
+<!-- LOGIN: molde Last Mile, escena «bodega» -->
+<div id="loginScreen" class="dpw-login">
+  <div class="dpw-lg-art" aria-hidden="true"><svg data-dpw-art></svg></div>
+  <div class="dpw-lg-hero">
+    <div class="dpw-lg-kick">DP World · Control de Horas</div>
+    <h1 class="dpw-lg-h1"><span>Cada hora</span> <span>de la bodega</span> <em>cuenta.</em></h1>
+    <p class="dpw-lg-lead">Turnos, tareas y productividad de la cuadrilla, en vivo.</p>
+  </div>
+  <svg class="dpw-lg-ground" data-dpw-ground aria-hidden="true"></svg>
+  <div class="dpw-lg-card">
+    <div class="dpw-lg-logo">
+      <img src="dpw/assets/dpworld-logo-fondo-claro.png" alt="DP World">
+      <div class="dpw-lg-app">Control de Horas</div>
+      <div class="dpw-lg-ref">DAL · Colón Logistics Park · Panamá</div>
       <span class="modo-prueba hidden" id="modoPrueba">MODO PRUEBA</span>
     </div>
-    <div class="login-fields">
-      <div class="field"><label>Usuario</label><input type="text" id="loginUser" placeholder="Tu usuario" autocomplete="username"></div>
-      <div class="field"><label>Contraseña</label><input type="password" id="loginPass" placeholder="••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
-      <div class="login-err" id="loginErr">Usuario o contraseña incorrectos</div>
-      <button class="btn btn-indigo btn-full" onclick="doLogin()">INICIAR SESIÓN</button>
-    </div>
-    <div class="login-footer">🔒 USO INTERNO EXCLUSIVO · DP WORLD PANAMÁ</div>
+    <div class="dpw-lg-err" id="loginErr">Usuario o contraseña incorrectos</div>
+    <div class="dpw-lg-fg"><label class="dpw-lg-lbl" for="loginUser">Usuario</label><input type="text" class="dpw-lg-in" id="loginUser" placeholder="Ingresa tu usuario" autocomplete="username"></div>
+    <div class="dpw-lg-fg"><label class="dpw-lg-lbl" for="loginPass">Contraseña</label><input type="password" class="dpw-lg-in" id="loginPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <button class="dpw-lg-btn" id="loginBtn" onclick="doLogin()">Iniciar sesión</button>
+    <div class="dpw-lg-foot">Uso interno exclusivo · DP World Panamá</div>
   </div>
 </div>
 
@@ -506,35 +478,36 @@ body.con-sel .toast{bottom:96px}
 <div class="tb-bar hidden" id="tbBar">
   <div class="tb-bar-in">
     <span class="tb-bar-n" id="tbBarN">0</span>
-    <button class="btn btn-green" onclick="abrirAsignar()">▶ Asignar tarea</button>
-    <button class="btn btn-amber" onclick="abrirPausa()">⏸ Pausa</button>
-    <button class="btn btn-ghost" id="tbTerminar" onclick="liberarSel()">⏹ Terminar tarea</button>
-    <button class="btn btn-ghost btn-sm" onclick="limpiarSel()" aria-label="Quitar selección">✕</button>
+    <button class="btn btn-green" onclick="abrirAsignar()">Asignar tarea</button>
+    <button class="btn btn-amber" onclick="abrirPausa()">Pausa</button>
+    <button class="btn btn-ghost" id="tbTerminar" onclick="liberarSel()">Terminar tarea</button>
+    <button class="btn btn-ghost btn-sm" onclick="limpiarSel()" aria-label="Quitar selección">×</button>
   </div>
 </div>
 <!-- APP -->
 <div id="appScreen" class="hidden">
 
-  <!-- HEADER -->
-  <div class="hdr">
-    <div class="hdr-l">
-      <div class="hdr-logo"><img class="logo-claro" src="assets/dpworld-logo-fondo-claro.png" alt="DP World"><img class="logo-oscuro" src="assets/dpworld-logo-fondo-oscuro.png" alt="DP World"></div>
-      <span class="sync-dot" id="syncDot" title="Sincronizado"></span>
-      <div class="hdr-txt"><div class="hdr-title">DP WORLD</div><div class="hdr-sub">Control de Horas</div></div>
+  <!-- CINTA SUPERIOR Y MENÚ DESPLEGABLE (dpw/dpw-shell.css) -->
+  <header class="dpw-hdr">
+    <div class="dpw-hdr-l">
+      <button type="button" class="dpw-burger" data-dpw="menu" aria-label="Abrir menú" aria-expanded="false" aria-controls="dpwDrawer"><span></span><span></span><span></span></button>
+      <div class="dpw-logo"><img src="dpw/assets/dpworld-logo-fondo-claro.png" alt="DP World"></div>
+      <div><div class="dpw-title">DP WORLD</div><div class="dpw-sub">Control de Horas <span class="sync-dot" id="syncDot" title="Sincronizado"></span></div></div>
     </div>
-    <div class="hdr-right">
-      <button class="nav-btn active" id="navSupBtn" onclick="setNav('supervisor')">Turno</button>
-      <button class="nav-btn ghost" id="navInsBtn" onclick="setNav('insights')">
-        Insights
-        <span class="notif-badge hidden" id="notifBadge">0</span>
-      </button>
-      <button class="nav-btn ghost" id="navTvBtn" onclick="openDashboard()">TV</button>
-      <button class="nav-btn ghost theme-btn" id="themeBtn" onclick="cycleTheme()" title="Tema" aria-label="Cambiar tema">☀️</button>
-      <button class="nav-btn ghost hidden" id="notifBtn" onclick="activarAvisos()" title="Activar avisos" aria-label="Avisos">🔕</button>
-      <button class="nav-btn ghost hidden" id="installBtn" onclick="instalarApp()" title="Instalar la app en este equipo">⬇ Instalar</button>
-      <span class="hdr-user" id="hdrUser" onclick="doLogout()">— · Salir</span>
+    <div class="dpw-hdr-r">
+      <button type="button" class="dpw-hbtn dpw-install dpw-hide-sm hidden" id="installBtn" onclick="instalarApp()" title="Instalar la app en este equipo">Instalar</button>
+      <button type="button" class="dpw-hbtn" id="themeBtn" onclick="cycleTheme()">Oscuro</button>
+      <span class="dpw-role dpw-hide-sm" id="hdrUser"></span>
+      <button type="button" class="dpw-salir" onclick="doLogout()">Salir</button>
     </div>
-  </div>
+  </header>
+  <div class="dpw-ov" id="dpwOv" data-dpw="menu-close" hidden></div>
+  <nav class="dpw-drawer" id="dpwDrawer" aria-label="Menú principal" aria-hidden="true">
+    <div class="dpw-drawer-h"><div class="dpw-logo"><img src="dpw/assets/dpworld-logo-fondo-claro.png" alt="DP World"></div><div><div class="dpw-title">DP WORLD</div><div class="dpw-sub">Control de Horas</div></div><button type="button" class="dpw-close" data-dpw="menu-close" aria-label="Cerrar menú">×</button></div>
+    <div class="dpw-who" id="dpwWho"></div>
+    <div class="dpw-items" id="dpwItems"></div>
+    <div class="dpw-drawer-f"><span></span><button type="button" class="dpw-salir" onclick="DPW.cerrarMenu();doLogout()">Salir</button></div>
+  </nav>
 
   <div class="modo-prueba-bar hidden" id="modoPruebaBar">MODO PRUEBA · datos de ensayo</div>
   <!-- SUPERVISOR VIEW -->
@@ -543,9 +516,9 @@ body.con-sel .toast{bottom:96px}
       <div id="turnosProgramadosList"></div>
     <div id="plantillasActivasList"></div>
       <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="btn btn-green" style="flex:1;justify-content:center" onclick="showModal('modalAbrirTurno')">▶ Abrir Turno Ahora</button>
-        <button class="btn btn-ghost" style="justify-content:center" onclick="togglePlantillasPanel()" id="plantillasQuickBtn" title="Plantillas">📋</button>
-        <button class="btn btn-indigo" style="flex:1;justify-content:center" onclick="showModal('modalDimensionador')">📐 Planificar Turno</button>
+        <button class="btn btn-green" style="flex:1;justify-content:center" onclick="showModal('modalAbrirTurno')">Abrir Turno Ahora</button>
+        <button class="btn btn-ghost" style="justify-content:center" onclick="togglePlantillasPanel()" id="plantillasQuickBtn" title="Plantillas">Plantillas</button>
+        <button class="btn btn-indigo" style="flex:1;justify-content:center" onclick="showModal('modalDimensionador')">Planificar Turno</button>
       </div>
     </div>
     <div id="turnoPanel" class="turno-panel hidden">
@@ -569,18 +542,18 @@ body.con-sel .toast{bottom:96px}
         </div>
         <div id="adminKPI" style="display:none;background:rgba(0,0,0,.2);border-radius:8px;padding:8px 11px;font-size:.7rem;line-height:1.7"></div>
         <div class="turno-actions">
-          <button id="toolboxBtn" class="btn btn-sm" style="display:none;background:#F59E0B;color:#fff;border:none;border-radius:6px;padding:6px 11px;font-weight:700;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer" onclick="showToolboxScreen()">🦺 Toolbox</button>
-          <button class="btn btn-sm" style="background:var(--purple);color:#fff;border:none;border-radius:6px;padding:6px 11px;font-weight:700;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer" onclick="openModalPlanTarea()">📌 Plan</button>
-          <button class="btn btn-sm" style="background:#6B7280;color:#fff;border:none;border-radius:6px;padding:6px 11px;font-weight:700;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer" onclick="openModalPlantilla()">📋 Plantillas</button>
+          <button id="toolboxBtn" class="btn btn-sm" style="display:none;background:#F59E0B;color:#fff;border:none;border-radius:6px;padding:6px 11px;font-weight:700;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer" onclick="showToolboxScreen()">Toolbox</button>
+          <button class="btn btn-sm" style="background:var(--purple);color:#fff;border:none;border-radius:6px;padding:6px 11px;font-weight:700;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer" onclick="openModalPlanTarea()">Plan</button>
+          <button class="btn btn-sm" style="background:#6B7280;color:#fff;border:none;border-radius:6px;padding:6px 11px;font-weight:700;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer" onclick="openModalPlantilla()">Plantillas</button>
           <button class="btn btn-green btn-sm" onclick="asignarDesdeBanner()">+ Tarea</button>
-          <button class="btn btn-ghost-w btn-sm" onclick="prepCerrarTurno()">⏹ Cerrar Turno</button>
+          <button class="btn btn-ghost-w btn-sm" onclick="prepCerrarTurno()">Cerrar Turno</button>
         </div>
       </div>
       <div class="tp-col tp-side">
       <!-- CANTIDADES PENDIENTES -->
       <div class="sec tp-pend hidden" id="secPendientes">
         <div class="sec-hdr">
-          <div class="sec-hdr-left"><div class="sec-accent" style="background:var(--amber)"></div><span class="sec-title">✍️ Cantidades pendientes</span></div>
+          <div class="sec-hdr-left"><div class="sec-accent" style="background:var(--amber)"></div><span class="sec-title">Cantidades pendientes</span></div>
           <span class="badge ba" id="pendCount">0</span>
         </div>
         <div class="sec-body" id="pendientesList"></div>
@@ -588,7 +561,7 @@ body.con-sel .toast{bottom:96px}
       <!-- TAREAS DEL DÍA -->
       <div class="sec tp-dia" id="secTareasDia" style="display:none">
         <div class="sec-hdr">
-          <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">📌 Tareas del Día</span></div>
+          <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Tareas del Día</span></div>
           <div class="sec-hdr-actions">
             <button class="btn btn-green btn-sm" onclick="openModalPlanTarea()">+ Agregar</button>
           </div>
@@ -599,7 +572,7 @@ body.con-sel .toast{bottom:96px}
       <div class="tp-col tp-main">
       <div class="sec tp-equipo">
         <div class="sec-hdr">
-          <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">👥 Equipo</span></div>
+          <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Equipo</span></div>
           <div class="sec-hdr-actions"><button class="btn btn-ghost btn-sm" onclick="selLibres()">Seleccionar libres</button></div>
         </div>
         <div class="sec-body">
@@ -609,7 +582,7 @@ body.con-sel .toast{bottom:96px}
       </div>
       <div class="sec tp-hist">
         <div class="sec-hdr" onclick="toggleSec('sHistorial','cHistorial')">
-          <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">📋 Historial del Turno</span></div>
+          <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Historial del Turno</span></div>
           <span class="chevron open" id="cHistorial">▼</span>
         </div>
         <div class="sec-body" id="sHistorial"><div id="historialList"></div></div>
@@ -634,84 +607,84 @@ body.con-sel .toast{bottom:96px}
 <!-- MODALES -->
 <div class="overlay hidden" id="modalAbrirTurno">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title">▶ Abrir Turno</span><span class="modal-close" onclick="hideModal('modalAbrirTurno')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title">Abrir Turno</span><span class="modal-close" onclick="hideModal('modalAbrirTurno')">×</span></div>
     <div class="field-row">
       <div class="field"><label>Fecha</label><input type="date" id="tFecha"></div>
       <div class="field"><label>Hora inicio</label><input type="time" id="tHora"></div>
     </div>
     <div class="field"><label>Tipo de Jornada</label>
       <div class="chip-wrap" id="jornadaChips">
-        <div class="chip selected" data-jornada="completa" onclick="selectJornada(this)">☀️ Jornada Completa</div>
-        <div class="chip" data-jornada="media" onclick="selectJornada(this)">🕐 Media Jornada</div>
+        <div class="chip selected" data-jornada="completa" onclick="selectJornada(this)">Jornada Completa</div>
+        <div class="chip" data-jornada="media" onclick="selectJornada(this)">Media Jornada</div>
       </div>
     </div>
     <div class="field"><label>Colaboradores del turno</label><div class="chip-wrap" id="colabChips"></div></div>
     <div class="info-box" id="turnoResumen">Selecciona colaboradores para ver el resumen</div>
-    <button class="btn btn-green btn-full" onclick="abrirTurno()">▶ Iniciar Turno</button>
+    <button class="btn btn-green btn-full" onclick="abrirTurno()">Iniciar Turno</button>
   </div>
 </div>
 
 <div class="overlay hidden" id="modalNextTask">
   <div class="modal">
     <div class="modal-hdr">
-      <span class="modal-title">⚡ Siguiente tarea</span>
-      <span class="modal-close" onclick="confirmarSinTarea()">✕</span>
+      <span class="modal-title">Siguiente tarea</span>
+      <span class="modal-close" onclick="confirmarSinTarea()">×</span>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:12px">
       <button onclick="quickStartEspecial('almuerzo')" style="background:rgba(245,162,11,.1);border:2px solid #F59E0B;border-radius:10px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;width:100%">
-        <span style="font-size:1.4rem">🍽</span>
+        
         <span style="font-weight:800;font-size:.72rem;color:var(--amber);text-transform:uppercase;letter-spacing:.04em">Almuerzo</span>
       </button>
       <button onclick="quickStartEspecial('reunion')" style="background:rgba(143,111,214,.15);border:2px solid #7C5CBF;border-radius:10px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;width:100%">
-        <span style="font-size:1.4rem">📋</span>
+        
         <span style="font-weight:800;font-size:.72rem;color:var(--purple-t);text-transform:uppercase;letter-spacing:.04em">Reunión</span>
       </button>
       <button onclick="quickStartEspecial('bano')" style="background:rgba(0,153,230,.1);border:2px solid #0EA5E9;border-radius:10px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;width:100%">
-        <span style="font-size:1.4rem">🚻</span>
+        
         <span style="font-weight:800;font-size:.72rem;color:var(--blue);text-transform:uppercase;letter-spacing:.04em">Baño</span>
       </button>
     </div>
     <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--mid);margin-bottom:5px">Del catálogo</div>
-    <input type="search" id="nextTaskSearch" placeholder="🔍 Buscar..." oninput="filtrarNextTask(this.value)" style="width:100%;border:1.5px solid var(--border);border-radius:7px;padding:7px 11px;font-family:'Barlow',sans-serif;font-size:.84rem;margin-bottom:7px">
+    <input type="search" id="nextTaskSearch" placeholder="Buscar..." oninput="filtrarNextTask(this.value)" style="width:100%;border:1.5px solid var(--border);border-radius:7px;padding:7px 11px;font-family:'Barlow',sans-serif;font-size:.84rem;margin-bottom:7px">
     <div id="nextTaskList" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto"></div>
     <div id="nextTaskSinAsignar" style="display:none;margin-top:8px;background:rgba(232,0,61,.1);border-left:3px solid var(--red);border-radius:0 7px 7px 0;padding:9px 12px;font-size:.78rem;color:var(--red-t);line-height:1.5">
-      ⚠ <b>Personal quedará disponible en bodega.</b><br>Cerrando sin asignar tarea...
+      <b>Personal quedará disponible en bodega.</b><br>Cerrando sin asignar tarea...
     </div>
-    <div style="margin-top:6px;font-size:.65rem;color:var(--mid);text-align:center">⚠ Asigna siempre una tarea — nadie debe quedar disponible en bodega</div>
+    <div style="margin-top:6px;font-size:.65rem;color:var(--mid);text-align:center">Asigna siempre una tarea — nadie debe quedar disponible en bodega</div>
   </div>
 </div>
 
 <div class="overlay hidden" id="modalNuevaPlantilla">
   <div class="modal">
     <div class="modal-hdr">
-      <span class="modal-title">📋 Nueva Plantilla</span>
-      <span class="modal-close" onclick="hideModal('modalNuevaPlantilla')">✕</span>
+      <span class="modal-title">Nueva Plantilla</span>
+      <span class="modal-close" onclick="hideModal('modalNuevaPlantilla')">×</span>
     </div>
     <div class="field"><label>Nombre</label><input type="text" id="pNombre" placeholder="Ej. Turno CNP Estándar"></div>
     <div class="field"><label>Jornada</label>
       <div class="chip-wrap" id="pJornadaChips">
-        <div class="chip selected" data-j="completa" onclick="selectPJornada(this)">☀️ Completa</div>
-        <div class="chip" data-j="media" onclick="selectPJornada(this)">🕐 Media</div>
+        <div class="chip selected" data-j="completa" onclick="selectPJornada(this)">Completa</div>
+        <div class="chip" data-j="media" onclick="selectPJornada(this)">Media</div>
       </div>
     </div>
     <div class="field"><label>Colaboradores sugeridos</label><div class="chip-wrap" id="pColabChips"></div></div>
     <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid);margin-bottom:6px">Tareas</div>
     <div id="pTareasList" style="display:flex;flex-direction:column;gap:5px;max-height:180px;overflow-y:auto"></div>
     <button class="btn btn-ghost btn-full" onclick="addPTarea()" style="margin-top:6px">+ Tarea</button>
-    <button class="btn btn-green btn-full" style="margin-top:8px" onclick="guardarNuevaPlantilla()">💾 Guardar</button>
+    <button class="btn btn-green btn-full" style="margin-top:8px" onclick="guardarNuevaPlantilla()">Guardar</button>
   </div>
 </div>
 <div class="overlay hidden" id="modalPlantilla">
   <div class="modal">
     <div class="modal-hdr">
-      <span class="modal-title">📋 Plantillas de Turno</span>
-      <span class="modal-close" onclick="hideModal('modalPlantilla')">✕</span>
+      <span class="modal-title">Plantillas de Turno</span>
+      <span class="modal-close" onclick="hideModal('modalPlantilla')">×</span>
     </div>
     <div id="plantillasList" style="display:flex;flex-direction:column;gap:7px;margin-bottom:12px;max-height:240px;overflow-y:auto"></div>
     <div style="border-top:1px solid var(--border);padding-top:12px">
       <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--mid);margin-bottom:7px">Guardar turno actual como plantilla</div>
       <div class="field"><label>Nombre de la plantilla</label><input type="text" id="plantillaNombre" placeholder="Ej. Turno CNP Lunes"></div>
-      <button class="btn btn-green btn-full" onclick="guardarPlantilla()">💾 Guardar Plantilla</button>
+      <button class="btn btn-green btn-full" onclick="guardarPlantilla()">Guardar Plantilla</button>
     </div>
   </div>
 </div>
@@ -719,8 +692,8 @@ body.con-sel .toast{bottom:96px}
 <div class="overlay hidden" id="modalPlanTarea">
   <div class="modal">
     <div class="modal-hdr">
-      <span class="modal-title">📌 Planificar Tarea del Día</span>
-      <span class="modal-close" onclick="hideModal('modalPlanTarea')">✕</span>
+      <span class="modal-title">Planificar Tarea del Día</span>
+      <span class="modal-close" onclick="hideModal('modalPlanTarea')">×</span>
     </div>
     <div class="field">
       <label>Tarea</label>
@@ -745,26 +718,26 @@ body.con-sel .toast{bottom:96px}
       </div>
     </div>
     <div class="info-box" id="ptInfo">Selecciona una tarea para ver las horas estimadas</div>
-    <button class="btn btn-green btn-full" onclick="guardarPlanTarea()">📌 Agregar al Día</button>
+    <button class="btn btn-green btn-full" onclick="guardarPlanTarea()">Agregar al Día</button>
   </div>
 </div>
 
 <div class="overlay hidden" id="modalNuevaTarea">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title">+ Nueva Tarea</span><span class="modal-close" onclick="hideModal('modalNuevaTarea')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title">+ Nueva Tarea</span><span class="modal-close" onclick="hideModal('modalNuevaTarea')">×</span></div>
     <div class="field"><label>Tarea</label>
-      <input type="search" id="nTareaSearch" placeholder="🔍 Buscar tarea..." oninput="filtrarSelectTarea(this.value,'nTareaSel')" style="width:100%;border:1.5px solid var(--border);border-radius:7px;padding:7px 11px;font-family:'Barlow',sans-serif;font-size:.84rem;margin-bottom:5px">
+      <input type="search" id="nTareaSearch" placeholder="Buscar tarea..." oninput="filtrarSelectTarea(this.value,'nTareaSel')" style="width:100%;border:1.5px solid var(--border);border-radius:7px;padding:7px 11px;font-family:'Barlow',sans-serif;font-size:.84rem;margin-bottom:5px">
       <select id="nTareaSel"><option value="">— Seleccionar —</option></select></div>
     <div class="field"><label>Cliente</label><select id="nClienteSel"><option value="">— Seleccionar —</option></select></div>
     <div class="field"><label>Colaboradores asignados</label><div class="chip-wrap" id="colabTareaChips"></div></div>
     <div class="field"><label>Notas (opcional)</label><textarea id="nTareaNota" placeholder="Instrucciones o detalles..."></textarea></div>
-    <button class="btn btn-green btn-full" onclick="iniciarTarea()">▶ Iniciar Tarea</button>
+    <button class="btn btn-green btn-full" onclick="iniciarTarea()">Iniciar Tarea</button>
   </div>
 </div>
 
 <div class="overlay hidden" id="modalCerrarTarea">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title">⏹ Cerrar Tarea</span><span class="modal-close" onclick="hideModal('modalCerrarTarea')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title">Cerrar Tarea</span><span class="modal-close" onclick="hideModal('modalCerrarTarea')">×</span></div>
     <div class="info-box" id="cerrarTareaInfo"></div>
     <div id="cerrarPersonaWrap" style="margin-top:8px"></div>
     <div class="qty-row">
@@ -776,16 +749,16 @@ body.con-sel .toast{bottom:96px}
       <div class="info-box" id="eficInfo"></div>
     </div>
     <div class="field"><label>Notas de cierre</label><textarea id="cerrarNota" placeholder="Observaciones..."></textarea></div>
-    <button class="btn btn-indigo btn-full" onclick="confirmarCierre()">✔ Confirmar Cierre</button>
+    <button class="btn btn-indigo btn-full" onclick="confirmarCierre()">Confirmar Cierre</button>
   </div>
 </div>
 
 <div class="overlay hidden" id="modalCerrarTurno">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title">⏹ Cerrar Turno</span><span class="modal-close" onclick="hideModal('modalCerrarTurno')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title">Cerrar Turno</span><span class="modal-close" onclick="hideModal('modalCerrarTurno')">×</span></div>
     <div class="info-box" id="cTurnoResumen"></div>
     <div id="justWrap" style="display:none;flex-direction:column;gap:9px">
-      <div class="warn-box">⚠️ Quedan horas sin asignar. Debes justificarlas para cerrar el turno.</div>
+      <div class="warn-box">Quedan horas sin asignar. Debes justificarlas para cerrar el turno.</div>
       <div class="field"><label>Causa</label>
         <select id="justCausa">
           <option value="">— Seleccionar —</option>
@@ -799,13 +772,13 @@ body.con-sel .toast{bottom:96px}
       </div>
       <div class="field"><label>Detalle</label><textarea id="justNota" placeholder="Explicación adicional..."></textarea></div>
     </div>
-    <button class="btn btn-red btn-full" onclick="confirmarCierreTurno()">⏹ Confirmar Cierre de Turno</button>
+    <button class="btn btn-red btn-full" onclick="confirmarCierreTurno()">Confirmar Cierre de Turno</button>
   </div>
 </div>
 
 <div class="overlay hidden" id="modalConfig">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title">⚙️ Configuración de Horas</span><span class="modal-close" onclick="hideModal('modalConfig')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title">Configuración de Horas</span><span class="modal-close" onclick="hideModal('modalConfig')">×</span></div>
     <div class="info-box">Estos valores aplican a todos los cálculos de horas, costos y sobretiempo.</div>
     <div class="field-row">
       <div class="field"><label>Hora inicio turno</label><input type="time" id="cfgHoraInicio"></div>
@@ -841,28 +814,28 @@ body.con-sel .toast{bottom:96px}
       <div class="field"><label>Tarea abierta más de (h)</label><input type="number" id="cfgAlTarea" min="0.5" step="0.5"></div>
     </div>
     <div class="info-box" id="cfgResumen"></div>
-    <button class="btn btn-green btn-full" onclick="guardarConfig()">💾 Guardar Configuración</button>
+    <button class="btn btn-green btn-full" onclick="guardarConfig()">Guardar Configuración</button>
   </div>
 </div>
 
 <div class="overlay hidden" id="modalSolReap">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title">🔓 Solicitar Reapertura</span><span class="modal-close" onclick="hideModal('modalSolReap')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title">Solicitar Reapertura</span><span class="modal-close" onclick="hideModal('modalSolReap')">×</span></div>
     <div class="warn-box">El turno permanecerá bloqueado hasta que el administrador apruebe la solicitud.</div>
     <div class="info-box" id="reapInfo"></div>
     <div class="field"><label>Motivo</label><textarea id="reapMotivo" placeholder="Explica por qué necesitas reabrir este turno..."></textarea></div>
-    <button class="btn btn-amber btn-full" onclick="enviarSolicitud()">📤 Enviar Solicitud</button>
+    <button class="btn btn-amber btn-full" onclick="enviarSolicitud()">Enviar Solicitud</button>
   </div>
 </div>
 
 <div class="overlay hidden" id="modalAprobarReap">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title">🔓 Solicitud de Reapertura</span><span class="modal-close" onclick="hideModal('modalAprobarReap')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title">Solicitud de Reapertura</span><span class="modal-close" onclick="hideModal('modalAprobarReap')">×</span></div>
     <div class="info-box" id="aprobInfo"></div>
     <div class="field"><label>Comentario</label><textarea id="aprobComentario" placeholder="Motivo de aprobación o rechazo..."></textarea></div>
     <div class="btn-row">
-      <button class="btn btn-green" style="flex:1;justify-content:center" onclick="resolverSolicitud(true)">✔ Aprobar</button>
-      <button class="btn btn-red" style="flex:1;justify-content:center" onclick="resolverSolicitud(false)">✕ Rechazar</button>
+      <button class="btn btn-green" style="flex:1;justify-content:center" onclick="resolverSolicitud(true)">Aprobar</button>
+      <button class="btn btn-red" style="flex:1;justify-content:center" onclick="resolverSolicitud(false)">Rechazar</button>
     </div>
   </div>
 </div>
@@ -870,7 +843,7 @@ body.con-sel .toast{bottom:96px}
 <!-- CRUD MODALS -->
 <div class="overlay hidden" id="modalUsuario">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title" id="modalUsuarioTitle">👤 Nuevo Usuario</span><span class="modal-close" onclick="hideModal('modalUsuario')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title" id="modalUsuarioTitle">Nuevo Usuario</span><span class="modal-close" onclick="hideModal('modalUsuario')">×</span></div>
     <div class="field"><label>Nombre Completo</label><input type="text" id="uNombre" placeholder="Ej. Juan Pérez"></div>
     <div class="field"><label>Usuario (para login)</label><input type="text" id="uUser" placeholder="Ej. juan.perez" autocomplete="off"></div>
     <div class="field"><label>Contraseña</label><input type="password" id="uPass" placeholder="Mínimo 4 caracteres" autocomplete="new-password"></div>
@@ -880,22 +853,22 @@ body.con-sel .toast{bottom:96px}
         <option value="admin">Admin (Insights completo)</option>
       </select>
     </div>
-    <button class="btn btn-green btn-full" onclick="guardarUsuario()">💾 Guardar Usuario</button>
+    <button class="btn btn-green btn-full" onclick="guardarUsuario()">Guardar Usuario</button>
   </div>
 </div>
 
 <!-- DIMENSIONADOR -->
 <div class="overlay hidden" id="modalDimensionador">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title">📐 Planificar Turno</span><span class="modal-close" onclick="hideModal('modalDimensionador')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title">Planificar Turno</span><span class="modal-close" onclick="hideModal('modalDimensionador')">×</span></div>
     <div class="field-row">
       <div class="field"><label>Fecha del turno</label><input type="date" id="dimFecha"></div>
       <div class="field"><label>Hora inicio</label><input type="time" id="dimHora"></div>
     </div>
     <div class="field"><label>Tipo de Jornada</label>
       <div class="chip-wrap" id="dimJornadaChips">
-        <div class="chip selected" data-jornada="completa" onclick="selectDimJornada(this)">☀️ Completa</div>
-        <div class="chip" data-jornada="media" onclick="selectDimJornada(this)">🕐 Media</div>
+        <div class="chip selected" data-jornada="completa" onclick="selectDimJornada(this)">Completa</div>
+        <div class="chip" data-jornada="media" onclick="selectDimJornada(this)">Media</div>
       </div>
     </div>
     <hr>
@@ -907,18 +880,18 @@ body.con-sel .toast{bottom:96px}
     <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid)">Colaboradores Sugeridos</div>
     <div class="chip-wrap" id="dimColabChips"></div>
     <div class="warn-box hidden" id="dimColabWarn"></div>
-    <button class="btn btn-green btn-full" onclick="guardarPlan()">💾 Guardar Plan</button>
+    <button class="btn btn-green btn-full" onclick="guardarPlan()">Guardar Plan</button>
   </div>
 </div>
 
 <!-- INICIAR TURNO PROGRAMADO -->
 <div class="overlay hidden" id="modalIniciarPlan">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title">▶ Iniciar Turno Planificado</span><span class="modal-close" onclick="hideModal('modalIniciarPlan')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title">Iniciar Turno Planificado</span><span class="modal-close" onclick="hideModal('modalIniciarPlan')">×</span></div>
     <div class="info-box" id="iniciarPlanInfo"></div>
     <div class="field"><label>Confirmar Colaboradores (ajustar si hay ausencias)</label><div class="chip-wrap" id="iniciarPlanColabs"></div></div>
     <div class="info-box" id="iniciarPlanResumen">Selecciona colaboradores para ver el resumen</div>
-    <button class="btn btn-green btn-full" onclick="iniciarTurnoPlan()">▶ Iniciar Turno</button>
+    <button class="btn btn-green btn-full" onclick="iniciarTurnoPlan()">Iniciar Turno</button>
   </div>
 </div>
 
@@ -926,19 +899,19 @@ body.con-sel .toast{bottom:96px}
   <div class="modal" style="gap:11px">
     <!-- Header -->
     <div style="text-align:center">
-      <div style="font-size:2rem;margin-bottom:4px">🦺</div>
+      
       <div class="modal-title" style="text-align:center;margin-bottom:2px">Toolbox Meeting</div>
       <div style="font-size:.75rem;color:var(--mid)">Cápsula HSE pre-turno</div>
     </div>
     <!-- Selector de tema (visible antes de iniciar) -->
     <div id="toolboxTemaWrap">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid);margin-bottom:6px">📋 Tema de la cápsula HSE</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid);margin-bottom:6px">Tema de la cápsula HSE</div>
       <div id="toolboxTemaList" style="display:flex;flex-direction:column;gap:5px;max-height:220px;overflow-y:auto"></div>
       <div class="warn-box hidden" id="toolboxTemaErr" style="margin-top:6px">Selecciona un tema HSE para iniciar el Toolbox</div>
     </div>
     <!-- Tema seleccionado (visible durante/después) -->
     <div id="toolboxTemaActivo" style="display:none;background:rgba(245,162,11,.08);border-left:3px solid #F59E0B;border-radius:0 7px 7px 0;padding:9px 12px">
-      <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);margin-bottom:2px">🦺 Tema del turno</div>
+      <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);margin-bottom:2px">Tema del turno</div>
       <div id="toolboxTemaNombre" style="font-weight:700;font-size:.9rem;color:var(--t)"></div>
       <div id="toolboxTemaCat" style="font-size:.68rem;color:var(--amber);margin-top:1px"></div>
     </div>
@@ -947,16 +920,16 @@ body.con-sel .toast{bottom:96px}
     <div style="font-size:.75rem;color:var(--mid);text-align:center;margin-top:-6px" id="toolboxStatus">Selecciona un tema y presiona Iniciar</div>
     <!-- Botones -->
     <div style="display:flex;gap:8px">
-      <button id="toolboxIniciarBtn" class="btn btn-indigo btn-full" onclick="iniciarToolbox()">▶ Iniciar</button>
+      <button id="toolboxIniciarBtn" class="btn btn-indigo btn-full" onclick="iniciarToolbox()">Iniciar</button>
       <button class="btn btn-ghost btn-full" onclick="skipToolbox()">Omitir</button>
     </div>
-    <button id="toolboxFinBtn" class="btn btn-green btn-full hidden" onclick="finToolbox()">✓ Finalizar Toolbox</button>
+    <button id="toolboxFinBtn" class="btn btn-green btn-full hidden" onclick="finToolbox()">Finalizar Toolbox</button>
   </div>
 </div>
 
 <div class="overlay hidden" id="modalColab">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title" id="modalColabTitle">👷 Nuevo Colaborador</span><span class="modal-close" onclick="hideModal('modalColab')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title" id="modalColabTitle">Nuevo Colaborador</span><span class="modal-close" onclick="hideModal('modalColab')">×</span></div>
     <div class="field"><label>Nombre Completo</label><input type="text" id="cNombre" placeholder="Ej. Carlos Mendoza"></div>
     <div class="field"><label>Cargo</label>
       <select id="cCargo" onchange="updateColabCosto()">
@@ -965,13 +938,13 @@ body.con-sel .toast{bottom:96px}
       </select>
     </div>
     <div class="info-box" id="colabCostoBox"></div>
-    <button class="btn btn-green btn-full" onclick="guardarColab()">💾 Guardar</button>
+    <button class="btn btn-green btn-full" onclick="guardarColab()">Guardar</button>
   </div>
 </div>
 
 <div class="overlay hidden" id="modalTareaCat">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title" id="modalTareaCatTitle">📋 Nueva Tarea</span><span class="modal-close" onclick="hideModal('modalTareaCat')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title" id="modalTareaCatTitle">Nueva Tarea</span><span class="modal-close" onclick="hideModal('modalTareaCat')">×</span></div>
     <div class="field"><label>Nombre</label><input type="text" id="tcNombre" placeholder="Ej. Descarga de Sider"></div>
     <div class="field"><label>Descripción</label><textarea id="tcDesc" placeholder="Descripción breve..."></textarea></div>
     <div class="field-row">
@@ -993,22 +966,22 @@ body.con-sel .toast{bottom:96px}
       <div class="li-info"><div class="li-name" style="font-size:.85rem">Sin productividad</div><div class="li-sub">Ej. Supervisión, reuniones, esperas. No afecta % eficiencia.</div></div>
       <input type="checkbox" id="tcSinProd" style="width:18px;height:18px;cursor:pointer" onchange="toggleSinProd()">
     </div>
-    <button class="btn btn-green btn-full" onclick="guardarTareaCat()">💾 Guardar</button>
+    <button class="btn btn-green btn-full" onclick="guardarTareaCat()">Guardar</button>
   </div>
 </div>
 
 <div class="overlay hidden" id="modalAsignar">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title" id="asigTitulo">▶ Asignar tarea</span><span class="modal-close" onclick="hideModal('modalAsignar')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title" id="asigTitulo">Asignar tarea</span><span class="modal-close" onclick="hideModal('modalAsignar')">×</span></div>
     <div class="field"><label>Cliente</label><div class="chip-wrap" id="asigClientes"></div></div>
     <div class="field"><label>Empezó</label><div class="chip-wrap" id="asigHace"></div></div>
-    <input type="search" id="asigBuscar" placeholder="🔍 Buscar tarea…" oninput="renderAsigTareas()">
+    <input type="search" id="asigBuscar" placeholder="Buscar tarea…" oninput="renderAsigTareas()">
     <div id="asigTareas" class="asig-list"></div>
   </div>
 </div>
 <div class="overlay hidden" id="modalPausa">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title" id="pausaTitulo">⏸ Pausa</span><span class="modal-close" onclick="hideModal('modalPausa')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title" id="pausaTitulo">Pausa</span><span class="modal-close" onclick="hideModal('modalPausa')">×</span></div>
     <div class="field"><label>Empezó</label><div class="chip-wrap" id="pausaHace"></div></div>
     <div class="pausa-grid" id="pausaOpciones"></div>
     <div class="li-sub">El tiempo en pausa cuenta como <b>no productivo</b> con su causa. El almuerzo no cuenta como hora pagada.</div>
@@ -1016,36 +989,36 @@ body.con-sel .toast{bottom:96px}
 </div>
 <div class="overlay hidden" id="modalCantidad">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title">✍️ Cantidad ejecutada</span><span class="modal-close" onclick="hideModal('modalCantidad')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title">Cantidad ejecutada</span><span class="modal-close" onclick="hideModal('modalCantidad')">×</span></div>
     <div class="info-box" id="cantInfo"></div>
     <div class="cant-big"><button class="btn btn-ghost" onclick="cantAjustar(-1)">−1</button><input type="number" id="cantValor" min="0" inputmode="decimal"><button class="btn btn-ghost" onclick="cantAjustar(1)">+1</button></div>
     <div class="chip-wrap" id="cantRapidas"></div>
-    <button class="btn btn-green btn-full" onclick="guardarCantidad()">💾 Guardar</button>
+    <button class="btn btn-green btn-full" onclick="guardarCantidad()">Guardar</button>
   </div>
 </div>
 
 <div class="overlay hidden" id="modalMaestro">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title">📥 Homologar con el Excel de ventas</span><span class="modal-close" onclick="hideModal('modalMaestro')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title">Homologar con el Excel de ventas</span><span class="modal-close" onclick="hideModal('modalMaestro')">×</span></div>
     <div id="maestroPrev" style="display:flex;flex-direction:column;gap:10px"></div>
-    <button class="btn btn-green btn-full" onclick="aplicarImportMaestro()">✔ Aplicar</button>
+    <button class="btn btn-green btn-full" onclick="aplicarImportMaestro()">Aplicar</button>
   </div>
 </div>
 <input type="file" id="maestroFile" accept=".xlsx,.xlsm,.xls" style="display:none" onchange="leerArchivoMaestro(this.files[0])">
 
 <div class="overlay hidden" id="modalCliente">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title" id="modalClienteTitle">🏢 Nuevo Cliente</span><span class="modal-close" onclick="hideModal('modalCliente')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title" id="modalClienteTitle">Nuevo Cliente</span><span class="modal-close" onclick="hideModal('modalCliente')">×</span></div>
     <div class="field"><label>Nombre del Cliente</label><input type="text" id="clNombre" placeholder="Ej. CNP"></div>
     <div class="field"><label>Descripción</label><input type="text" id="clDesc" placeholder="Opcional"></div>
-    <button class="btn btn-green btn-full" onclick="guardarCliente()">💾 Guardar</button>
+    <button class="btn btn-green btn-full" onclick="guardarCliente()">Guardar</button>
   </div>
 </div>
 
 <!-- MODAL RUTINA -->
 <div class="overlay hidden" id="modalRutina">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title" id="modalRutinaTitle">📋 Nueva Rutina</span><span class="modal-close" onclick="hideModal('modalRutina')">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title" id="modalRutinaTitle">Nueva Rutina</span><span class="modal-close" onclick="hideModal('modalRutina')">×</span></div>
     <div class="field"><label>Nombre de la rutina</label><input type="text" id="rutNombre" placeholder="Ej. Ronda de Limpieza"></div>
     <div class="field"><label>Vincular a tarea del catálogo</label>
       <select id="rutTareaId"><option value="">— Seleccionar —</option></select>
@@ -1057,23 +1030,23 @@ body.con-sel .toast{bottom:96px}
     <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid);margin:4px 0">Pasos / Puntos</div>
     <div id="rutPasosList" style="display:flex;flex-direction:column;gap:5px;max-height:200px;overflow-y:auto"></div>
     <button class="btn btn-ghost btn-full" onclick="addRutPaso()" style="margin-top:4px">+ Agregar Paso</button>
-    <button class="btn btn-green btn-full" style="margin-top:8px" onclick="guardarRutina()">💾 Guardar Rutina</button>
+    <button class="btn btn-green btn-full" style="margin-top:8px" onclick="guardarRutina()">Guardar Rutina</button>
   </div>
 </div>
 
 <!-- MODAL VALIDAR PASO (selector de colaborador + QR) -->
 <div class="overlay hidden" id="modalValidarPaso">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title" id="validarPasoTitle">📍 Validar Paso</span><span class="modal-close" onclick="cerrarValidarPaso()">✕</span></div>
+    <div class="modal-hdr"><span class="modal-title" id="validarPasoTitle">Validar Paso</span><span class="modal-close" onclick="cerrarValidarPaso()">×</span></div>
     <div class="info-box" id="validarPasoInfo"></div>
     <div class="field"><label>Colaborador que valida</label><div class="chip-wrap" id="validarColabChips"></div></div>
     <div id="qrScanWrap" style="display:none;flex-direction:column;align-items:center;gap:10px;margin-top:8px">
-      <div class="info-box" style="width:100%">📷 Apunta la cámara al QR del punto</div>
+      <div class="info-box" style="width:100%">Apunta la cámara al QR del punto</div>
       <div id="qrReader" style="width:260px;height:260px;border:2px solid var(--purple);border-radius:10px;overflow:hidden;background:#000"></div>
       <button class="btn btn-ghost btn-sm" onclick="cancelarQR()">Cancelar escaneo</button>
     </div>
     <div id="validarSinQR" style="display:none;margin-top:8px">
-      <button class="btn btn-green btn-full" onclick="confirmarPasoSinQR()">✔ Confirmar Validación</button>
+      <button class="btn btn-green btn-full" onclick="confirmarPasoSinQR()">Confirmar Validación</button>
     </div>
   </div>
 </div>
@@ -1083,7 +1056,7 @@ body.con-sel .toast{bottom:96px}
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:2px solid #2D2B6B;padding-bottom:12px">
     <img src="assets/dpworld-logo-fondo-claro.png" style="height:40px">
     <div id="printQRTitle" style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.1rem;text-transform:uppercase;letter-spacing:.08em;color:#2D2B6B"></div>
-    <button onclick="closePrintQR()" style="background:#E8003D;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-weight:700;cursor:pointer">✕ Cerrar</button>
+    <button onclick="closePrintQR()" style="background:#E8003D;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-weight:700;cursor:pointer">Cerrar</button>
   </div>
   <div id="printQRGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:20px"></div>
 </div>
@@ -1295,7 +1268,7 @@ async function save(){
         }
         if(esSesionVencida(e)){ sesionVencida(); return; }
         try{ localStorage.setItem(BK_KEY,JSON.stringify({ver:_ver,base:_base,local})); }catch(_){}
-        setSync('offline'); showToast('⚠ Sin conexión — guardado en este equipo; se sincroniza solo','error'); return;
+        setSync('offline'); showToast('Sin conexión — guardado en este equipo; se sincroniza solo','error'); return;
       }
     }
     showToast('No se pudo guardar: demasiados cambios simultáneos. Reintenta.','error');
@@ -1330,11 +1303,11 @@ async function doLogin(){
   const user=document.getElementById('loginUser').value.trim().toLowerCase();
   const pass=document.getElementById('loginPass').value;
   const errEl=document.getElementById('loginErr');
-  const btn=document.querySelector('#loginScreen button');
+  const btn=document.getElementById('loginBtn');
   errEl.style.display='none';
   if(!user||!pass){errEl.textContent='Ingresa tu usuario y contraseña.';errEl.style.display='block';return;}
   if(btn&&btn.disabled) return;
-  if(btn){btn.textContent='INICIANDO...';btn.disabled=true;}
+  if(btn){btn.textContent='Iniciando…';btn.disabled=true;}
   try{
     const r=await Promise.race([rpc('ch_login',{p_username:user,p_pass:pass}),
       new Promise((_,rej)=>setTimeout(()=>rej(new Error('Sin respuesta del servidor (15s). Verifica tu conexión.')),15000))]);
@@ -1346,7 +1319,7 @@ async function doLogin(){
     errEl.textContent=/CREDENCIALES/.test(e.message)?'Usuario o contraseña incorrectos':(e.message||'Error al iniciar sesión.');
     errEl.style.display='block';
   }finally{
-    if(btn){btn.textContent='INICIAR SESIÓN';btn.disabled=false;}
+    if(btn){btn.textContent='Iniciar sesión';btn.disabled=false;}
   }
 }
 async function doLogout(){
@@ -1361,9 +1334,9 @@ async function startApp(){
   }
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appScreen').classList.remove('hidden');
-  document.getElementById('hdrUser').textContent=currentUser.nombre+' · Salir';
+  document.getElementById('hdrUser').textContent=currentUser.nombre;
+  DPW.quien('Sesión',currentUser.nombre+' · '+(ROL_NOMBRE[currentUser.rol]||currentUser.rol));
   setNav('supervisor');
-  document.getElementById('navInsBtn').classList.toggle('hidden',currentUser.rol==='supervisor');
   const now=new Date();
   document.getElementById('tFecha').value=fechaLocal(now);
   document.getElementById('tHora').value=now.toTimeString().slice(0,5);
@@ -1376,6 +1349,8 @@ const fechaLocal=d=>new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOStrin
 async function init(){
   if(STATE_KEY!=='ctrl_horas') ['modoPrueba','modoPruebaBar'].forEach(id=>{const b=document.getElementById(id); if(b) b.classList.remove('hidden');});
   if(IS_TV) return;
+  DPW.escena('bodega',document.getElementById('loginScreen'));
+  pintarMenu();
   const saved=localStorage.getItem(SESS_KEY);
   if(!saved) return;
   try{
@@ -1388,7 +1363,7 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function showToast(msg,type='success'){
   const el=document.getElementById('toast');if(!el)return;
-  el.textContent=(type==='success'?'✓ ':type==='error'?'✕ ':'')+ msg;
+  el.textContent=(type==='success'?'':type==='error'?'':'')+ msg;
   el.className='toast '+type;void el.offsetWidth;el.classList.add('show');
   clearTimeout(window._toastTimer);
   window._toastTimer=setTimeout(()=>el.classList.remove('show'),2800);
@@ -1406,9 +1381,7 @@ async function instalarApp(){
 }
 const avisosEstado=()=>!('Notification' in window)?'no':Notification.permission;
 function pintarAvisos(){
-  const b=document.getElementById('notifBtn'); if(!b) return; const st=avisosEstado();
-  b.classList.toggle('hidden',st==='no'||IS_TV); b.textContent=st==='granted'?'🔔':'🔕';
-  b.title=st==='granted'?'Avisos activados':st==='denied'?'Avisos bloqueados en el navegador':'Activar avisos';
+  pintarMenu();
 }
 async function activarAvisos(){
   const st=avisosEstado();
@@ -1445,16 +1418,16 @@ function revisarAlertas(){
 }
 
 // ═══ TEMA (claro / oscuro / automático) ═══
-const TEMA_KEY='ch_tema', TEMA_NOMBRE={auto:'automático',light:'claro',dark:'oscuro'}, TEMA_ICONO={auto:'🌓',light:'☀️',dark:'🌙'};
+const TEMA_KEY='ch_tema', TEMA_NOMBRE={auto:'automático',light:'claro',dark:'oscuro'};
 function temaPref(){ try{ return localStorage.getItem(TEMA_KEY)||'light'; }catch(e){ return 'light'; } }
 function aplicarTema(){
   const p=temaPref(), mq=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)');
   const dark=IS_TV||p==='dark'||(p==='auto'&&!!(mq&&mq.matches));
   document.documentElement.setAttribute('data-theme',dark?'dark':'light');
-  const b=document.getElementById('themeBtn'); if(b){ b.textContent=TEMA_ICONO[p]; b.title='Tema: '+TEMA_NOMBRE[p]; }
+  DPW.botonTema(document.getElementById('themeBtn'),!dark);
 }
 function cycleTheme(){
-  const orden=['light','dark','auto'], n=orden[(orden.indexOf(temaPref())+1)%orden.length];
+  const n=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';
   try{ localStorage.setItem(TEMA_KEY,n); }catch(e){}
   aplicarTema(); showToast('Tema '+TEMA_NOMBRE[n],'info');
 }
@@ -1462,14 +1435,23 @@ if(window.matchMedia){ const mq=matchMedia('(prefers-color-scheme: dark)'); (mq.
 aplicarTema();
 pintarAvisos();
 
+// Menú desplegable: todas las secciones de la app (molde Last Mile, sin íconos)
+const ROL_NOMBRE={admin:'Administrador',supervisor:'Supervisor'};
+var _nav='supervisor'; // var: pintarAvisos() la usa antes de esta línea
+function pintarMenu(){
+  if(!window.DPW) return;
+  const st=avisosEstado(), pend=(S.solicitudes||[]).filter(x=>x.estado==='pendiente').length;
+  DPW.menu([
+    {id:'supervisor',label:'Turno',on:()=>setNav('supervisor')},
+    {id:'insights',label:'Insights',badge:pend||0,hidden:!currentUser||currentUser.rol==='supervisor',on:()=>setNav('insights')},
+    {id:'tv',label:'Vista TV',hint:'pantalla completa',on:openDashboard},
+    {id:'avisos',label:'Avisos',group:'Ajustes',hint:st==='granted'?'Activos':st==='denied'?'Bloqueados':'Activar',hidden:st==='no'||IS_TV,on:activarAvisos}
+  ],_nav);
+}
 function setNav(nav){
   document.getElementById('viewSupervisor').classList.toggle('hidden',nav!=='supervisor');
   document.getElementById('viewInsights').classList.toggle('hidden',nav!=='insights');
-  document.getElementById('navSupBtn').classList.toggle('active',nav==='supervisor');
-  document.getElementById('navSupBtn').classList.toggle('ghost',nav!=='supervisor');
-  const insBtn=document.getElementById('navInsBtn');
-  insBtn.classList.toggle('active',nav==='insights');
-  insBtn.classList.toggle('ghost',nav!=='insights');
+  _nav=nav; pintarMenu(); window.scrollTo(0,0);
   if(nav==='insights'){ renderInsights(); if(currentUser?.rol==='admin') refreshUsuarios().then(renderInsights); }
 }
 function toggleSec(b,c){
@@ -1559,10 +1541,10 @@ function updateTurnoResumen(){
   const fecha=document.getElementById('tFecha').value;
   const jornada=getJornadaSeleccionada();
   const hpPP=horasJornada(jornada, fecha);
-  const jornadaLabel=jornada==='media'?`🕐 Media Jornada (${hpPP}h/persona)`:`☀️ Jornada Completa (${hpPP}h/persona)`;
+  const jornadaLabel=jornada==='media'?`Media Jornada (${hpPP}h/persona)`:`Jornada Completa (${hpPP}h/persona)`;
   el.innerHTML=`<b>${eq.length} persona(s)</b> — ${ops} Op + ${ags} AG<br>
   ${jornadaLabel}<br>
-  📅 Total equipo: <b>${(eq.length*hpPP).toFixed(1)}h</b> · Almuerzo: ${cfg.horasAlmuerzo}h/persona`;
+  Total equipo: <b>${(eq.length*hpPP).toFixed(1)}h</b> · Almuerzo: ${cfg.horasAlmuerzo}h/persona`;
 }
 async function abrirTurno(){
   const ids=[...document.querySelectorAll('#colabChips .chip.selected')].map(c=>c.dataset.id);
@@ -1610,7 +1592,7 @@ function updateBanner(){
         '<span>Pagado a la fecha <b>$'+k.pagado.toFixed(0)+'</b></span>'+
         '<span>Productivo <b style="color:var(--green)">$'+k.productivo.toFixed(0)+'</b></span>'+
         '<span>Perdido <b style="color:var(--red)">$'+k.perdido.toFixed(0)+'</b> <span class="muted">(pausas $'+k.perdidoNP.toFixed(0)+' · sin registrar $'+k.perdidoSinReg.toFixed(0)+')</span></span>'+
-        '<span>Efic. <b style="color:'+ec+'">'+(k.efic<70?'⚠ ':'')+k.efic+'%</b></span>';
+        '<span>Efic. <b style="color:'+ec+'">'+(k.efic<70?'Bajo · ':'')+k.efic+'%</b></span>';
     } else {
       kpiEl.style.display='none';
     }
@@ -1621,7 +1603,7 @@ function updateBanner(){
 // El supervisor registra qué hace cada persona AHORA: asignar una tarea o una pausa cierra la actividad anterior
 // en ese mismo momento. La cantidad se cuenta en la tarjeta o queda pendiente (obligatoria antes de cerrar el turno).
 const COLORS=['#2D2B6B','#00C389','#7C5CBF','#E8003D','#F59E0B','#0EA5E9','#10B981'];
-const PAUSAS={bano:{n:'Baño',i:'🚻'},permiso:{n:'Permiso',i:'📝'},espera:{n:'Espera / tiempo muerto',i:'⏳'},reunion:{n:'Reunión',i:'💬'},almuerzo:{n:'Almuerzo',i:'🍽'}};
+const PAUSAS={bano:{n:'Baño',i:''},permiso:{n:'Permiso',i:''},espera:{n:'Espera / tiempo muerto',i:''},reunion:{n:'Reunión',i:''},almuerzo:{n:'Almuerzo',i:''}};
 let _sel=new Set();
 const quien=()=>currentUser?currentUser.username:'';
 const iniciales=n=>String(n||'').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
@@ -1723,9 +1705,9 @@ function renderEquipo(){
   el.innerHTML=S.turno.equipo.map((c,i)=>{
     const a=actDe(c.id), est=!a?'libre':a.isEspecial?'pausa':'tarea';
     let info;
-    if(est==='libre') info=`<span style="color:var(--red-t);font-weight:700">● Sin tarea</span> <span class="muted">desde ${new Date(libreDesde(c.id)).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit',hour12:false})}</span>`;
-    else if(est==='pausa') info=`${(PAUSAS[a.causa]||{}).i||'⏸'} <b>${esc(a.tarea)}</b>`;
-    else info=`▶ <b>${esc(a.tarea)}</b> · ${esc(a.cliente)}${a.colaboradores.length>1?` · ${a.colaboradores.length} pers.`:''}`;
+    if(est==='libre') info=`<span style="color:var(--red-t);font-weight:700">Sin tarea</span> <span class="muted">desde ${new Date(libreDesde(c.id)).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit',hour12:false})}</span>`;
+    else if(est==='pausa') info=`${(PAUSAS[a.causa]||{}).i||''} <b>${esc(a.tarea)}</b>`;
+    else info=`<b>${esc(a.tarea)}</b> · ${esc(a.cliente)}${a.colaboradores.length>1?` · ${a.colaboradores.length} pers.`:''}`;
     const cnt=est==='tarea'&&pideCantidad(a)?`<div class="pc-cnt" onclick="event.stopPropagation()">
       <button onclick="sumarCant('${a.id}',-1)" aria-label="Restar 1">−</button>
       <div class="pc-val" onclick="editarCantActiva('${a.id}')">${a.cantAcum||0}<small>${esc(a.unidad||'unid')}s</small></div>
@@ -1759,7 +1741,7 @@ function abrirAsignar(tdId){
   _asig={cli:S.clientes.some(c=>c.id===ult)?ult:(S.clientes[0]||{}).id,hace:0,tdId:tdId||null};
   const td=tdId&&(S.turno.tareasDia||[]).find(x=>x.id===tdId); if(td&&td.clienteId) _asig.cli=td.clienteId;
   const nombres=S.turno.equipo.filter(c=>_sel.has(c.id)).map(c=>c.nombre.split(' ')[0]);
-  document.getElementById('asigTitulo').textContent='▶ '+nombres.join(', ');
+  document.getElementById('asigTitulo').textContent=''+nombres.join(', ');
   document.getElementById('asigBuscar').value='';
   renderAsigCli(); chipsHace('asigHace',0,'setAsigHace'); renderAsigTareas();
   showModal('modalAsignar');
@@ -1776,9 +1758,9 @@ function renderAsigTareas(){
   const tareas=S.tareasCat.filter(t=>!esAlmuerzo({tarea:t.nombre})&&(!q||normTxt(t.nombre).includes(q)));
   let h='';
   const plan=(S.turno.tareasDia||[]).filter(x=>x.estado==='pendiente'&&(!q||normTxt(x.tarea).includes(q)));
-  if(plan.length){ h+='<div class="asig-ttl">📌 Plan del día</div>'+plan.map(x=>`<button class="asig-btn plan" onclick="_asig.tdId='${x.id}';${x.clienteId?`_asig.cli='${x.clienteId}';`:''}elegirTarea('${x.tareaId}')"><span>📌 ${esc(x.tarea)}</span><small>${x.cantEsperada?x.cantEsperada+' '+esc(x.unidad||'')+'s':''}</small></button>`).join(''); }
+  if(plan.length){ h+='<div class="asig-ttl">Plan del día</div>'+plan.map(x=>`<button class="asig-btn plan" onclick="_asig.tdId='${x.id}';${x.clienteId?`_asig.cli='${x.clienteId}';`:''}elegirTarea('${x.tareaId}')"><span>${esc(x.tarea)}</span><small>${x.cantEsperada?x.cantEsperada+' '+esc(x.unidad||'')+'s':''}</small></button>`).join(''); }
   const frec=!q?tareas.filter(t=>f[t.id]).sort((a,b)=>f[b.id]-f[a.id]).slice(0,6):[];
-  if(frec.length) h+='<div class="asig-ttl">⭐ Frecuentes</div>'+frec.map(t=>btn(t,f[t.id]+' veces')).join('');
+  if(frec.length) h+='<div class="asig-ttl">Frecuentes</div>'+frec.map(t=>btn(t,f[t.id]+' veces')).join('');
   h+='<div class="asig-ttl">'+(q?'Resultados':'Todas')+'</div>'+(tareas.length?tareas.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(t=>btn(t,t.prod>0?t.prod+' '+t.unidad+'s/h':'')).join(''):'<div class="empty-text">Sin resultados</div>');
   document.getElementById('asigTareas').innerHTML=h;
 }
@@ -1789,7 +1771,7 @@ let _pausaHace=0;
 function abrirPausa(){
   if(!_sel.size){ showToast('Toca primero a las personas','info'); return; }
   _pausaHace=0; chipsHace('pausaHace',0,'setPausaHace');
-  document.getElementById('pausaTitulo').textContent='⏸ '+S.turno.equipo.filter(c=>_sel.has(c.id)).map(c=>c.nombre.split(' ')[0]).join(', ');
+  document.getElementById('pausaTitulo').textContent=''+S.turno.equipo.filter(c=>_sel.has(c.id)).map(c=>c.nombre.split(' ')[0]).join(', ');
   document.getElementById('pausaOpciones').innerHTML=Object.entries(PAUSAS).map(([k,v])=>`<button onclick="pausar([..._sel],'${k}',_pausaHace)"><span>${v.i}</span>${v.n}</button>`).join('');
   showModal('modalPausa');
 }
@@ -1824,7 +1806,7 @@ function renderPendientes(){
   document.getElementById('pendCount').textContent=p.length;
   document.getElementById('pendientesList').innerHTML=p.map(h=>`<div class="pend-row" onclick="abrirCantidad({id:'${h.id}'})">
     <div class="li-info"><div class="li-name">${esc(h.tarea)}</div><div class="li-sub">${esc(h.cliente)} · ${(h.colaboradores||[]).map(c=>esc(c.nombre.split(' ')[0])).join(', ')} · ${h.durH.toFixed(1)} h</div></div>
-    <span class="btn btn-amber btn-sm">✍️ Cantidad</span></div>`).join('');
+    <span class="btn btn-amber btn-sm">Cantidad</span></div>`).join('');
 }
 
 // ═══ TAREAS ═══
@@ -1890,7 +1872,7 @@ function buildPersonaSelector(t){
 }
 function prepCerrarTarea(id){
   S.cerrandoId=id;const t=S.tareasActivas.find(x=>x.id===id);if(!t)return;
-  document.getElementById('cerrarTareaInfo').innerHTML='<b>'+t.tarea+'</b> · '+t.cliente+'<br>'+t.colaboradores.map(c=>c.nombre).join(', ')+'<br>⏱ '+new Date(t.inicio).toLocaleTimeString();
+  document.getElementById('cerrarTareaInfo').innerHTML='<b>'+t.tarea+'</b> · '+t.cliente+'<br>'+t.colaboradores.map(c=>c.nombre).join(', ')+'<br>'+new Date(t.inicio).toLocaleTimeString();
   const tcCat=S.tareasCat.find(x=>x.id===t.tareaId);
   const isSinProd=tcCat?.sinProd||t.sinProd||t.isEspecial||t.isToolbox||false;
   // sinProd (Supervisión, Almuerzo, Baño, Toolbox): siempre cierra todos, no pide selector
@@ -1966,19 +1948,19 @@ async function confirmarCierre(){
 function renderHistorial(){
   renderPendientes();
   const el=document.getElementById('historialList');
-  if(!S.historial.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Sin tareas completadas</div></div>`;return;}
+  if(!S.historial.length){el.innerHTML=`<div class="empty"><div class="empty-text">Sin tareas completadas</div></div>`;return;}
   const tareaCards=[...S.historial].reverse().map(t=>{
     const eb=t.efic!=null?`<span class="badge ${t.efic>=90?'bg':t.efic>=70?'ba':'br'}">${Math.round(t.efic)}%</span>`:'';
     const rutBadge=t.isRutina?`<span class="badge bp">${t.pctCumplimiento||0}% cumpl.</span>`:'';
     const nP=(t.colaboradores||[]).length;
-    const pendB=t.cantPend?`<span class="badge ba" style="cursor:pointer" onclick="abrirCantidad({id:'${t.id}'})">✍️ Falta cantidad</span>`:'';
+    const pendB=t.cantPend?`<span class="badge ba" style="cursor:pointer" onclick="abrirCantidad({id:'${t.id}'})">Falta cantidad</span>`:'';
     const claseB=claseDe(t)==='noprod'?'<span class="badge ba">No productivo</span>':claseDe(t)==='apoyo'?'<span class="badge bgy">Apoyo</span>':'';
     return `<div class="task-card"><div class="task-card-hdr is-done">
       <div><div class="task-name">${esc(t.tarea)}</div><div class="task-meta">${esc(t.cliente)} · ${esc(t.colaboradores.map(c=>c.nombre.split(' ')[0]).join(', '))}</div></div>
       <div style="text-align:right;display:flex;flex-direction:column;gap:3px;align-items:flex-end">
         <span class="badge bgy">${t.durH.toFixed(1)}h${nP>1?' × '+nP:''}</span>${eb}${rutBadge}${pendB}${claseB}
       </div></div>
-      ${t.cant?`<div class="task-card-body"><div class="task-meta">✅ ${t.cant} ${esc(t.unidad)}s${t.realProd?' · '+t.realProd.toFixed(1)+' '+esc(t.unidad)+'s/h':''}</div></div>`:''}
+      ${t.cant?`<div class="task-card-body"><div class="task-meta">${t.cant} ${esc(t.unidad)}s${t.realProd?' · '+t.realProd.toFixed(1)+' '+esc(t.unidad)+'s/h':''}</div></div>`:''}
     </div>`;
   }).join('');
   // Resumen de costo por cliente (solo admin)
@@ -2054,7 +2036,7 @@ async function enviarSolicitud(){
   if(!S.turnosProgramados)S.turnosProgramados=[];
   S.solicitudes.push({id:uid(),turnoId:S.reabriendoId,motivo,ts:Date.now(),estado:'pendiente',comentario:''});
   const t=S.turnosHistorial.find(x=>x.id===S.reabriendoId);if(t)t.estado='solicitud_pendiente';
-  await save();hideModal('modalSolReap');updateNotifBadge();alert('✅ Solicitud enviada al administrador.');
+  await save();hideModal('modalSolReap');updateNotifBadge();alert('Solicitud enviada al administrador.');
 }
 function prepAprobar(solId){
   const sol=S.solicitudes.find(x=>x.id===solId);if(!sol)return;S.reabriendoId=solId;
@@ -2069,7 +2051,7 @@ async function resolverSolicitud(aprobado){
   else{const t=S.turnosHistorial.find(x=>x.id===sol.turnoId);if(t)t.estado='cerrado';}
   await save();hideModal('modalAprobarReap');updateNotifBadge();renderInsights();if(aprobado){setNav('supervisor');renderAll();}
 }
-function updateNotifBadge(){const pend=(S.solicitudes||[]).filter(x=>x.estado==='pendiente').length;const b=document.getElementById('notifBadge');b.textContent=pend;b.classList.toggle('hidden',pend===0);}
+function updateNotifBadge(){pintarMenu();}
 
 // ═══ CRUD USUARIOS (en servidor, claves cifradas) ═══
 const ERR_USR={CLAVE_CORTA:'La contraseña debe tener al menos 6 caracteres',USUARIO_EXISTE:'Ese usuario ya existe',
@@ -2109,7 +2091,7 @@ async function eliminarUsuario(id){
 function updateColabCosto(){const c=document.getElementById('cCargo')?.value||'operador',co=costoCargo(c);const el=document.getElementById('colabCostoBox');if(el)el.innerHTML=`${c==='operador'?'Operador':'Ayudante General'}: <b>$${co.dia.toFixed(2)}/día</b> → <b>$${co.hora.toFixed(2)}/hora</b>`;}
 function openModalColab(id){
   S.editingId=id||null;
-  document.getElementById('modalColabTitle').textContent=id?'✏️ Editar Colaborador':'👷 Nuevo Colaborador';
+  document.getElementById('modalColabTitle').textContent=id?'Editar Colaborador':'Nuevo Colaborador';
   if(id){const c=S.colaboradores.find(x=>x.id===id);document.getElementById('cNombre').value=c.nombre;document.getElementById('cCargo').value=c.cargo;}
   else{document.getElementById('cNombre').value='';document.getElementById('cCargo').value='operador';}
   updateColabCosto();showModal('modalColab');
@@ -2125,7 +2107,7 @@ async function eliminarColab(id){if(!confirm('¿Eliminar colaborador?'))return;S
 // ═══ CRUD TAREAS ═══
 function openModalTareaCat(id){
   S.editingId=id||null;
-  document.getElementById('modalTareaCatTitle').textContent=id?'✏️ Editar Tarea':'📋 Nueva Tarea';
+  document.getElementById('modalTareaCatTitle').textContent=id?'Editar Tarea':'Nueva Tarea';
   if(id){
     const t=S.tareasCat.find(x=>x.id===id);
     document.getElementById('tcNombre').value=t.nombre;
@@ -2198,7 +2180,7 @@ async function eliminarTarea(id){if(!confirm('¿Eliminar tarea?'))return;S.tarea
 // ═══ CRUD CLIENTES ═══
 function openModalCliente(id){
   S.editingId=id||null;
-  document.getElementById('modalClienteTitle').textContent=id?'✏️ Editar Cliente':'🏢 Nuevo Cliente';
+  document.getElementById('modalClienteTitle').textContent=id?'Editar Cliente':'Nuevo Cliente';
   if(id){const c=S.clientes.find(x=>x.id===id);document.getElementById('clNombre').value=c.nombre;document.getElementById('clDesc').value=c.desc||'';}
   else{document.getElementById('clNombre').value='';document.getElementById('clDesc').value='';}
   showModal('modalCliente');
@@ -2295,7 +2277,7 @@ function prepImportMaestro(res, archivo){
   const optsTareas=tareas.map(t=>`<option value="${t.id}">${t.nombre}</option>`).join('');
   h+=`<table class="rt-table"><tr><th>Actividad en el Excel</th><th style="width:44%">Tarea de la app</th></tr>`;
   filas.forEach(f=>{
-    const ops=`<option value="">— No usar —</option><option value="nueva">➕ Crear «${nombreGenerico(f)}»</option>${optsTareas}`.replace(`value="${elegido[f.k]}"`,`value="${elegido[f.k]}" selected`);
+    const ops=`<option value="">— No usar —</option><option value="nueva">Crear «${nombreGenerico(f)}»</option>${optsTareas}`.replace(`value="${elegido[f.k]}"`,`value="${elegido[f.k]}" selected`);
     h+=`<tr><td>${f.actividad}<div class="muted" style="font-size:.66rem">${f.cliente}${f.categoria?' · '+f.categoria:''}</div></td><td><select class="mVinc" data-k="${f.k}">${ops}</select></td></tr>`;
   });
   h+=`</table>`;
@@ -2496,8 +2478,8 @@ function renderInsights(){
     const totalH=(hf*60+hfm-hi*60-him)/60;
     const prodH=Math.max(0,totalH-(cfg.horasAlmuerzo||1));
     h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sCfg','cCfg')">
-      <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">⚙️ Configuración de Horas</span></div>
-      <div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openConfig()">✏️ Editar</button>
+      <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Configuración de Horas</span></div>
+      <div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openConfig()">Editar</button>
       <span class="chevron open" id="cCfg">▼</span></div></div><div class="sec-body" id="sCfg">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <div class="stat-card"><div class="stat-label">Turno</div><div class="stat-val" style="font-size:1rem">${cfg.horaInicio}–${cfg.horaFin}</div></div>
@@ -2513,7 +2495,7 @@ function renderInsights(){
   // Solicitudes pendientes
   if(isAdmin&&pend.length){
     h+=`<div class="sec"><div class="sec-hdr" style="background:rgba(245,162,11,.18)" onclick="toggleSec('sSol','cSol')">
-      <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">🔓 Solicitudes de Reapertura (${pend.length})</span></div>
+      <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Solicitudes de Reapertura (${pend.length})</span></div>
       <span class="chevron open" id="cSol">▼</span></div><div class="sec-body" id="sSol">`;
     pend.forEach(sol=>{const t=S.turnosHistorial.find(x=>x.id===sol.turnoId);h+=`<div class="solicit-card"><div style="display:flex;align-items:center;justify-content:space-between"><span style="font-weight:700;font-size:.83rem">Turno ${t?t.fecha+' '+t.hora:'N/A'}</span><span class="badge ba">Pendiente</span></div><div style="font-size:.75rem;color:var(--mid)">${sol.motivo}</div><button class="btn btn-indigo btn-sm" onclick="prepAprobar('${sol.id}')">Revisar →</button></div>`;});
     h+=`</div></div>`;
@@ -2528,7 +2510,7 @@ function renderInsights(){
       <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title"><span class="live-dot" style="margin-right:5px"></span>Turno en Tiempo Real</span></div>
       <span class="chevron open" id="cLive">▼</span></div><div class="sec-body" id="sLive">
       <table class="rt-table"><thead><tr><th>Colaborador</th><th>Cargo</th><th>Estado</th><th>Tarea</th><th>Cliente</th></tr></thead><tbody>`;
-    S.turno.equipo.forEach(c=>{const act=S.tareasActivas.find(t=>(t.colaboradores||[]).some(x=>x.id===c.id));const sp=act?(act.tarea==='Almuerzo'?`<span class="sp sp-lunch">🍽</span>`:`<span class="sp sp-active">▶</span>`):`<span class="sp sp-idle">⏸</span>`;h+=`<tr><td><b>${c.nombre.split(' ')[0]}</b></td><td>${c.cargo==='operador'?'Op':'AG'}</td><td>${sp}</td><td>${act?act.tarea:'—'}</td><td>${act?act.cliente:'—'}</td></tr>`;});
+    S.turno.equipo.forEach(c=>{const act=S.tareasActivas.find(t=>(t.colaboradores||[]).some(x=>x.id===c.id));const sp=act?(act.tarea==='Almuerzo'?`<span class="sp sp-lunch">Almuerzo</span>`:`<span class="sp sp-active">Activo</span>`):`<span class="sp sp-idle">Libre</span>`;h+=`<tr><td><b>${c.nombre.split(' ')[0]}</b></td><td>${c.cargo==='operador'?'Op':'AG'}</td><td>${sp}</td><td>${act?act.tarea:'—'}</td><td>${act?act.cliente:'—'}</td></tr>`;});
     h+=`</tbody></table>
       <div><div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--mid);margin-bottom:3px"><span>Horas: <b>${usH.toFixed(1)}h</b> / ${S.turno.horasProd}h · Costo: <b>$${costo.toFixed(2)}</b></span><span>${Math.round(pct)}%</span></div>
       <div class="pbar-wrap"><div class="pbar-fill ${pct>90?'pr':pct>70?'pa':'pg'}" style="width:${pct}%"></div></div></div>
@@ -2540,15 +2522,15 @@ function renderInsights(){
   S.turnosHistorial.forEach(tu=>{const k=engTurnoCerrado(tu);(tu.historial||[]).forEach(t=>_addCli(t,k));});
   if(S.turno){const k=engVivo();S.historial.forEach(t=>_addCli(t,k));}
   if(Object.keys(cliMap).length){
-    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sCli','cCli')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">💰 Costo por Cliente</span></div><span class="chevron open" id="cCli">▼</span></div><div class="sec-body" id="sCli">`;
+    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sCli','cCli')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Costo por Cliente</span></div><span class="chevron open" id="cCli">▼</span></div><div class="sec-body" id="sCli">`;
     Object.entries(cliMap).forEach(([cli,d])=>{h+=`<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:5px"><div style="display:flex;justify-content:space-between;width:100%"><span class="li-name">${cli}</span><span class="badge bi">$${d.costo.toFixed(2)}</span></div><div style="display:flex;gap:5px"><span class="badge bgy">${d.tareas} tareas</span><span class="badge bgy">${d.horas.toFixed(1)}h</span></div></div>`;});
     h+=`</div></div>`;
   }
 
   // Exportar
-  h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sExp','cExp')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">📥 Exportar Reportería</span></div><span class="chevron open" id="cExp">▼</span></div><div class="sec-body" id="sExp">
+  h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sExp','cExp')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Exportar Reportería</span></div><span class="chevron open" id="cExp">▼</span></div><div class="sec-body" id="sExp">
     <div class="info-box">Excel con 5 hojas: Detalle Tareas, Resumen Turnos, Costos por Cliente, Eficiencia por Tarea, Costos por Colaborador.</div>
-    <button class="btn btn-green btn-full" onclick="exportExcel(null)">📥 Descargar Excel Completo</button>
+    <button class="btn btn-green btn-full" onclick="exportExcel(null)">Descargar Excel Completo</button>
   </div></div>`;
 
   // Histórico turnos
@@ -2560,7 +2542,7 @@ function renderInsights(){
     const fechaHasta=window._histFiltroHasta||'';
 
     h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sHist','cHist')">
-      <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">📅 Histórico de Turnos</span></div>
+      <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Histórico de Turnos</span></div>
       <span class="chevron open" id="cHist">▼</span></div><div class="sec-body" id="sHist">`;
 
     // Filter controls
@@ -2604,9 +2586,9 @@ function renderInsights(){
     const filtroActivo = fechaDesde || fechaHasta || (mesActivo && mesActivo !== '');
 
     if(!filtroActivo){
-      h+=`<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">Selecciona un período o rango de fechas para ver los turnos</div></div>`;
+      h+=`<div class="empty"><div class="empty-text">Selecciona un período o rango de fechas para ver los turnos</div></div>`;
     } else if(!turnosFilt.length){
-      h+=`<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Sin turnos en este período</div></div>`;
+      h+=`<div class="empty"><div class="empty-text">Sin turnos en este período</div></div>`;
     } else {
       turnosFilt.forEach(t=>{
         const _k=engTurnoCerrado(t);
@@ -2619,7 +2601,7 @@ function renderInsights(){
         else if(t.estado==='cerrado') eb='<span class="badge bgy">Cerrado</span>';
         else eb='<span class="badge bg">Reabierto</span>';
         const eficBadge=costoP>0?'<span class="badge" style="background:'+eficCol+';color:#fff">'+eficTurno+'% efic.</span>':'';
-        const reaBtn=t.estado==='cerrado'?'<button class="btn btn-amber btn-sm" onclick="prepSolReap(\''+t.id+'\')">🔓 Reapertura</button>':'';
+        const reaBtn=t.estado==='cerrado'?'<button class="btn btn-amber btn-sm" onclick="prepSolReap(\''+t.id+'\')">Reapertura</button>':'';
         const justBadge=t.justCausa?'<span class="badge ba">'+t.justCausa+'</span>':'';
         h+=`<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:6px">
           <div style="display:flex;justify-content:space-between;width:100%">
@@ -2640,9 +2622,9 @@ function renderInsights(){
           </div>
           ${justBadge?'<div>'+justBadge+'</div>':''}
           <div class="btn-row">
-            <button class="btn btn-ghost btn-sm" onclick="exportExcel('${t.id}')">📥 Excel</button>
+            <button class="btn btn-ghost btn-sm" onclick="exportExcel('${t.id}')">Excel</button>
             ${reaBtn}
-            <button class="btn btn-red btn-sm" onclick="eliminarTurno('${t.id}')">🗑 Eliminar</button>
+            <button class="btn btn-red btn-sm" onclick="eliminarTurno('${t.id}')">Eliminar</button>
           </div>
         </div>`;
       });
@@ -2659,7 +2641,7 @@ function renderInsights(){
     // DIMENSIONADOR HISTORICO
     const planesTerminados=(S.turnosProgramados||[]).filter(p=>p.estado==='iniciado'||p.estado==='completado');
     if(planesTerminados.length||((S.turnosProgramados||[]).filter(p=>p.estado==='programado').length)){
-      h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sDim','cDim')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">📐 Planes de Turno</span></div><span class="chevron open" id="cDim">▼</span></div><div class="sec-body" id="sDim">`;
+      h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sDim','cDim')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Planes de Turno</span></div><span class="chevron open" id="cDim">▼</span></div><div class="sec-body" id="sDim">`;
       const todosPlanes=[...(S.turnosProgramados||[])].reverse();
       if(!todosPlanes.length) h+=`<div class="empty"><div class="empty-text">Sin planes creados</div></div>`;
       todosPlanes.forEach(p=>{
@@ -2675,22 +2657,22 @@ function renderInsights(){
     }
 
     // USUARIOS
-    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sUsers','cUsers')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">👤 Usuarios</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalUsuario()">+ Nuevo</button><span class="chevron open" id="cUsers">▼</span></div></div><div class="sec-body" id="sUsers">`;
+    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sUsers','cUsers')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Usuarios</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalUsuario()">+ Nuevo</button><span class="chevron open" id="cUsers">▼</span></div></div><div class="sec-body" id="sUsers">`;
     if(!_usuarios.length)h+=`<div class="info-box">Cargando usuarios…</div>`;
-    _usuarios.forEach(u=>{const yo=u.id===currentUser?.id;h+=`<div class="list-item"><div class="li-info"><div class="li-name">${esc(u.nombre)}${yo?' <span class="badge bg">Tú</span>':''}</div><div class="li-sub">@${esc(u.username)} · ${u.rol==='admin'?'Admin':'Supervisor'}</div></div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalUsuario('${u.id}')">✏️</button>${yo?'':`<button class="btn btn-red btn-sm" title="Desactivar" onclick="eliminarUsuario('${u.id}')">✕</button>`}</div></div>`;});
+    _usuarios.forEach(u=>{const yo=u.id===currentUser?.id;h+=`<div class="list-item"><div class="li-info"><div class="li-name">${esc(u.nombre)}${yo?' <span class="badge bg">Tú</span>':''}</div><div class="li-sub">@${esc(u.username)} · ${u.rol==='admin'?'Admin':'Supervisor'}</div></div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalUsuario('${u.id}')">Editar</button>${yo?'':`<button class="btn btn-red btn-sm" title="Desactivar" onclick="eliminarUsuario('${u.id}')">×</button>`}</div></div>`;});
     h+=`</div></div>`;
 
     // COLABORADORES
-    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sColabs','cColabs')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">👷 Colaboradores</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalColab()">+ Nuevo</button><span class="chevron open" id="cColabs">▼</span></div></div><div class="sec-body" id="sColabs">`;
+    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sColabs','cColabs')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Colaboradores</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalColab()">+ Nuevo</button><span class="chevron open" id="cColabs">▼</span></div></div><div class="sec-body" id="sColabs">`;
     if(!S.colaboradores.length)h+=`<div class="empty"><div class="empty-text">Sin colaboradores</div></div>`;
-    S.colaboradores.forEach(c=>{const co=costoCargo(c.cargo);h+=`<div class="list-item"><div class="li-info"><div class="li-name">${c.nombre}</div><div class="li-sub">${c.cargo==='operador'?'Operador':'Ayudante General'} · $${co.hora.toFixed(2)}/h · $${co.dia.toFixed(2)}/día</div></div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalColab('${c.id}')">✏️</button><button class="btn btn-red btn-sm" onclick="eliminarColab('${c.id}')">✕</button></div></div>`;});
+    S.colaboradores.forEach(c=>{const co=costoCargo(c.cargo);h+=`<div class="list-item"><div class="li-info"><div class="li-name">${c.nombre}</div><div class="li-sub">${c.cargo==='operador'?'Operador':'Ayudante General'} · $${co.hora.toFixed(2)}/h · $${co.dia.toFixed(2)}/día</div></div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalColab('${c.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarColab('${c.id}')">×</button></div></div>`;});
     h+=`</div></div>`;
 
     // TAREAS
-    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sTarCat','cTarCat')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">📋 Catálogo de Tareas</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalTareaCat()">+ Nueva</button><button class="btn btn-indigo btn-sm" onclick="event.stopPropagation();abrirImportMaestro()" title="Homologar tareas con las actividades del Excel de ventas">📥 Excel</button><button class="btn btn-purple btn-sm" onclick="event.stopPropagation();seedCatalogo()" title="Cargar catálogo estándar de bodega multicuentas">📋 Estándar</button><span class="chevron open" id="cTarCat">▼</span></div></div><div class="sec-body" id="sTarCat">`;
+    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sTarCat','cTarCat')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Catálogo de Tareas</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalTareaCat()">+ Nueva</button><button class="btn btn-indigo btn-sm" onclick="event.stopPropagation();abrirImportMaestro()" title="Homologar tareas con las actividades del Excel de ventas">Excel</button><button class="btn btn-purple btn-sm" onclick="event.stopPropagation();seedCatalogo()" title="Cargar catálogo estándar de bodega multicuentas">Estándar</button><span class="chevron open" id="cTarCat">▼</span></div></div><div class="sec-body" id="sTarCat">`;
     {const mi=S.maestroInfo, sinV=S.tareasCat.filter(t=>!Object.keys(t.excel||{}).length&&!esAlmuerzo({tarea:t.nombre})).length;
      h+=mi?`<div class="info-box">Actividades del Excel: <b>${mi.filas}</b> con costo por hora · ${mi.archivo} · ${mi.fecha}${sinV?` · <b style="color:var(--amber)">${sinV} tarea(s) sin nombre en el Excel</b>`:''}</div>`
-       :`<div class="warn-box">Usa <b>📥 Excel</b> y elige tu Excel de ventas para homologar las tareas con las actividades del maestro (solo las que tienen costo por hora).</div>`;}
+       :`<div class="warn-box">Usa <b>Excel</b> y elige tu Excel de ventas para homologar las tareas con las actividades del maestro (solo las que tienen costo por hora).</div>`;}
     if(!S.tareasCat.length)h+=`<div class="empty"><div class="empty-text">Sin tareas</div></div>`;
     S.tareasCat.forEach(t=>{
       const pr=calcProdReal(t.id);
@@ -2704,7 +2686,7 @@ function renderInsights(){
       h+=`<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:5px">
         <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
           <div style="display:flex;align-items:center;gap:6px"><span class="li-name">${t.nombre}</span>${sinProdBadge}${vincBadge}</div>
-          <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalTareaCat('${t.id}')">✏️</button><button class="btn btn-red btn-sm" onclick="eliminarTarea('${t.id}')">✕</button></div>
+          <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalTareaCat('${t.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarTarea('${t.id}')">×</button></div>
         </div>
         ${t.sinProd?'<div class="li-sub">No aplica productividad — no impacta % eficiencia</div>':`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;width:100%">
           <div style="background:var(--bg);border-radius:6px;padding:5px 7px;text-align:center"><div style="font-size:.58rem;font-weight:700;text-transform:uppercase;color:var(--mid)">Prod. Objetivo</div><div style="font-weight:800;font-size:.82rem;color:var(--accent)">${t.prod>0?t.prod+' '+t.unidad+'s/h':'-'}</div></div>
@@ -2716,9 +2698,9 @@ function renderInsights(){
     h+=`</div></div>`;
 
     // CLIENTES
-    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sCliCat','cCliCat')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">🏢 Clientes</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalCliente()">+ Nuevo</button><span class="chevron open" id="cCliCat">▼</span></div></div><div class="sec-body" id="sCliCat">`;
+    h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sCliCat','cCliCat')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Clientes</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalCliente()">+ Nuevo</button><span class="chevron open" id="cCliCat">▼</span></div></div><div class="sec-body" id="sCliCat">`;
     if(!S.clientes.length)h+=`<div class="empty"><div class="empty-text">Sin clientes</div></div>`;
-    S.clientes.forEach(c=>{h+=`<div class="list-item"><div class="li-info"><div class="li-name">${c.nombre}</div>${c.desc?`<div class="li-sub">${c.desc}</div>`:''}</div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalCliente('${c.id}')">✏️</button><button class="btn btn-red btn-sm" onclick="eliminarCliente('${c.id}')">✕</button></div></div>`;});
+    S.clientes.forEach(c=>{h+=`<div class="list-item"><div class="li-info"><div class="li-name">${c.nombre}</div>${c.desc?`<div class="li-sub">${c.desc}</div>`:''}</div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalCliente('${c.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarCliente('${c.id}')">×</button></div></div>`;});
     h+=`</div></div>`;
   }
 
@@ -2748,7 +2730,7 @@ function buildTiempoSection(){
   });
   const total=tot.prod+tot.apoyo+tot.noprod+tot.sin||1, pc=v=>Math.round(v/total*100);
   const seg=(v,c,l)=>v>0?`<div title="${l}: ${v.toFixed(1)} h" style="width:${v/total*100}%;background:${c}"></div>`:'';
-  let h=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sTiempo','cTiempo')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">⏱ Distribución del tiempo pagado</span></div><span class="chevron open" id="cTiempo">▼</span></div><div class="sec-body" id="sTiempo">
+  let h=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sTiempo','cTiempo')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Distribución del tiempo pagado</span></div><span class="chevron open" id="cTiempo">▼</span></div><div class="sec-body" id="sTiempo">
     <div style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--b1)">${seg(tot.prod,'var(--green)','Productivo')}${seg(tot.apoyo,'var(--blue)','Apoyo')}${seg(tot.noprod,'var(--amber)','No productivo')}${seg(tot.sin,'var(--red)','Sin registrar')}</div>
     <div class="stat-row" style="grid-template-columns:repeat(4,1fr)">
       <div class="stat-card"><div class="stat-label">Productivo</div><div class="stat-val g">${pc(tot.prod)}%</div><div class="stat-sub">${tot.prod.toFixed(1)} h</div></div>
@@ -2831,10 +2813,10 @@ function renderDashboardAnalytics(){
   // Header
   parts.push('<div class="tv-hdr">');
   parts.push('<div class="tv-hdr-logo"><img src="assets/dpworld-logo-fondo-claro.png" style="height:36px"></div>');
-  parts.push('<div class="tv-hdr-center"><div class="tv-hdr-title">📊 Analytics</div><div class="tv-hdr-sub">Colaboradores · Histórico</div></div>');
+  parts.push('<div class="tv-hdr-center"><div class="tv-hdr-title">Analytics</div><div class="tv-hdr-sub">Colaboradores · Histórico</div></div>');
   parts.push('<div class="tv-hdr-right"><div style="display:flex;align-items:center;gap:5px">');
-  parts.push('<button data-m="live" onclick="setTvMode(this.dataset.m)" style="border:none;border-radius:6px;padding:5px 12px;font-weight:800;font-size:.68rem;cursor:pointer;background:rgba(var(--fg),.15);color:#fff">⚡ En Vivo</button>');
-  parts.push('<button class="tv-close" onclick="closeDashboard()">✕ Cerrar</button>');
+  parts.push('<button data-m="live" onclick="setTvMode(this.dataset.m)" style="border:none;border-radius:6px;padding:5px 12px;font-weight:800;font-size:.68rem;cursor:pointer;background:rgba(var(--fg),.15);color:#fff">En Vivo</button>');
+  parts.push('<button class="tv-close" onclick="closeDashboard()">Cerrar</button>');
   parts.push('</div></div></div>');
 
   // Filters
@@ -2846,7 +2828,7 @@ function renderDashboardAnalytics(){
   parts.push('<option value="" style="background:#1A1830">Todos</option>');
   allC.forEach(c=>parts.push('<option value="'+c.id+'" '+(f.colId===c.id?'selected':'')+' style="background:#1A1830">'+c.nombre+'</option>'));
   parts.push('</select>');
-  parts.push('<button onclick="resetTvFilters()" style="background:rgba(var(--fg),.1);color:#fff;border:1px solid rgba(var(--fg),.2);border-radius:5px;padding:4px 10px;font-size:.68rem;cursor:pointer">✕</button>');
+  parts.push('<button onclick="resetTvFilters()" style="background:rgba(var(--fg),.1);color:#fff;border:1px solid rgba(var(--fg),.2);border-radius:5px;padding:4px 10px;font-size:.68rem;cursor:pointer">×</button>');
   parts.push('<span style="margin-left:auto;font-size:.68rem;color:#8B8FAD">'+filtered.length+' turno(s)</span>');
   parts.push('</div>');
 
@@ -2867,7 +2849,7 @@ function renderDashboardAnalytics(){
   } else {
     parts.push('<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;padding:0 20px 20px">');
     stats.forEach((c,i)=>{
-      const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+      const medal=(i+1)+'.';
       const efic=c.eCnt>0?Math.round(c.eSum/c.eCnt):null;
       const ec=efic!=null?(efic>=90?'#00C389':efic>=70?'#F59E0B':'#E8003D'):'#8B8FAD';
       const init=c.nombre.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
@@ -2949,9 +2931,9 @@ function renderDashboard(){
           <div class="tv-date">${now.toLocaleDateString('es-PA',{weekday:'long',day:'numeric',month:'long'})}</div>
         </div>
         <div style="display:flex;align-items:center;gap:5px">
-              <button id="tvTabLive" data-m="live" onclick="setTvMode(this.dataset.m)" style="border:none;border-radius:6px;padding:5px 12px;font-weight:800;font-size:.68rem;cursor:pointer;background:rgba(var(--fg),.25);color:#fff">⚡ En Vivo</button>
-              <button id="tvTabAnalytics" data-m="analytics" onclick="setTvMode(this.dataset.m)" style="border:none;border-radius:6px;padding:5px 12px;font-weight:800;font-size:.68rem;cursor:pointer;background:rgba(var(--fg),.1);color:rgba(255,255,255,.6)">📊 Analytics</button>
-              <button class="tv-close" onclick="closeDashboard()">✕ Cerrar</button>
+              <button id="tvTabLive" data-m="live" onclick="setTvMode(this.dataset.m)" style="border:none;border-radius:6px;padding:5px 12px;font-weight:800;font-size:.68rem;cursor:pointer;background:rgba(var(--fg),.25);color:#fff">En Vivo</button>
+              <button id="tvTabAnalytics" data-m="analytics" onclick="setTvMode(this.dataset.m)" style="border:none;border-radius:6px;padding:5px 12px;font-weight:800;font-size:.68rem;cursor:pointer;background:rgba(var(--fg),.1);color:rgba(255,255,255,.6)">Analytics</button>
+              <button class="tv-close" onclick="closeDashboard()">Cerrar</button>
             </div>
       </div>
     </div>
@@ -2959,7 +2941,7 @@ function renderDashboard(){
 
   if(!turno){
     h+=`<div class="tv-body"><div class="tv-no-turno">
-      <div class="tv-no-icon">🏭</div>
+      
       <div class="tv-no-title">Sin Turno Activo</div>
       <div style="font-size:.9rem">Actualización automática cada 15 segundos</div>
     </div></div></div>`;
@@ -2972,7 +2954,7 @@ function renderDashboard(){
     <div class="tv-hora-bar" style="margin-bottom:0">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:#8B8FAD;display:flex;align-items:center;gap:6px">
-          <span class="tv-live-dot"></span>OCUPACIÓN DEL TURNO · ${turno.fecha} · ${turno.jornada==='media'?'🕐 Media Jornada':'☀️ Jornada Completa'}
+          <span class="tv-live-dot"></span>OCUPACIÓN DEL TURNO · ${turno.fecha} · ${turno.jornada==='media'?'Media Jornada':'Jornada Completa'}
         </div>
         <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1rem;color:#F0F0F5">
           <span id="tvBarUsadas">${usH.toFixed(1)}h</span> / ${dispH}h · <span id="tvBarPct">${Math.round(pct)}%</span> · Libres: ${libH.toFixed(1)}h
@@ -2985,7 +2967,7 @@ function renderDashboard(){
   // BANNER TEMA HSE DEL TURNO
   if(turno.toolboxTema){
     h+=`<div style="margin:0 20px;background:linear-gradient(135deg,#78350F,#92400E);border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:10px">
-      <span style="font-size:1.4rem;flex-shrink:0">🦺</span>
+      
       <div>
         <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;color:#FDE68A;margin-bottom:1px">${turno.toolboxTema.categoria||'HSE'} DEL TURNO</div>
         <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1rem;text-transform:uppercase;letter-spacing:.06em;color:#FFF7ED">${turno.toolboxTema.nombre}</div>
@@ -3048,9 +3030,9 @@ function renderDashboard(){
       <text x="50" y="57" text-anchor="middle" fill="#8B8FAD" font-size="6" font-family="Barlow Condensed">OCUPADO</text>
     </svg>
     <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px;font-size:.68rem">
-      <div style="display:flex;justify-content:space-between"><span style="color:#00C389">● Completadas</span><span style="color:#F0F0F5">${histH.toFixed(1)}h</span></div>
-      <div style="display:flex;justify-content:space-between"><span style="color:#F59E0B">● En curso</span><span style="color:#F0F0F5">${activasH.toFixed(1)}h</span></div>
-      <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">● Libres</span><span style="color:#F0F0F5">${libreH.toFixed(1)}h</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:#00C389">Completadas</span><span style="color:#F0F0F5">${histH.toFixed(1)}h</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:#F59E0B">En curso</span><span style="color:#F0F0F5">${activasH.toFixed(1)}h</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--t3)">Libres</span><span style="color:#F0F0F5">${libreH.toFixed(1)}h</span></div>
     </div>
   </div>`;
 
@@ -3060,11 +3042,11 @@ function renderDashboard(){
   h+=`<div style="display:flex;flex-direction:column;gap:12px;overflow:hidden">`;
 
   // Equipo
-  h+=`<div class="tv-sec"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">👥 Equipo del Turno</span></div><div class="tv-sec-body" style="overflow-y:auto">`;
+  h+=`<div class="tv-sec"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">Equipo del Turno</span></div><div class="tv-sec-body" style="overflow-y:auto">`;
   equipo.forEach((c,i)=>{
     const act=tareas.find(t=>(t.colaboradores||[]).some(x=>x.id===c.id));
     const init=c.nombre.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
-    const sp=act?(act.tarea==='Almuerzo'?`<span class="tv-sp tv-sp-lunch">🍽 Almuerzo</span>`:`<span class="tv-sp tv-sp-active">▶ ${act.tarea.substring(0,18)}</span>`):`<span class="tv-sp tv-sp-idle">⏸ Disponible</span>`;
+    const sp=act?(act.tarea==='Almuerzo'?`<span class="tv-sp tv-sp-lunch">Almuerzo</span>`:`<span class="tv-sp tv-sp-active">${act.tarea.substring(0,18)}</span>`):`<span class="tv-sp tv-sp-idle">Disponible</span>`;
     h+=`<div class="tv-op-row">
       <div style="display:flex;align-items:center;gap:8px">
         <div class="tv-op-av" style="background:${TVCOLORS[i%TVCOLORS.length]}">${init}</div>
@@ -3075,7 +3057,7 @@ function renderDashboard(){
   h+=`</div></div>`;
 
   // Tareas activas
-  h+=`<div class="tv-sec" style="flex:1"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">⚡ Tareas Activas (${tareas.length})</span></div><div class="tv-sec-body" style="overflow-y:auto">`;
+  h+=`<div class="tv-sec" style="flex:1"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">Tareas Activas (${tareas.length})</span></div><div class="tv-sec-body" style="overflow-y:auto">`;
   if(!tareas.length){
     h+=`<div style="text-align:center;color:#8B8FAD;padding:20px;font-size:.82rem">Sin tareas activas en este momento</div>`;
   } else {
@@ -3090,7 +3072,7 @@ function renderDashboard(){
 
   // ── COL 3: Historial ──
   h+=`<div style="display:flex;flex-direction:column;gap:12px;overflow:hidden">`;
-  h+=`<div class="tv-sec" style="flex:1"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">📋 Completadas Hoy (${hist.length})</span></div><div class="tv-sec-body" style="overflow-y:auto;max-height:calc(100vh - 280px)">`;
+  h+=`<div class="tv-sec" style="flex:1"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">Completadas Hoy (${hist.length})</span></div><div class="tv-sec-body" style="overflow-y:auto;max-height:calc(100vh - 280px)">`;
   if(!hist.length){
     h+=`<div style="text-align:center;color:#8B8FAD;padding:20px;font-size:.82rem">Sin tareas completadas aún</div>`;
   } else {
@@ -3121,7 +3103,7 @@ function renderDashboard(){
 
   // ── COL 4: Ranking colaboradores ──
   h+=`<div style="display:flex;flex-direction:column;gap:10px;overflow:hidden">`;
-  h+=`<div class="tv-sec" style="flex:1"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">🏆 Ranking del Turno</span></div><div class="tv-sec-body" style="overflow-y:auto">`;
+  h+=`<div class="tv-sec" style="flex:1"><div class="tv-sec-hdr"><div class="tv-sec-accent"></div><span class="tv-sec-title">Ranking del Turno</span></div><div class="tv-sec-body" style="overflow-y:auto">`;
   if(!equipo.length){
     h+=`<div style="text-align:center;color:#8B8FAD;padding:20px;font-size:.82rem">Sin equipo activo</div>`;
   } else {
@@ -3136,7 +3118,7 @@ function renderDashboard(){
     }).sort((a,b)=>b.hTrabajadas-a.hTrabajadas);
     ranking.forEach((c,i)=>{
       const init=c.nombre.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
-      const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+      const medal='';
       const eficStr=c.eficProm!=null?Math.round(c.eficProm)+'%':'—';
       const eficCol=c.eficProm!=null?(c.eficProm>=90?'#00C389':c.eficProm>=70?'#F59E0B':'#E8003D'):'#8B8FAD';
       h+=`<div style="padding:8px 10px;border-bottom:1px solid rgba(var(--fg),.06);display:flex;align-items:center;gap:8px">
@@ -3179,7 +3161,7 @@ function buildEficienciaTendencia(){
   const weeks=Object.keys(weekMap).sort().slice(-8);
   if(!weeks.length) return '';
   const maxH=Math.max(...weeks.map(w=>weekMap[w].h),1);
-  let s='<div class="sec"><div class="sec-hdr"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">📈 Tendencia Semanal</span></div></div><div class="sec-body">';
+  let s='<div class="sec"><div class="sec-hdr"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Tendencia Semanal</span></div></div><div class="sec-body">';
   s+='<div style="display:flex;align-items:flex-end;gap:4px;height:70px;margin-bottom:4px;padding:0 2px">';
   weeks.forEach(w=>{
     const wk=weekMap[w];
@@ -3193,9 +3175,9 @@ function buildEficienciaTendencia(){
     s+='</div>';
   });
   s+='</div><div style="display:flex;gap:8px;margin-top:6px">';
-  s+='<span style="font-size:.62rem;color:var(--green)">● ≥80%</span>';
-  s+='<span style="font-size:.62rem;color:var(--amber)">● 60-79%</span>';
-  s+='<span style="font-size:.62rem;color:var(--red)">● &lt;60%</span>';
+  s+='<span style="font-size:.62rem;color:var(--green)">≥80%</span>';
+  s+='<span style="font-size:.62rem;color:var(--amber)">60-79%</span>';
+  s+='<span style="font-size:.62rem;color:var(--red)">&lt;60%</span>';
   s+='<span style="font-size:.62rem;color:var(--mid);margin-left:auto">Altura = horas totales</span>';
   s+='</div></div></div>';
   return s;
@@ -3203,7 +3185,7 @@ function buildEficienciaTendencia(){
 function buildPlantillasSection(){
   const pl=S.plantillas||[];
   let s='<div class="sec"><div class="sec-hdr"><div class="sec-hdr-left"><div class="sec-accent"></div>';
-  s+='<span class="sec-title">📋 Plantillas</span></div>';
+  s+='<span class="sec-title">Plantillas</span></div>';
   s+='<div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="openModalNuevaPlantilla()">+ Nueva</button></div></div>';
   s+='<div class="sec-body">';
   if(!pl.length) s+='<div class="empty"><div class="empty-text">Sin plantillas guardadas</div></div>';
@@ -3211,7 +3193,7 @@ function buildPlantillasSection(){
     const sw=p.activa
       ?'<span style="background:var(--green);color:#fff;padding:2px 9px;border-radius:20px;font-size:.65rem;font-weight:700;cursor:pointer" data-pid="'+p.id+'" onclick="togglePlantilla(this.dataset.pid)">Activa</span>'
       :'<span style="background:var(--bg);color:var(--mid);border:1.5px solid var(--border);padding:2px 9px;border-radius:20px;font-size:.65rem;font-weight:700;cursor:pointer" data-pid="'+p.id+'" onclick="togglePlantilla(this.dataset.pid)">Inactiva</span>';
-    const del='<button class="btn btn-red btn-sm" data-pid="'+p.id+'" onclick="eliminarPlantilla(this.dataset.pid)">✕</button>';
+    const del='<button class="btn btn-red btn-sm" data-pid="'+p.id+'" onclick="eliminarPlantilla(this.dataset.pid)">×</button>';
     let t='<div class="list-item" style="flex-direction:column;gap:5px">';
     t+='<div style="display:flex;justify-content:space-between;width:100%;align-items:center">';
     t+='<div><div class="li-name">'+p.nombre+'</div><div class="li-sub">'+(p.jornada||'completa')+' · '+(p.colabs||[]).length+' pers · '+(p.tareas||[]).length+' tareas</div></div>';
@@ -3245,7 +3227,7 @@ function addPTarea(){
   div.innerHTML='<select style="border:1.5px solid var(--border);border-radius:6px;padding:5px;font-size:.78rem">'+tO+'</select>'+
     '<select style="border:1.5px solid var(--border);border-radius:6px;padding:5px;font-size:.78rem">'+cO+'</select>'+
     '<input type="number" min="0" placeholder="Cant" style="border:1.5px solid var(--border);border-radius:6px;padding:5px;font-size:.78rem;width:100%">'+
-    '<button onclick="this.parentNode.remove()" style="background:var(--red);color:#fff;border:none;border-radius:5px;padding:4px 8px;font-weight:700;cursor:pointer">✕</button>';
+    '<button onclick="this.parentNode.remove()" style="background:var(--red);color:#fff;border:none;border-radius:5px;padding:4px 8px;font-weight:700;cursor:pointer">×</button>';
   wrap.appendChild(div);
 }
 async function guardarNuevaPlantilla(){
@@ -3290,11 +3272,11 @@ function togglePlantillasPanel(){
   if(!activas.length){
     parts.push('<div style="padding:12px;font-size:.8rem;color:var(--mid);text-align:center">Sin plantillas activas</div>');
   } else {
-    parts.push('<div style="background:var(--purple);padding:8px 12px;font-weight:800;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:#fff">📋 Plantillas</div>');
+    parts.push('<div style="background:var(--purple);padding:8px 12px;font-weight:800;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:#fff">Plantillas</div>');
     activas.forEach(p=>{
       parts.push('<div style="padding:9px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:rgba(143,111,214,.08)">');
       parts.push('<div><div style="font-weight:700;font-size:.82rem">'+p.nombre+'</div><div style="font-size:.68rem;color:var(--mid)">'+(p.jornada||'completa')+' · '+(p.tareas||[]).length+' tareas</div></div>');
-      parts.push('<button data-pid="'+p.id+'" onclick="usarPlantillaQuick(this.dataset.pid)" style="background:var(--purple);color:#fff;border:none;border-radius:6px;padding:5px 11px;font-weight:800;font-size:.7rem;cursor:pointer">▶ Usar</button>');
+      parts.push('<button data-pid="'+p.id+'" onclick="usarPlantillaQuick(this.dataset.pid)" style="background:var(--purple);color:#fff;border:none;border-radius:6px;padding:5px 11px;font-weight:800;font-size:.7rem;cursor:pointer">Usar</button>');
       parts.push('</div>');
     });
   }
@@ -3305,13 +3287,13 @@ function renderPlantillasActivas(){
   const el=document.getElementById('plantillasActivasList');if(!el)return;
   const activas=(S.plantillas||[]).filter(p=>p.activa);
   if(!activas.length){el.innerHTML='';return;}
-  let h='<div style="font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--mid);margin:8px 0 5px">📋 Plantillas</div>';
+  let h='<div style="font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--mid);margin:8px 0 5px">Plantillas</div>';
   activas.forEach(p=>{
     h+='<div style="border:2px solid var(--purple);border-radius:10px;background:rgba(143,111,214,.08);overflow:hidden;margin-bottom:8px">';
     h+='<div style="background:var(--purple);padding:9px 14px;display:flex;justify-content:space-between;align-items:center">';
     h+='<div><div style="font-weight:800;font-size:.85rem;color:#fff">'+p.nombre+'</div>';
     h+='<div style="font-size:.68rem;color:rgba(255,255,255,.75)">'+(p.jornada||'completa')+' · '+(p.colabs||[]).length+' pers · '+(p.tareas||[]).length+' tareas</div></div>';
-    h+='<button style="background:#fff;color:#7C5CBF;border:none;border-radius:6px;padding:6px 12px;font-weight:800;font-size:.72rem;cursor:pointer" data-pid="'+p.id+'" onclick="iniciarDesdePlantilla(this.dataset.pid)">▶ Usar</button>';
+    h+='<button style="background:#fff;color:#7C5CBF;border:none;border-radius:6px;padding:6px 12px;font-weight:800;font-size:.72rem;cursor:pointer" data-pid="'+p.id+'" onclick="iniciarDesdePlantilla(this.dataset.pid)">Usar</button>';
     h+='</div></div>';
   });
   el.innerHTML=h;
@@ -3389,7 +3371,7 @@ function renderTareasDia(){
   const tareas=S.turno.tareasDia||[];
   sec.style.display='block';
   if(!tareas.length){
-    body.innerHTML='<div class="empty" style="padding:14px"><div class="empty-icon">📌</div><div class="empty-text">Sin tareas planificadas — presiona "+ Plan" para agregar</div></div>';
+    body.innerHTML='<div class="empty" style="padding:14px"><div class="empty-text">Sin tareas planificadas — presiona "+ Plan" para agregar</div></div>';
     return;
   }
   // Count stats
@@ -3423,7 +3405,7 @@ function renderTareasDia(){
     const desvH=t.horasEsperadas>0?((horasReal-t.horasEsperadas)/t.horasEsperadas*100).toFixed(0):null;
     const borderCol=isDone?'var(--green)':isActiva?'var(--amber)':'var(--border)';
     const bgCol=isDone?'rgba(0,195,137,.06)':isActiva?'rgba(245,162,11,.06)':'rgba(var(--fg),.03)';
-    const statusIcon=isDone?'✅':isActiva?'⚡':'🔵';
+    const statusIcon='';
     let rightCol='';
     if(isDone){
       rightCol='<div style="font-size:.68rem;color:var(--mid)">'+cantReal+' '+t.unidad+'s · '+horasReal.toFixed(1)+'h</div>';
@@ -3434,14 +3416,14 @@ function renderTareasDia(){
     } else if(isActiva){
       rightCol='<span style="font-size:.68rem;background:var(--amber);color:#fff;padding:2px 7px;border-radius:10px;font-weight:700">EN CURSO</span>';
     } else {
-      rightCol='<button onclick="iniciarTareaDia(\''+t.id+'\')" style="background:var(--indigo);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:.7rem;font-weight:700;cursor:pointer">▶ Iniciar</button>';
+      rightCol='<button onclick="iniciarTareaDia(\''+t.id+'\')" style="background:var(--indigo);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:.7rem;font-weight:700;cursor:pointer">Iniciar</button>';
     }
-    const quitarBtn=(!isDone&&!isActiva)?'<button onclick="eliminarTareaDia(\''+t.id+'\')" style="background:none;border:none;color:var(--mid);font-size:.65rem;cursor:pointer;margin-top:4px">✕ Quitar</button>':'';
+    const quitarBtn=(!isDone&&!isActiva)?'<button onclick="eliminarTareaDia(\''+t.id+'\')" style="background:none;border:none;color:var(--mid);font-size:.65rem;cursor:pointer;margin-top:4px">Quitar</button>':'';
     const reorderHTML = reorderBtns(t, idx);
     h+='<div style="border:1.5px solid '+borderCol+';border-radius:8px;padding:9px 12px;background:'+bgCol+';margin:6px 12px">'+
       '<div style="display:flex;justify-content:space-between;align-items:flex-start">'+
         '<div style="flex:1">'+
-          '<div style="font-weight:700;font-size:.82rem;display:flex;align-items:center;gap:5px">'+statusIcon+' '+t.tarea+'</div>'+
+          '<div style="font-weight:700;font-size:.82rem;display:flex;align-items:center;gap:5px">'+t.tarea+'</div>'+
           '<div style="font-size:.7rem;color:var(--mid);margin-top:1px">'+(t.cliente||'—')+(t.cantEsperada?' · '+t.cantEsperada+' '+t.unidad+'s esperados':'')+'</div>'+
         '</div>'+
         '<div style="text-align:right;flex-shrink:0;margin-left:8px">'+rightCol+'</div>'+
@@ -3503,7 +3485,7 @@ function buildToolboxTemaList(){
       const btn=document.createElement('button');
       btn.dataset.tid=t.id;
       btn.style.cssText='width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;background:rgba(var(--fg),.04);cursor:pointer;text-align:left;font-size:.83rem;font-weight:600;transition:all .15s';
-      btn.textContent='🦺 '+t.nombre;
+      btn.textContent=''+t.nombre;
       btn.onclick=function(){
         wrap.querySelectorAll('button').forEach(b=>{b.style.background='rgba(var(--fg),.04)';b.style.borderColor='var(--border)';b.style.color='var(--t)';});
         btn.style.background='rgba(245,162,11,.15)';btn.style.borderColor='var(--amber)';btn.style.color='var(--amber)';
@@ -3619,7 +3601,7 @@ function showNextTaskPanel(){
   if(planPend.length){
     const planHdr=document.createElement('div');
     planHdr.style.cssText='font-family:\'Barlow Condensed\',sans-serif;font-weight:800;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--purple);margin-bottom:5px;margin-top:2px';
-    planHdr.textContent='📌 Del plan del día';
+    planHdr.textContent='Del plan del día';
     list.appendChild(planHdr);
     planPend.forEach(td=>{
       const btn=document.createElement('button');
@@ -3627,9 +3609,9 @@ function showNextTaskPanel(){
       btn.style.cssText='width:100%;border:2px solid var(--purple);border-radius:8px;padding:9px 12px;background:rgba(143,111,214,.08);cursor:pointer;display:flex;justify-content:space-between;align-items:center;text-align:left;margin-bottom:6px';
       const cant=td.cantEsperada?td.cantEsperada+' '+td.unidad+'s esperados':'';
       const hrs=td.horasEsperadas?td.horasEsperadas.toFixed(1)+'h estimadas':'';
-      btn.innerHTML='<div><div style="font-weight:800;font-size:.85rem;color:var(--purple)">📌 '+td.tarea+'</div>'+
+      btn.innerHTML='<div><div style="font-weight:800;font-size:.85rem;color:var(--purple)">'+td.tarea+'</div>'+
         '<div style="font-size:.7rem;color:var(--purple-t);margin-top:1px">'+(td.cliente||'')+(cant?' · '+cant:'')+(hrs?' · '+hrs:'')+'</div></div>'+
-        '<span style="font-size:.7rem;background:var(--purple);color:#fff;padding:3px 10px;border-radius:20px;font-weight:700;flex-shrink:0">▶ Iniciar</span>';
+        '<span style="font-size:.7rem;background:var(--purple);color:#fff;padding:3px 10px;border-radius:20px;font-weight:700;flex-shrink:0">Iniciar</span>';
       btn.onclick=()=>{ hideModal('modalNextTask'); iniciarTareaDia(td.id); };
       list.appendChild(btn);
     });
@@ -3646,7 +3628,7 @@ function showNextTaskPanel(){
     const btn=document.createElement('button');
     btn.dataset.tareaId=tc.id;
     btn.style.cssText='width:100%;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;background:rgba(var(--fg),.04);cursor:pointer;display:flex;justify-content:space-between;align-items:center;text-align:left;margin-bottom:0';
-    btn.innerHTML='<div><div style="font-weight:700;font-size:.85rem">'+tc.nombre+'</div>'+(pr?'<div style="font-size:.7rem;color:var(--mid)">'+pr+'</div>':'')+'</div><span style="font-size:.7rem;background:var(--indigo);color:#fff;padding:2px 8px;border-radius:20px;font-weight:700;flex-shrink:0">▶</span>';
+    btn.innerHTML='<div><div style="font-weight:700;font-size:.85rem">'+tc.nombre+'</div>'+(pr?'<div style="font-size:.7rem;color:var(--mid)">'+pr+'</div>':'')+'</div><span style="font-size:.7rem;background:var(--indigo);color:#fff;padding:2px 8px;border-radius:20px;font-weight:700;flex-shrink:0"></span>';
     btn.onclick=()=>startNextTarea(tc.id);
     list.appendChild(btn);
   });
@@ -3722,7 +3704,7 @@ function addDimTarea(){
     <div style="display:flex;gap:7px;align-items:center">
       <select style="flex:1;border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;font-size:.83rem" onchange="updateDimResumen()">${tareaOpts}</select>
       <select style="flex:1;border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;font-size:.83rem" onchange="updateDimResumen()">${cliOpts}</select>
-      <button onclick="document.getElementById('${id}').remove();updateDimResumen()" style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:.72rem;font-weight:700;cursor:pointer">✕</button>
+      <button onclick="document.getElementById('${id}').remove();updateDimResumen()" style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:.72rem;font-weight:700;cursor:pointer">×</button>
     </div>
     <div style="display:flex;gap:7px;align-items:center">
       <div style="flex:1"><label style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:var(--mid);letter-spacing:.05em">Cantidad</label>
@@ -3776,9 +3758,9 @@ function updateDimResumen(){
   if(!tareas.length){el.textContent='Agrega tareas para ver el dimensionamiento';return;}
 
   const costoEst=personasNec*(hpPP>0?hpPP:8)*((50*1.07)/8); // rough estimate
-  el.innerHTML=`📋 <b>${tareas.length} tarea(s)</b> · Total horas: <b>${totalH.toFixed(1)}h</b><br>
-  👥 Personas necesarias: <b>${personasNec}</b> (base ${hpPP}h productivas/persona)<br>
-  ⏰ Jornada ${jornada==='media'?'Media ('+hpPP+'h)':'Completa ('+hpPP+'h)'}`;
+  el.innerHTML=`<b>${tareas.length} tarea(s)</b> · Total horas: <b>${totalH.toFixed(1)}h</b><br>
+  Personas necesarias: <b>${personasNec}</b> (base ${hpPP}h productivas/persona)<br>
+  Jornada ${jornada==='media'?'Media ('+hpPP+'h)':'Completa ('+hpPP+'h)'}`;
 
   // Suggest collaborators
   updateDimColabs(personasNec);
@@ -3813,7 +3795,7 @@ function checkDimColabs(personasNec){
   if(!warn) return;
   if(sel<personasNec){
     warn.classList.remove('hidden');
-    warn.textContent=`⚠️ Tienes ${sel} colaborador(es) seleccionado(s) pero necesitas ${personasNec}. Agrega más personas o ajusta las tareas.`;
+    warn.textContent=`Tienes ${sel} colaborador(es) seleccionado(s) pero necesitas ${personasNec}. Agrega más personas o ajusta las tareas.`;
   } else {
     warn.classList.add('hidden');
   }
@@ -3852,8 +3834,8 @@ function prepIniciarPlan(planId){
   if(!plan) return;
   const cfg=getConfig();
   document.getElementById('iniciarPlanInfo').innerHTML=
-    `📅 <b>${plan.fecha} ${plan.hora}</b> · ${plan.jornada==='media'?'🕐 Media':'☀️ Completa'}<br>
-    📋 ${plan.tareas.length} tarea(s) · ${plan.totalHNecesarias.toFixed(1)}h necesarias · ${plan.personasNecesarias} persona(s)`;
+    `<b>${plan.fecha} ${plan.hora}</b> · ${plan.jornada==='media'?'Media':'Completa'}<br>
+    ${plan.tareas.length} tarea(s) · ${plan.totalHNecesarias.toFixed(1)}h necesarias · ${plan.personasNecesarias} persona(s)`;
 
   const wrap=document.getElementById('iniciarPlanColabs');
   wrap.innerHTML='';
@@ -3878,7 +3860,7 @@ function updateIniciarResumen(plan){
   const hpPP=plan.hpPorPersona||8;
   const ops=eq.filter(c=>c.cargo==='operador').length, ags=eq.filter(c=>c.cargo==='ag').length;
   el.innerHTML=`<b>${eq.length} persona(s)</b> — ${ops} Op + ${ags} AG<br>
-  📅 Horas productivas: <b>${(eq.length*hpPP).toFixed(1)}h</b> disponibles · Necesarias: <b>${plan.totalHNecesarias.toFixed(1)}h</b>`;
+  Horas productivas: <b>${(eq.length*hpPP).toFixed(1)}h</b> disponibles · Necesarias: <b>${plan.totalHNecesarias.toFixed(1)}h</b>`;
 }
 
 async function iniciarTurnoPlan(){
@@ -3917,7 +3899,7 @@ function renderTurnosProgramados(){
   const planes=(S.turnosProgramados||[]).filter(p=>p.estado==='programado').sort((a,b)=>a.fecha.localeCompare(b.fecha));
   if(!planes.length){
     el.innerHTML=`<div class="no-turno" style="margin-bottom:12px">
-      <div class="no-turno-icon">🏭</div>
+      
       <div class="no-turno-title">Sin turnos programados</div>
       <div class="no-turno-sub">Planifica turnos futuros o abre uno ahora mismo.</div>
     </div>`;
@@ -3932,9 +3914,9 @@ function renderTurnosProgramados(){
       <div style="background:${esHoy?'var(--green)':'var(--indigo)'};padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
         <div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.9rem;text-transform:uppercase;letter-spacing:.06em;color:#fff">
-            ${esHoy?'🟢 HOY — ':'📅 '}${p.fecha} · ${p.hora}
+            ${esHoy?'HOY — ':''}${p.fecha} · ${p.hora}
           </div>
-          <div style="font-size:.7rem;color:rgba(255,255,255,.75);margin-top:2px">${p.jornada==='media'?'🕐 Media Jornada':'☀️ Jornada Completa'} · ${p.tareas.length} tarea(s)</div>
+          <div style="font-size:.7rem;color:rgba(255,255,255,.75);margin-top:2px">${p.jornada==='media'?'Media Jornada':'Jornada Completa'} · ${p.tareas.length} tarea(s)</div>
         </div>
         <div style="text-align:right">
           <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.1rem;color:#fff">${p.personasNecesarias} pers.</div>
@@ -3952,9 +3934,9 @@ function renderTurnosProgramados(){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px">
           <div style="font-size:.72rem;color:var(--mid)">${p.colabs.map(c=>c.nombre.split(' ')[0]).join(', ')}</div>
           <div style="display:flex;gap:6px">
-            <button class="btn btn-ghost btn-sm" onclick="editarPlan('${p.id}')">✏️</button>
-            <button class="btn btn-red btn-sm" onclick="eliminarPlan('${p.id}')">🗑</button>
-            <button class="btn btn-green btn-sm" onclick="prepIniciarPlan('${p.id}')">▶ Iniciar</button>
+            <button class="btn btn-ghost btn-sm" onclick="editarPlan('${p.id}')">Editar</button>
+            <button class="btn btn-red btn-sm" onclick="eliminarPlan('${p.id}')">Eliminar</button>
+            <button class="btn btn-green btn-sm" onclick="prepIniciarPlan('${p.id}')">Iniciar</button>
           </div>
         </div>
       </div>
@@ -3987,7 +3969,7 @@ function renderAll(){
 // ═══ RUTINAS ═══
 function openModalRutina(id) {
   S.editingId = id || null;
-  document.getElementById('modalRutinaTitle').textContent = id ? '✏️ Editar Rutina' : '📋 Nueva Rutina';
+  document.getElementById('modalRutinaTitle').textContent = id ? 'Editar Rutina' : 'Nueva Rutina';
   const tSel = document.getElementById('rutTareaId');
   tSel.innerHTML = '<option value="">— Seleccionar —</option>';
   (S.tareasCat || []).forEach(t => {
@@ -4017,7 +3999,7 @@ function renderRutPasos(pasos) {
     const div = document.createElement('div');
     div.style.cssText = 'display:flex;gap:6px;align-items:center;border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;background:rgba(var(--fg),.04)';
     div.innerHTML = '<input type="text" value="' + (p.nombre || '') + '" placeholder="Ej. Baño Hombres" style="flex:1;border:none;outline:none;font-size:.85rem;font-family:Barlow,sans-serif">' +
-      '<button onclick="this.parentNode.remove()" style="background:var(--red);color:#fff;border:none;border-radius:5px;padding:3px 8px;font-weight:700;cursor:pointer;font-size:.75rem">✕</button>';
+      '<button onclick="this.parentNode.remove()" style="background:var(--red);color:#fff;border:none;border-radius:5px;padding:3px 8px;font-weight:700;cursor:pointer;font-size:.75rem">×</button>';
     wrap.appendChild(div);
   });
 }
@@ -4060,7 +4042,7 @@ function buildToolboxSection(){
   const temas=S.temaHSE||[];
   const cats=['Seguridad','Salud','Ambiente','Emergencias','Incidentes','General'];
   let s='<div class="sec"><div class="sec-hdr" onclick="toggleSec(\'sToolboxMgr\',\'cToolboxMgr\')">';
-  s+='<div class="sec-hdr-left"><div class="sec-accent" style="background:var(--amber)"></div><span class="sec-title">🦺 Toolbox — Temas HSE</span></div>';
+  s+='<div class="sec-hdr-left"><div class="sec-accent" style="background:var(--amber)"></div><span class="sec-title">Toolbox — Temas HSE</span></div>';
   s+='<div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalTemaHSE()">+ Nuevo</button>';
   s+='<span class="chevron open" id="cToolboxMgr">▼</span></div></div>';
   s+='<div class="sec-body" id="sToolboxMgr">';
@@ -4075,10 +4057,10 @@ function buildToolboxSection(){
       const actSwitch=t.activo!==false
         ?'<span style="background:var(--green);color:#fff;padding:2px 9px;border-radius:20px;font-size:.65rem;font-weight:700;cursor:pointer" data-thseid="'+t.id+'" onclick="toggleTemaHSE(this.dataset.thseid)">Activo</span>'
         :'<span style="background:var(--bg);color:var(--mid);border:1.5px solid var(--border);padding:2px 9px;border-radius:20px;font-size:.65rem;font-weight:700;cursor:pointer" data-thseid="'+t.id+'" onclick="toggleTemaHSE(this.dataset.thseid)">Inactivo</span>';
-      s+='<div class="list-item"><div class="li-info"><div class="li-name">🦺 '+t.nombre+'</div></div>';
+      s+='<div class="list-item"><div class="li-info"><div class="li-name">'+t.nombre+'</div></div>';
       s+='<div class="li-actions">'+actSwitch;
-      s+='<button class="btn btn-ghost btn-sm" data-thseid="'+t.id+'" onclick="openModalTemaHSE(this.dataset.thseid)">✏️</button>';
-      s+='<button class="btn btn-red btn-sm" data-thseid="'+t.id+'" onclick="eliminarTemaHSE(this.dataset.thseid)">✕</button>';
+      s+='<button class="btn btn-ghost btn-sm" data-thseid="'+t.id+'" onclick="openModalTemaHSE(this.dataset.thseid)">Editar</button>';
+      s+='<button class="btn btn-red btn-sm" data-thseid="'+t.id+'" onclick="eliminarTemaHSE(this.dataset.thseid)">×</button>';
       s+='</div></div>';
     });
   });
@@ -4099,10 +4081,10 @@ function openModalTemaHSE(id){
   const old=document.getElementById('temaHSEForm');if(old)old.remove();
   const div=document.createElement('div');div.id='temaHSEForm';
   div.style.cssText='border:2px solid var(--amber);border-radius:10px;padding:14px;background:rgba(245,162,11,.08);margin-bottom:12px;display:flex;flex-direction:column;gap:9px';
-  div.innerHTML='<div style="font-family:\'Barlow Condensed\',sans-serif;font-weight:800;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--amber)">'+(id?'✏️ Editar':'+ Nuevo')+' Tema HSE</div>'+
+  div.innerHTML='<div style="font-family:\'Barlow Condensed\',sans-serif;font-weight:800;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--amber)">'+(id?'Editar':'+ Nuevo')+' Tema HSE</div>'+
     '<div class="field"><label>Nombre del tema</label><input type="text" id="thseNombre" value="'+nombre+'" placeholder="Ej. Uso correcto de EPP"></div>'+
     '<div class="field"><label>Categoría</label><select id="thseCat">'+opts+'</select></div>'+
-    '<div style="display:flex;gap:8px"><button class="btn btn-green" onclick="guardarTemaHSE()" style="flex:1;justify-content:center">💾 Guardar</button>'+
+    '<div style="display:flex;gap:8px"><button class="btn btn-green" onclick="guardarTemaHSE()" style="flex:1;justify-content:center">Guardar</button>'+
     '<button class="btn btn-ghost" onclick="document.getElementById(\'temaHSEForm\').remove();S.editingId=null" style="flex:1;justify-content:center">Cancelar</button></div>';
   wrap.insertBefore(div,wrap.firstChild);
   document.getElementById('thseNombre').focus();
@@ -4135,7 +4117,7 @@ async function toggleTemaHSE(id){
 function buildRutinasSection() {
   const ruts = S.rutinas || [];
   let s = '<div class="sec"><div class="sec-hdr" onclick="toggleSec(\'sRutinas\',\'cRutinas\')">';
-  s += '<div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">🔄 Rutinas</span></div>';
+  s += '<div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Rutinas</span></div>';
   s += '<div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalRutina()">+ Nueva</button>';
   s += '<span class="chevron open" id="cRutinas">▼</span></div></div>';
   s += '<div class="sec-body" id="sRutinas">';
@@ -4144,12 +4126,12 @@ function buildRutinasSection() {
     const tc = (S.tareasCat || []).find(t => t.id === r.tareaId);
     s += '<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:6px">';
     s += '<div style="display:flex;justify-content:space-between;width:100%;align-items:center">';
-    s += '<div><div class="li-name">🔄 ' + r.nombre + '</div>';
-    s += '<div class="li-sub">' + (tc ? tc.nombre : 'Sin tarea vinculada') + ' · ' + r.pasos.length + ' pasos' + (r.requiereQR ? ' · 📷 QR' : '') + '</div></div>';
+    s += '<div><div class="li-name">' + r.nombre + '</div>';
+    s += '<div class="li-sub">' + (tc ? tc.nombre : 'Sin tarea vinculada') + ' · ' + r.pasos.length + ' pasos' + (r.requiereQR ? ' · QR' : '') + '</div></div>';
     s += '<div class="li-actions">';
-    s += '<button class="btn btn-ghost btn-sm" data-rid="' + r.id + '" onclick="imprimirQRs(this.dataset.rid)">🖨 QRs</button>';
-    s += '<button class="btn btn-ghost btn-sm" data-rid="' + r.id + '" onclick="openModalRutina(this.dataset.rid)">✏️</button>';
-    s += '<button class="btn btn-red btn-sm" data-rid="' + r.id + '" onclick="eliminarRutina(this.dataset.rid)">✕</button>';
+    s += '<button class="btn btn-ghost btn-sm" data-rid="' + r.id + '" onclick="imprimirQRs(this.dataset.rid)">QRs</button>';
+    s += '<button class="btn btn-ghost btn-sm" data-rid="' + r.id + '" onclick="openModalRutina(this.dataset.rid)">Editar</button>';
+    s += '<button class="btn btn-red btn-sm" data-rid="' + r.id + '" onclick="eliminarRutina(this.dataset.rid)">×</button>';
     s += '</div></div>';
     s += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
     r.pasos.forEach(p => { s += '<span class="badge bp">' + p.nombre + '</span>'; });
@@ -4202,7 +4184,7 @@ function abrirValidarPaso(tareaActivaId, pasoId) {
   if (!paso || paso.validado) return;
   const rut = (S.rutinas || []).find(r => r.id === t.rutinaId);
   _validandoPaso = { tareaActivaId, pasoId, pasoNombre: paso.nombre, colabId: null, requiereQR: rut ? rut.requiereQR : false };
-  document.getElementById('validarPasoTitle').textContent = '📍 ' + paso.nombre;
+  document.getElementById('validarPasoTitle').textContent = '' + paso.nombre;
   document.getElementById('validarPasoInfo').textContent = 'Paso: ' + paso.nombre + ' · Rutina: ' + t.tarea;
   const wrap = document.getElementById('validarColabChips');
   wrap.innerHTML = '';
@@ -4276,7 +4258,7 @@ async function marcarPasoValidado() {
   paso.colaboradorNombre = colab.nombre; paso.hora = new Date().toLocaleTimeString();
   _validandoPaso = null;
   if (_html5QR) { try { _html5QR.stop(); } catch(e){} _html5QR = null; }
-  await save(); cerrarValidarPaso(); renderTareasActivas(); showToast('Paso validado ✔', 'success');
+  await save(); cerrarValidarPaso(); renderTareasActivas(); showToast('Paso validado', 'success');
   if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
 }
 
@@ -4309,11 +4291,11 @@ function buildRutinaCardHtml(t) {
   h += '<div class="task-timer" style="color:var(--purple)" id="timer_' + t.id + '">' + msHMS(Date.now() - t.inicio) + '</div>';
   h += '<div style="display:flex;gap:4px">';
   if (!t.pausada) {
-    h += '<button class="btn btn-sm" style="background:var(--amber);color:#fff" data-tid="' + t.id + '" onclick="pausarRutina(this.dataset.tid)">⏸</button>';
+    h += '<button class="btn btn-sm" style="background:var(--amber);color:#fff" data-tid="' + t.id + '" onclick="pausarRutina(this.dataset.tid)">Pausar</button>';
   } else {
-    h += '<button class="btn btn-sm" style="background:var(--green);color:#fff" data-tid="' + t.id + '" onclick="pausarRutina(this.dataset.tid)">▶</button>';
+    h += '<button class="btn btn-sm" style="background:var(--green);color:#fff" data-tid="' + t.id + '" onclick="pausarRutina(this.dataset.tid)">Reanudar</button>';
   }
-  h += '<button class="btn btn-indigo btn-sm" data-tid="' + t.id + '" onclick="prepCerrarTarea(this.dataset.tid)">⏹ Fin</button>';
+  h += '<button class="btn btn-indigo btn-sm" data-tid="' + t.id + '" onclick="prepCerrarTarea(this.dataset.tid)">Fin</button>';
   h += '</div></div></div>';
   h += '<div style="padding:6px 12px 0;display:flex;align-items:center;gap:8px">';
   h += '<div style="flex:1;background:rgba(143,111,214,.2);border-radius:4px;height:6px;overflow:hidden"><div style="width:' + pct + '%;height:100%;background:' + pctCol + ';border-radius:4px;transition:width .4s"></div></div>';
@@ -4322,11 +4304,11 @@ function buildRutinaCardHtml(t) {
   h += '<div style="padding:6px 0 8px">';
   (t.rutinaPasos || []).forEach(p => {
     if (p.validado) {
-      h += '<div class="paso-item"><div class="paso-check paso-ok">✔</div>';
+      h += '<div class="paso-item"><div class="paso-check paso-ok">OK</div>';
       h += '<div style="flex:1"><div style="font-size:.78rem;font-weight:600">' + p.nombre + '</div>';
       h += '<div style="font-size:.65rem;color:var(--mid)">' + (p.colaboradorNombre || '') + ' · ' + (p.hora || '') + '</div></div></div>';
     } else {
-      h += '<div class="paso-item"><div class="paso-check paso-pend" data-tid="' + t.id + '" data-pid="' + p.pasoId + '" onclick="abrirValidarPaso(this.dataset.tid,this.dataset.pid)">🔵</div>';
+      h += '<div class="paso-item"><div class="paso-check paso-pend" data-tid="' + t.id + '" data-pid="' + p.pasoId + '" onclick="abrirValidarPaso(this.dataset.tid,this.dataset.pid)"></div>';
       h += '<div style="flex:1;font-size:.78rem;font-weight:600;color:var(--mid)">' + p.nombre + '</div>';
       h += '<button class="btn btn-sm" style="background:rgba(143,111,214,.15);color:var(--purple);font-size:.62rem" data-tid="' + t.id + '" data-pid="' + p.pasoId + '" onclick="abrirValidarPaso(this.dataset.tid,this.dataset.pid)">Validar</button></div>';
     }
@@ -4470,7 +4452,7 @@ function renderResumenPostTurno() {
   const ec = efic >= 85 ? 'var(--green)' : efic >= 70 ? 'var(--amber)' : 'var(--red)';
   el.insertAdjacentHTML('afterbegin',
     '<div style="border:2px solid var(--green);border-radius:10px;background:rgba(0,195,137,.08);padding:12px 14px;margin-bottom:10px">' +
-    '<div style="font-family:\'Barlow Condensed\',sans-serif;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--green);margin-bottom:6px">✅ Turno cerrado — ' + ult.fecha + '</div>' +
+    '<div style="font-family:\'Barlow Condensed\',sans-serif;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--green);margin-bottom:6px">Turno cerrado — ' + ult.fecha + '</div>' +
     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">' +
     '<div style="text-align:center"><div style="font-size:.58rem;font-weight:700;text-transform:uppercase;color:var(--mid)">Tareas</div><div style="font-weight:800;font-size:1.1rem">' + (ult.historial || []).length + '</div></div>' +
     '<div style="text-align:center"><div style="font-size:.58rem;font-weight:700;text-transform:uppercase;color:var(--mid)">Horas</div><div style="font-weight:800;font-size:1.1rem">' + usH.toFixed(1) + 'h</div></div>' +
@@ -4483,7 +4465,7 @@ function checkTamañoS() {
   const bytes = new Blob([JSON.stringify(S)]).size;
   const mb = bytes / 1048576;
   if (mb > 4) {
-    showToast('⚠ Datos cerca del límite ('+mb.toFixed(1)+'MB). Exporta y limpia el histórico.', 'error');
+    showToast('Datos cerca del límite ('+mb.toFixed(1)+'MB). Exporta y limpia el histórico.', 'error');
   }
   return mb;
 }

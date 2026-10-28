@@ -6,6 +6,8 @@ const MOCK = fs.readFileSync(path.join(__dirname, 'mock_supabase.js'), 'utf8');
 const BASE = 'http://localhost:8765/index.html';
 const SHOTS = path.join(__dirname, 'shots'); fs.mkdirSync(SHOTS, { recursive: true });
 let fails = 0;
+// Navegación por el menú desplegable (línea gráfica común): abre el menú y elige la sección
+const irA = async (page, label) => { await page.click('.dpw-burger'); await page.click(`.dpw-item:has-text("${label}")`); };
 const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 
 async function newPage(browser, opts = {}) {
@@ -63,7 +65,7 @@ async function newPage(browser, opts = {}) {
   ok(!persisted.includes('usuarios') && !persisted.includes('editingId'), 'no se persisten usuarios ni campos de pantalla');
 
   // 4) Insights + usuarios desde servidor
-  await page.click('#navInsBtn'); await page.waitForTimeout(500);
+  await irA(page, 'Insights'); await page.waitForTimeout(500);
   const ins = await page.textContent('#insightsContent');
   ok(ins.includes('Admin Prueba') && ins.includes('@super'), 'lista de usuarios viene del servidor');
   ok(!/secreto/.test(await page.content()), 'ninguna clave aparece en la página');
@@ -104,7 +106,7 @@ async function newPage(browser, opts = {}) {
   ok(x.length === 5, 'Excel con 5 hojas: ' + x.join(', '));
 
   // 9) Configuración con tarifas
-  await page.click('#navInsBtn'); await page.evaluate(() => openConfig()); await page.waitForTimeout(200);
+  await irA(page, 'Insights'); await page.evaluate(() => openConfig()); await page.waitForTimeout(200);
   await page.fill('#cfgTarOp', '60'); await page.evaluate(() => guardarConfig()); await page.waitForTimeout(300);
   ok(await page.evaluate(() => window.__SRV.rows.ctrl_horas_test.value.config.tarifaOperador === 60), 'tarifa operador editable y guardada');
   ok(await page.evaluate(() => Math.abs(costoCargo('operador').dia - 64.2) < 0.01), 'nueva tarifa aplica al cálculo ($60 × 1.07)');
@@ -143,7 +145,7 @@ async function newPage(browser, opts = {}) {
 
   // 9c) Tablero por persona: cambiar de tarea cierra la anterior; cantidades pendientes; 4 grupos de tiempo
   await page.evaluate(() => hideModal('modalMaestro'));
-  await page.click('#navSupBtn'); await page.waitForTimeout(200);
+  await irA(page, 'Turno'); await page.waitForTimeout(200);
   const tb = await page.evaluate(async () => {
     cerrarActividad(S.turno.equipo.map(c => c.id), Date.now()); S.historial.forEach(h => h.cantPend = false);
     await asignarTarea(['c1', 'c2'], 't1', 'k1', 0);
@@ -210,7 +212,7 @@ async function newPage(browser, opts = {}) {
   await page.evaluate(() => doLogout()); await page.waitForTimeout(300);
   await page.fill('#loginUser', 'super'); await page.fill('#loginPass', 'secreto2');
   await page.click('#loginScreen button'); await page.waitForTimeout(600);
-  ok(await page.isHidden('#navInsBtn'), 'supervisor no ve Insights');
+  ok(await page.evaluate(() => ![...document.querySelectorAll('.dpw-item')].some(b => b.textContent.includes('Insights'))), 'supervisor no ve Insights en el menú');
   ok(await page.evaluate(() => document.getElementById('adminKPI').style.display !== 'flex'), 'supervisor no ve costos');
 
   // 12) TV
