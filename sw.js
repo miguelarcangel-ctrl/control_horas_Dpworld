@@ -1,9 +1,10 @@
 // Service worker de Control de Horas: permite instalar la app, abrirla sin conexión y mostrar avisos.
 // La app se pide primero a la red (siempre la versión publicada); la copia guardada solo se usa sin conexión.
 // Supabase nunca se guarda en caché: los datos van siempre al servidor (sin conexión, la app usa su respaldo local).
-const CACHE = 'ch-v3';
+const CACHE = 'ch-v5';
 const BASE = ['./', './index.html', './manifest.webmanifest', './assets/icon-192.png', './assets/icon-512.png',
-  './assets/dpworld-logo-fondo-claro.png', './assets/dpworld-logo-fondo-oscuro.png'];
+  './assets/dpworld-logo-fondo-claro.png', './assets/dpworld-logo-fondo-oscuro.png',
+  './dpw/dpw-shell.css', './dpw/dpw-shell.js', './dpw/dpw-escenas.js', './dpw/assets/dpworld-logo-fondo-claro.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(BASE)).then(() => self.skipWaiting()));
