@@ -280,7 +280,7 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 .tv-hdr-sub{font-size:9px;color:var(--primary);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-top:2px}
 .tv-hdr-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
 .tv-hdr-right button{background:#f4f4f7!important;color:#555!important;border:1px solid #ddd!important}
-.tv-hdr-right button#tvTabLive[style*=".25"],.tv-hdr-right button#tvTabAnalytics[style*=".25"]{background:var(--primary)!important;color:#fff!important;border-color:var(--primary)!important}
+.tv-hdr-right button#tvTabLive[style*=".25"],.tv-hdr-right button#tvTabLineas[style*=".25"],.tv-hdr-right button#tvTabAnalytics[style*=".25"]{background:var(--primary)!important;color:#fff!important;border-color:var(--primary)!important}
 .tv-clock{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.5rem;color:#1a1760;letter-spacing:.04em;font-variant-numeric:tabular-nums}
 .tv-date{font-size:.65rem;color:#777}
 .tv-hdr-right .tv-close,.tv-close{background:rgba(232,0,61,.08)!important;color:#c0002a!important;border:1px solid rgba(232,0,61,.25)!important;border-radius:6px;padding:6px 12px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;margin-left:6px}
@@ -329,6 +329,34 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 .tv-bgy{background:rgba(var(--fg),.06);color:var(--t2);border-color:var(--b1)}
 .tv-bi{background:rgba(0,153,230,.12);color:var(--blue);border-color:rgba(0,153,230,.3)}
 
+/* TV · LÍNEAS */
+.tvl-grid{display:grid;gap:16px;grid-template-columns:1fr;flex:1;min-height:calc(100vh - 150px)}
+@media (min-width:900px){.tvl-grid.tvl-n2{grid-template-columns:1fr 1fr}.tvl-grid.tvl-n3{grid-template-columns:repeat(3,1fr)}}
+.tvl{background:var(--card);border:1px solid var(--b1);border-radius:16px;padding:22px 26px;display:flex;flex-direction:column;gap:16px;justify-content:space-between}
+.tvl .tv-badge{font-size:.95rem;padding:6px 14px}
+.tvl.tvl-corriendo{border-left:5px solid var(--green)}
+.tvl-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.tvl-name{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(1.6rem,2.4vw,2.6rem);letter-spacing:.06em;text-transform:uppercase;color:var(--t);line-height:1}
+.tvl-cli{font-size:clamp(.85rem,1.1vw,1.25rem);color:var(--t3);margin-top:6px}
+.tvl-big{display:flex;align-items:baseline;gap:10px;font-family:'Barlow Condensed',sans-serif}
+.tvl-big b{font-size:clamp(4rem,11vw,13rem);font-weight:800;line-height:.9;color:var(--t);font-variant-numeric:tabular-nums}
+.tvl-big span{font-size:clamp(1.6rem,2.6vw,3rem);color:var(--t2)}
+.tvl-big em{margin-left:auto;font-style:normal;font-size:clamp(2.2rem,4vw,4.5rem);font-weight:800;color:var(--t2)}
+.tvl-bar{position:relative;height:clamp(18px,2.4vh,30px);border-radius:15px;background:rgba(var(--fg),.08);overflow:visible}
+.tvl-fill{height:100%;border-radius:15px;transition:width 1s ease}
+.tvl-mark{position:absolute;top:-5px;bottom:-5px;width:3px;margin-left:-1px;background:#fff;border-radius:2px;box-shadow:0 0 6px rgba(255,255,255,.6)}
+.tvl-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.tvl-stats>div{background:rgba(var(--fg),.04);border:1px solid var(--b0);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column}
+.tvl-stats span{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:clamp(.72rem,1vw,1.05rem);letter-spacing:1px;text-transform:uppercase;color:var(--t3)}
+.tvl-stats b{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(2rem,3.4vw,3.6rem);color:var(--t);line-height:1.1;font-variant-numeric:tabular-nums}
+.tvl-stats b.g{color:var(--green)}.tvl-stats b.a{color:var(--amber)}
+.tvl-stats small{font-size:clamp(.7rem,.9vw,.95rem);color:var(--t3)}
+.tvl-sub{font-size:.95rem;color:var(--t2)}
+.tvl-rank{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+.tvl-rank>div{display:flex;align-items:baseline;gap:8px;font-size:clamp(.95rem,1.3vw,1.4rem);color:var(--t2);background:rgba(var(--fg),.03);border-radius:8px;padding:6px 10px}
+.tvl-rank span{font-family:'Barlow Condensed',sans-serif;font-weight:800;color:var(--t3);min-width:14px}
+.tvl-rank b{margin-left:auto;font-family:'Barlow Condensed',sans-serif;font-size:clamp(1.3rem,2vw,2.1rem);color:var(--t)}
+.tvl-rank small{font-size:.72rem}
 /* EDICIÓN EN LÍNEA */
 .edit-row{display:flex;gap:5px;align-items:center;width:100%}
 .edit-row input,.edit-row select{flex:1;padding:6px 8px;font-size:.82rem}
@@ -636,6 +664,7 @@ body.con-sel .toast{bottom:96px}
       <div class="sec-hdr">
         <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title" id="lineasHoyTitulo">Líneas de producción · hoy</span></div>
         <div class="sec-hdr-actions">
+          <button class="btn btn-ghost btn-sm" onclick="abrirTvLineas()" title="Abre la pantalla TV en la pestaña de líneas, para dejarla fija en el piso">Pantalla TV</button>
           <button class="btn btn-ghost btn-sm" onclick="abrirPlanLinea(fechaManana())">Planificar</button>
           <button class="btn btn-green btn-sm" onclick="abrirPlanLinea(fechaLocal(new Date()))">+ Línea hoy</button>
         </div>
@@ -1832,6 +1861,8 @@ function renderLineas(){
   const sec=document.getElementById('secLineas');
   if(sec){ sec.classList.toggle('hidden',!L.length); document.getElementById('lineasTurno').innerHTML=htmlBloques(L,''); }
 }
+// Pantalla TV de líneas en otra pestaña (para dejarla fija en una pantalla junto a la línea)
+function abrirTvLineas(){ const q=new URLSearchParams({tv:'1',vista:'lineas'}); if(QS.get('datos')) q.set('datos',QS.get('datos')); window.open(location.pathname+'?'+q,'_blank'); }
 function renderPlanesLinea(){
   const el=document.getElementById('lineasPlanList'); if(!el) return;
   const P=(S.lineas||[]).filter(l=>l.estado==='pendiente'&&l.fecha>hoyStr()).sort((a,b)=>a.fecha.localeCompare(b.fecha));
@@ -3221,13 +3252,46 @@ function openDashboard(){
   if(window._tvRefresh) clearInterval(window._tvRefresh);
   window._tvRefresh=setInterval(async()=>{await reload();renderDashboard();},15000);
 }
-let _tvMode='live';
+let _tvMode=QS.get('vista')==='lineas'?'lineas':'live';
 let _tvFilters={desde:'',hasta:'',colId:''};
-function setTvMode(m){_tvMode=m;const lt=document.getElementById('tvTabLive'),at=document.getElementById('tvTabAnalytics');if(lt){lt.style.background=m==='live'?'rgba(var(--fg),.25)':'rgba(var(--fg),.1)';lt.style.color=m==='live'?'#fff':'rgba(var(--fg),.6)';}if(at){at.style.background=m==='analytics'?'rgba(var(--fg),.25)':'rgba(var(--fg),.1)';at.style.color=m==='analytics'?'#fff':'rgba(var(--fg),.6)';}renderDashboard();}
+const tvTab=m=>`border:none;border-radius:6px;padding:5px 12px;font-weight:800;font-size:.68rem;cursor:pointer;background:${_tvMode===m?'rgba(var(--fg),.25)':'rgba(var(--fg),.1)'};color:${_tvMode===m?'#fff':'rgba(255,255,255,.6)'}`;
+function setTvMode(m){ _tvMode=m; renderDashboard(); }
 function resetTvFilters(){_tvFilters={desde:'',hasta:'',colId:''};renderDashboardAnalytics();}
 function setTvFiltroDesde(v){_tvFilters.desde=v;renderDashboardAnalytics();}
 function setTvFiltroHasta(v){_tvFilters.hasta=v;renderDashboardAnalytics();}
 function setTvFiltroCol(v){_tvFilters.colId=v;renderDashboardAnalytics();}
+// TV · Líneas de producción: total contra la meta, dónde debería ir a esta hora, ritmo actual y necesario
+function tvLineasBody(){
+  const L=lineasHoy(), now=Date.now();
+  if(!L.length) return `<div class="tv-body"><div class="tv-no-turno"><div class="tv-no-title">Sin líneas de producción hoy</div><div style="font-size:.9rem">Actualización automática cada 15 segundos</div></div></div>`;
+  const tarjetas=L.map(l=>{
+    const r=ritmoLinea(l,now), pct=l.meta?Math.min(100,r.tot/l.meta*100):0, P=paletizadores(l), A=deApoyo(l);
+    const esperado=l.estado==='corriendo'&&l.horas?Math.min(100,r.h/l.horas*100):null;
+    const restanH=Math.max(0,l.horas-r.h), necesario=l.estado==='corriendo'&&restanH>0?Math.max(0,l.meta-r.tot)/restanH:null;
+    const ultimo=Math.max(0,...l.personas.flatMap(p=>p.pallets||[]));
+    const vaBien=r.proy>=l.meta;
+    const estado={pendiente:['tv-ba','Por arrancar'],corriendo:[vaBien?'tv-bg':'tv-ba',vaBien?'En meta':'Bajo el ritmo'],cerrada:['tv-bgy','Cerrada']}[l.estado];
+    const rank=P.map(p=>({n:p.nombre,c:(p.pallets||[]).length,rt:(p.pallets||[]).length/Math.max(1/60,msH((l.fin||now)-(p.desde||l.inicio||now)))})).sort((a,b)=>b.c-a.c);
+    if(l.estado==='pendiente'){ const c=cuadrilla(l.meta,l.prod,l.horas,l.apoyo);
+      return `<div class="tvl"><div class="tvl-top"><div><div class="tvl-name">Línea ${esc(l.nombre)}</div><div class="tvl-cli">${esc(l.cliente||'')}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
+        <div class="tvl-big"><b>0</b><span>/ ${l.meta} pallets</span></div><div class="tvl-sub">Meta del día ${l.meta} pallets · cuadrilla de ${c.total} personas (${c.pal} paletizan${c.ap?' + '+c.ap+' apoyo':''})</div></div>`; }
+    return `<div class="tvl tvl-${l.estado}">
+      <div class="tvl-top"><div><div class="tvl-name">Línea ${esc(l.nombre)}</div><div class="tvl-cli">${esc(l.cliente||'')} · ${P.length} paletizan${A.length?' · '+A.length+' apoyo':''}${l.responsable?' · '+esc(l.responsable):''}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
+      <div class="tvl-big"><b>${r.tot}</b><span>/ ${l.meta} pallets</span><em>${Math.round(pct)}%</em></div>
+      <div class="tvl-bar"><div class="tvl-fill" style="width:${pct}%;background:${vaBien||l.estado==='cerrada'?'var(--green)':'var(--amber)'}"></div>${esperado!=null?`<div class="tvl-mark" style="left:${esperado}%" title="Dónde debería ir a esta hora"></div>`:''}</div>
+      <div class="tvl-stats">
+        <div><span>Ritmo actual</span><b>${fmtN(r.ritmo)}</b><small>pallets/h</small></div>
+        ${l.estado==='corriendo'?`<div><span>Ritmo necesario</span><b class="${necesario!=null&&r.ritmo<necesario?'a':'g'}">${necesario!=null?fmtN(necesario):'—'}</b><small>pallets/h para la meta</small></div>
+        <div><span>Proyección</span><b class="${vaBien?'g':'a'}">${r.proy}</b><small>al cierre</small></div>
+        <div><span>Último pallet</span><b>${ultimo?fmtH(msH(now-ultimo)).replace(' min','′'):'—'}</b><small>${ultimo?'atrás':''}</small></div>`
+        :`<div><span>Duración</span><b>${fmtH(r.h)}</b><small></small></div><div><span>Por paletizador</span><b>${fmtN(r.porPaletizador)}</b><small>pallets/h</small></div>`}
+      </div>
+      ${rank.length?`<div class="tvl-rank">${rank.slice(0,6).map((x,i)=>`<div><span>${i+1}</span>${esc(x.n.split(' ')[0])} <b>${x.c}</b><small style="color:${!l.prod||x.rt>=l.prod?'var(--green)':'var(--amber)'}">${fmtN(x.rt)}/h</small></div>`).join('')}</div>`:''}
+    </div>`;
+  }).join('');
+  return `<div class="tv-body"><div class="tvl-grid tvl-n${Math.min(L.length,3)}">${tarjetas}</div>
+    <div class="tv-bar-legend" style="justify-content:center;gap:18px"><span>La marca blanca en la barra indica dónde debería ir la línea a esta hora</span><span>Actualización automática cada 15 segundos</span></div></div>`;
+}
 function renderDashboardAnalytics(){
   const el=document.getElementById('dashboardContent');
   if(!el) return;
@@ -3270,6 +3334,7 @@ function renderDashboardAnalytics(){
   parts.push('<div class="tv-hdr-center"><div class="tv-hdr-title">Analytics</div><div class="tv-hdr-sub">Colaboradores · Histórico</div></div>');
   parts.push('<div class="tv-hdr-right"><div style="display:flex;align-items:center;gap:5px">');
   parts.push('<button data-m="live" onclick="setTvMode(this.dataset.m)" style="border:none;border-radius:6px;padding:5px 12px;font-weight:800;font-size:.68rem;cursor:pointer;background:rgba(var(--fg),.15);color:#fff">En Vivo</button>');
+  parts.push('<button data-m="lineas" onclick="setTvMode(this.dataset.m)" style="'+tvTab('lineas')+'">Líneas</button>');
   parts.push('<button class="tv-close" onclick="closeDashboard()">Cerrar</button>');
   parts.push('</div></div></div>');
 
@@ -3385,14 +3450,21 @@ function renderDashboard(){
           <div class="tv-date">${now.toLocaleDateString('es-PA',{weekday:'long',day:'numeric',month:'long'})}</div>
         </div>
         <div style="display:flex;align-items:center;gap:5px">
-              <button id="tvTabLive" data-m="live" onclick="setTvMode(this.dataset.m)" style="border:none;border-radius:6px;padding:5px 12px;font-weight:800;font-size:.68rem;cursor:pointer;background:rgba(var(--fg),.25);color:#fff">En Vivo</button>
-              <button id="tvTabAnalytics" data-m="analytics" onclick="setTvMode(this.dataset.m)" style="border:none;border-radius:6px;padding:5px 12px;font-weight:800;font-size:.68rem;cursor:pointer;background:rgba(var(--fg),.1);color:rgba(255,255,255,.6)">Analytics</button>
+              <button id="tvTabLive" data-m="live" onclick="setTvMode(this.dataset.m)" style="${tvTab('live')}">En Vivo</button>
+              <button id="tvTabLineas" data-m="lineas" onclick="setTvMode(this.dataset.m)" style="${tvTab('lineas')}">Líneas</button>
+              <button id="tvTabAnalytics" data-m="analytics" onclick="setTvMode(this.dataset.m)" style="${tvTab('analytics')}">Analytics</button>
               <button class="tv-close" onclick="closeDashboard()">Cerrar</button>
             </div>
       </div>
     </div>
   </div>`;
 
+  // Líneas de producción: pestaña propia, o sola si no hay turno regular y sí hay líneas hoy
+  if(_tvMode==='lineas'||(!turno&&lineasHoy().length)){
+    h+=tvLineasBody()+'</div>';
+    document.getElementById('dashboardContent').innerHTML=h;
+    return;
+  }
   if(!turno){
     h+=`<div class="tv-body"><div class="tv-no-turno">
       

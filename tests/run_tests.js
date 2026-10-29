@@ -318,6 +318,23 @@ async function newPage(browser, opts = {}) {
   ok(await tv.page.isHidden('#loginScreen'), 'TV no muestra login');
   ok(await tv.page.evaluate(() => !S.usuarios), 'TV no recibe usuarios');
   await tv.page.screenshot({ path: SHOTS + '/04_tv.png' });
+  const tvl = await tv.page.evaluate(async () => {
+    const v = window.__SRV.rows.ctrl_horas_test.value, hoy = fechaLocal(new Date()), t0 = Date.now() - 2 * 3600000;
+    v.lineas = [{ id: 'tvl1', fecha: hoy, tipoId: 'x', nombre: 'Inserto botella', cliente: 'CERNAC', meta: 40, horas: 8, prod: 0.5, apoyo: [], estado: 'corriendo', inicio: t0, responsable: 'Super Visor',
+      personas: [{ id: 'a', nombre: 'Pedro Gil', puesto: 'pallets', pallets: [t0 + 1, t0 + 2, t0 + 3, t0 + 4, t0 + 5], desde: t0 }, { id: 'b', nombre: 'Rosa Cajas', puesto: 'Armado de cajas', pallets: [], desde: t0 }] },
+      { id: 'tvl2', fecha: '2001-01-01', nombre: 'Vieja', estado: 'cerrada', meta: 1, horas: 8, personas: [] }];
+    await reload(); setTvMode('lineas');
+    const html = document.getElementById('dashboardContent').innerHTML;
+    const r = { llega: S.lineas.length === 1, total: /<b>5<\/b><span>\/ 40 pallets/.test(html), marca: /tvl-mark/.test(html), rank: /Pedro/.test(html) && !/Rosa/.test(document.querySelector('.tvl-rank')?.innerHTML || ''), necesario: /Ritmo necesario/.test(html) };
+    // sin turno regular: la TV muestra las líneas sola
+    v.turno = null; await reload(); setTvMode('live'); r.solo = /tvl-big/.test(document.getElementById('dashboardContent').innerHTML);
+    return r; });
+  ok(tvl.llega && tvl.total && tvl.marca && tvl.rank && tvl.necesario, 'TV · Líneas: total contra la meta, marca de dónde debería ir, ritmo necesario y ranking de quienes paletizan');
+  ok(tvl.solo, 'TV · Líneas: sin turno regular, muestra las líneas en marcha');
+  const tv2 = await newPage(browser, { viewport: { width: 1600, height: 900 } });
+  await tv2.page.goto(BASE + '?tv=1&vista=lineas'); await tv2.page.waitForTimeout(800);
+  ok(await tv2.page.evaluate(() => _tvMode === 'lineas' && /Sin líneas de producción hoy|tvl-big/.test(document.getElementById('dashboardContent').innerHTML)), 'TV · Líneas: se abre directo con ?vista=lineas');
+  await tv2.ctx.close();
   ok(tv.errors.length === 0, 'TV sin errores JS (' + tv.errors.join(' | ') + ')');
 
   await browser.close();
