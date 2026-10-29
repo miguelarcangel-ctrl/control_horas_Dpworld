@@ -103,7 +103,7 @@ async function newPage(browser, opts = {}) {
   // 8) Excel
   await page.evaluate(() => exportExcel(null));
   const x = await page.evaluate(() => window.__xlsx.w.s.map(s => s[0] + ':' + s[1].length));
-  ok(x.length === 7, 'Excel con 7 hojas: ' + x.join(', '));
+  ok(x.length === 9, 'Excel con 9 hojas: ' + x.join(', '));
 
   // 9) Configuración con tarifas
   await irA(page, 'Insights'); await page.evaluate(() => openConfig()); await page.waitForTimeout(200);
@@ -224,7 +224,7 @@ async function newPage(browser, opts = {}) {
   ok(await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())), 'app instalable: service worker registrado');
   ok(await page.evaluate(async () => (await (await fetch('manifest.webmanifest')).json()).icons.length >= 2), 'app instalable: manifest con íconos');
   await page.evaluate(() => exportExcel(null));
-  const x2 = await page.evaluate(() => window.__xlsx.w.s.slice(-7).map(s => s[1][0]));
+  const x2 = await page.evaluate(() => window.__xlsx.w.s.slice(-9).map(s => s[1][0]));
   ok(x2[0].includes('Tipo de tiempo') && x2[1].includes('Horas sin registrar') && x2[4].includes('% productivo'), 'Excel: columnas de tiempos y nombre en Excel');
 
   // 9e) Líneas de producción (módulo propio): no dependen del turno; cuadrilla escrita (paletizan + apoyo); cualquier día
@@ -280,8 +280,8 @@ async function newPage(browser, opts = {}) {
     abrirLinea(l.id); await (async () => { const c0 = window.confirm; window.confirm = () => true; await cerrarLinea(); window.confirm = c0; })(); hideModal('modalLinea');
     r.cierre = l.estado === 'cerrada' && l.fin > 0;
     exportExcel(null);
-    const hojas = window.__xlsx.w.s.slice(-2), lr = hojas[0][1].find(x => x[1] === 'Inserto botella');
-    const det = window.__xlsx.w.s.slice(-7)[0][1]; const cols = det[0];
+    const hojas = window.__xlsx.w.s.slice(-4, -2), lr = hojas[0][1].find(x => x[1] === 'Inserto botella');
+    const det = window.__xlsx.w.s.slice(-9)[0][1]; const cols = det[0];
     r.excel = lr && lr[5] === 3 && lr[7] === 4 && lr[8] === 2 && lr[9] === 2 && Math.abs(lr[14] - 2) < 0.05 && det.some(x => x[cols.indexOf('Apoyo a línea')] === 'Inserto botella');
     r.insights = /Horas operadores/.test(buildLineasSection());
     return r; });
@@ -294,6 +294,55 @@ async function newPage(browser, opts = {}) {
   ok(ln.resumen && ln.chipLinea && ln.apoyoOp, 'línea: resumen en el turno; tarea de operador marcada como apoyo a la línea (2 h)');
   ok(ln.independiente && ln.cierre, 'línea: su ciclo es propio (se cierra con su botón, no con el turno)');
   ok(ln.excel && ln.insights, 'línea: Excel e Insights con pallets, cuadrilla y horas de operadores de apoyo');
+  // 9f) Paros e insumos de línea
+  const pi = await page.evaluate(async () => {
+    const r = {}, H = 3600000, t0 = Date.now() - 4 * H;
+    const c0 = window.confirm; window.confirm = () => true;
+    S.lineasTipo[0].insumos = [{ nombre: 'Cajas', unidad: 'unid', porPallet: 84 }, { nombre: 'Stretch', unidad: 'rollo', porPallet: 0.1 }];
+    const l = nuevaLinea(S.lineasTipo[0], 20, 8); S.lineas.push(l);
+    r.snap = l.insumos.length === 2 && l.insumos[0].porPallet === 84;
+    l.personas.push({ id: 'pp1', nombre: 'Uno', puesto: 'pallets', pallets: [], desde: null });
+    abrirLinea(l.id); await arrancarLinea(); l.inicio = t0; l.personas[0].desde = t0;
+    for (let k = 0; k < 4; k++) await sumarPallet('pp1', 1);
+    // paro: 30 min por falta de insumo
+    renderLineaModal(); r.boton = /Registrar paro/.test(document.getElementById('lineaBody').innerHTML);
+    _paroPick = true; renderLineaModal(); document.getElementById('paroNota').value = 'Sin cajas';
+    await iniciarParo(causasParo().indexOf('Falta de insumo'));
+    l.paroActivo.inicio = Date.now() - 0.5 * H;
+    r.enParo = !!l.paroActivo && /En paro/.test(document.getElementById('lineasList').innerHTML) && /Reanudar/.test(document.getElementById('lineaBody').innerHTML);
+    // aviso de paro largo (umbral 15 min) que lleva a la línea
+    _avisados.clear(); _avisosApp = []; revisarAlertasLineas();
+    const av = _avisosApp.find(a => a.data && a.data.accion === 'linea'); r.avisoParo = !!av && /en paro/.test(av.cuerpo);
+    await reanudarLinea(); r.reanuda = !l.paroActivo && l.paros.length === 1 && l.paros[0].causa === 'Falta de insumo' && l.paros[0].nota === 'Sin cajas';
+    revisarAlertasLineas(); r.avisoSeQuita = !_avisosApp.some(a => a.key.startsWith('paro|'));
+    const rt = ritmoLinea(l); r.metricas = Math.abs(rt.paroH - 0.5) < 0.02 && Math.abs(rt.disponibilidad - 0.875) < 0.01;
+    // insumos: entrega 400 cajas → esperado 4×84 = 336, alcanza para 0 pallets (64 sobran < 84) → aviso
+    abrirLinea(l.id); document.getElementById('insQ_' + l.insumos[0].id).value = '400'; await entregarInsumo(l.insumos[0].id);
+    const e1 = estadoInsumo(l.insumos[0], l); r.alcanza = e1.esp === 336 && e1.ent === 400 && e1.alcanza === 0;
+    r.agota = insumosPorAgotar(l).length === 1 && /Por agotarse/.test(document.getElementById('lineaBody').innerHTML);
+    revisarAlertasLineas(); r.avisoInsumo = _avisosApp.some(a => a.key.startsWith('insumo|'));
+    document.getElementById('insQ_' + l.insumos[0].id).value = '200'; await entregarInsumo(l.insumos[0].id);
+    r.alcanzaMas = estadoInsumo(l.insumos[0], l).alcanza === 3;
+    // nuevo paro abierto se cierra al cerrar la línea; sobrante 250 → consumo 350, diferencia +14 (+4%)
+    _paroPick = true; renderLineaModal(); await iniciarParo(0);
+    await guardarSobrante(l.insumos[0].id, '250'); await cerrarLinea();
+    const e2 = estadoInsumo(l.insumos[0], l);
+    r.cierre = l.estado === 'cerrada' && !l.paroActivo && l.paros.length === 2 && e2.real === 350 && e2.dif === 14 && Math.round(e2.difPct) === 4;
+    hideModal('modalLinea');
+    exportExcel(null); const hs = window.__xlsx.w.s.slice(-2);
+    r.excel = hs[0][0] === 'Paros de línea' && hs[0][1].some(x => x[2] === 'Falta de insumo' && x[5] === 30) && hs[1][0] === 'Insumos de línea' && hs[1][1].some(x => x[2] === 'Cajas' && x[9] === 350 && x[10] === 14);
+    const ins = buildLineasSection(); r.insights = /Falta de insumo/.test(ins) && /Consumo real/.test(ins);
+    // causas configurables
+    openModalCausas(); addCausa('Lluvia'); await guardarCausas(); r.causas = causasParo().includes('Lluvia');
+    window.confirm = c0; return r; });
+  ok(pi.snap && pi.boton, 'paros/insumos: la línea copia los insumos del tipo; botón Registrar paro');
+  ok(pi.enParo && pi.reanuda, 'paro: la línea queda en paro con su causa y nota hasta Reanudar');
+  ok(pi.avisoParo && pi.avisoSeQuita, 'paro: aviso si pasa de 15 min (lleva a la línea) y se quita al reanudar');
+  ok(pi.metricas, 'paro: 30 min de paro en 4 h → 87.5% corriendo');
+  ok(pi.alcanza && pi.agota && pi.avisoInsumo && pi.alcanzaMas, 'insumos: esperado = pallets × estándar; alcanza para N pallets; aviso de insumo por agotarse');
+  ok(pi.cierre, 'insumos: consumo real = entregado − sobrante y diferencia; cerrar la línea termina el paro abierto');
+  ok(pi.excel && pi.insights && pi.causas, 'paros/insumos: Excel (Paros e Insumos de línea), Insights y causas configurables');
+
   const resp = await page.evaluate(() => { const u = currentUser; currentUser = { ...u, rol: 'responsable' }; setNav('supervisor'); pintarMenu();
     const r = { vista: !document.getElementById('viewLineas').classList.contains('hidden') && document.getElementById('viewSupervisor').classList.contains('hidden') };
     currentUser = u; setNav('supervisor'); return r; });

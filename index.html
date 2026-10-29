@@ -335,6 +335,9 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 .tvl{background:var(--card);border:1px solid var(--b1);border-radius:16px;padding:22px 26px;display:flex;flex-direction:column;gap:16px;justify-content:space-between}
 .tvl .tv-badge{font-size:.95rem;padding:6px 14px}
 .tvl.tvl-corriendo{border-left:5px solid var(--green)}
+.tvl-paro{display:flex;justify-content:space-between;align-items:center;background:var(--red);color:#fff;border-radius:12px;padding:12px 18px;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(1.3rem,2.4vw,2.6rem);letter-spacing:.06em}
+.tvl-paro span{font-variant-numeric:tabular-nums}
+.tvl-agota{background:rgba(245,162,11,.15);border:1px solid rgba(245,162,11,.5);color:var(--amber);border-radius:10px;padding:8px 14px;font-weight:700;font-size:clamp(.95rem,1.4vw,1.4rem)}
 .tvl-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .tvl-name{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(1.6rem,2.4vw,2.6rem);letter-spacing:.06em;text-transform:uppercase;color:var(--t);line-height:1}
 .tvl-cli{font-size:clamp(.85rem,1.1vw,1.25rem);color:var(--t3);margin-top:6px}
@@ -401,6 +404,17 @@ body.con-sel .avisos-app{bottom:90px}
 #lineaBody .edit-row{flex-wrap:wrap}
 #lineaBody #lmNombre{flex:1 1 200px}
 #lineaBody #lmPuesto{flex:1 1 140px;max-width:none!important}
+.lb.lb-paro{border-left-color:var(--red);background:rgba(232,0,61,.06)}
+.paro-on{display:flex;justify-content:space-between;align-items:center;gap:10px;background:rgba(232,0,61,.1);border:1.5px solid var(--red);border-radius:10px;padding:10px 12px;color:var(--t)}
+.paro-on b{color:var(--red-t);font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;text-transform:uppercase;letter-spacing:.5px}
+.paro-on small{display:block;font-size:.72rem;color:var(--t3)}
+.paro-pick{display:flex;flex-direction:column;gap:8px;border:1.5px solid var(--amber);border-radius:10px;padding:10px 12px}
+.ins-row{border:1px solid var(--b1);border-radius:9px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;background:rgba(var(--fg),.03)}
+.ins-name{font-weight:700;color:var(--t)}.ins-name small{font-weight:500;font-size:.68rem;color:var(--t3);margin-left:6px}
+.ins-nums{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.74rem;color:var(--t3)}.ins-nums b{color:var(--t)}
+.ins-act{display:flex;gap:6px;flex-wrap:wrap}.ins-act input{flex:1 1 90px;padding:6px 8px!important;font-size:.85rem!important}
+#viewLineas .sec-hdr{flex-wrap:wrap;gap:8px}
+#viewLineas .sec-title{white-space:normal}
 .plan-linea{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px dashed var(--b2);border-radius:9px;padding:8px 11px;margin-top:8px;font-size:.78rem;color:var(--t2)}
 /* TABLERO POR PERSONA */
 .tb-hint{font-size:.74rem;color:var(--t3);margin-bottom:2px}
@@ -895,6 +909,10 @@ body.con-sel .toast{bottom:96px}
       <div class="field"><label>Sin tarea más de (min)</label><input type="number" id="cfgAlLibre" min="5" step="5"></div>
       <div class="field"><label>Tarea abierta más de (h)</label><input type="number" id="cfgAlTarea" min="0.5" step="0.5"></div>
     </div>
+    <div class="field-row">
+      <div class="field"><label>Línea en paro más de (min)</label><input type="number" id="cfgAlParo" min="5" step="5"></div>
+      <div class="field"></div>
+    </div>
     <div class="info-box" id="cfgResumen"></div>
     <button class="btn btn-green btn-full" onclick="guardarConfig()">Guardar Configuración</button>
   </div>
@@ -1077,6 +1095,14 @@ body.con-sel .toast{bottom:96px}
     <button class="btn btn-green btn-full" id="plGuardar" onclick="guardarPlanLinea()">Guardar</button>
   </div>
 </div>
+<div class="overlay hidden" id="modalCausas">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title">Causas de paro</span><span class="modal-close" onclick="hideModal('modalCausas')">×</span></div>
+    <div id="causasLista" style="display:flex;flex-direction:column;gap:6px"></div>
+    <button class="btn btn-ghost btn-sm" style="align-self:flex-start" onclick="addCausa('')">+ Causa</button>
+    <button class="btn btn-green btn-full" onclick="guardarCausas()">Guardar</button>
+  </div>
+</div>
 <div class="overlay hidden" id="modalTipoLinea">
   <div class="modal">
     <div class="modal-hdr"><span class="modal-title" id="tlTitulo">Tipo de línea</span><span class="modal-close" onclick="hideModal('modalTipoLinea')">×</span></div>
@@ -1088,7 +1114,9 @@ body.con-sel .toast{bottom:96px}
     <div class="field"><label>Puestos de apoyo por línea (no hacen pallets)</label><div id="tlApoyo" style="display:flex;flex-direction:column;gap:6px"></div>
       <button class="btn btn-ghost btn-sm" style="align-self:flex-start;margin-top:4px" onclick="addPuestoApoyo('',1)">+ Puesto</button></div>
     <div class="field" id="tlExcelField"><label>Nombre en el Excel de ventas</label><select id="tlExcel"></select></div>
-    <div class="li-sub">Cuadrilla = quienes paletizan (meta ÷ (productividad × horas)) + los puestos de apoyo.</div>
+    <div class="field"><label>Insumos de la línea (consumo estándar por pallet)</label><div id="tlInsumos" style="display:flex;flex-direction:column;gap:6px"></div>
+      <button class="btn btn-ghost btn-sm" style="align-self:flex-start;margin-top:4px" onclick="addInsumoTipo('','',0)">+ Insumo</button></div>
+    <div class="li-sub">Cuadrilla = quienes paletizan (meta ÷ (productividad × horas)) + los puestos de apoyo. Insumo esperado = pallets × consumo por pallet.</div>
     <button class="btn btn-green btn-full" onclick="guardarTipoLinea()">Guardar</button>
   </div>
 </div>
@@ -1200,7 +1228,7 @@ const SESS_KEY='ch_sesion_'+STATE_KEY, BK_KEY='ch_backup_'+STATE_KEY;
 const RUNTIME_KEYS=['cerrandoId','reabriendoId','editingId','usuarios'];
 
 const DEFAULT_CONFIG={horaInicio:'08:00',horaFin:'17:00',horasAlmuerzo:1,multSobretiempo:1.5,horasSabado:4,multSabado:1.0,horasDomingo:0,multDomingo:2.0,
-  tarifaOperador:50,tarifaAG:36,factorCarga:1.07,alertaLibreMin:15,alertaTareaH:3};
+  tarifaOperador:50,tarifaAG:36,factorCarga:1.07,alertaLibreMin:15,alertaTareaH:3,alertaParoMin:15};
 let S={
   colaboradores:[],tareasCat:[],clientes:[],
   turno:null,tareasActivas:[],historial:[],
@@ -1358,7 +1386,7 @@ function persistable(){
   return JSON.parse(JSON.stringify(o));
 }
 function normalizeS(){
-  ['clientes','tareasCat','colaboradores','solicitudes','turnosProgramados','turnosHistorial','tareasActivas','historial','rutinas','plantillas','temaHSE','maestro','lineasTipo','lineasPlan','nombresLinea','lineas']
+  ['clientes','tareasCat','colaboradores','solicitudes','turnosProgramados','turnosHistorial','tareasActivas','historial','rutinas','plantillas','temaHSE','maestro','lineasTipo','lineasPlan','nombresLinea','lineas','causasParo']
     .forEach(k=>{ if(!Array.isArray(S[k])) S[k]=[]; });
   S.config=getConfig();
   migrarLineas();
@@ -1528,7 +1556,7 @@ function avisarUnaVez(key, titulo, cuerpo, data){
   try{ sessionStorage.setItem('ch_avisados',JSON.stringify([..._avisados].slice(-200))); }catch(e){}
   notificar(titulo,cuerpo,key,data);
 }
-const ACCION_AVISO={libre:'Asignar tarea',larga:'Ver tarea',pend:'Poner cantidad'};
+const ACCION_AVISO={libre:'Asignar tarea',larga:'Ver tarea',pend:'Poner cantidad',linea:'Ver línea'};
 // Las personas sin tarea se agrupan en una sola tarjeta; como máximo 3 tarjetas a la vez
 let _avisosVista=[];
 function pintarAvisosApp(){
@@ -1549,8 +1577,9 @@ function cerrarAviso(i){ quitarVista(i); }
 function tocarAviso(i){ const v=quitarVista(i); if(v) manejarAviso(v.data); }
 // Lleva a la acción de cada aviso (desde la tarjeta o desde la notificación del sistema)
 function manejarAviso(data){
-  if(!data||!data.accion||!S.turno) return;
-  setNav('supervisor');
+  if(!data||!data.accion) return;
+  if(data.accion!=='linea'&&!S.turno) return;
+  if(data.accion!=='linea') setNav('supervisor');
   if(data.accion==='libre'){
     const pids=(data.pids||[data.pid]).filter(id=>S.turno.equipo.some(c=>c.id===id)&&!actDe(id));
     if(!pids.length){ showToast('Ya tienen una actividad asignada','info'); return; }
@@ -1560,12 +1589,29 @@ function manejarAviso(data){
     _sel=new Set(t.colaboradores.map(c=>c.id)); pintarSel();
     document.querySelector(`.pc[data-pid="${t.colaboradores[0].id}"]`)?.scrollIntoView({behavior:'smooth',block:'center'});
     showToast('Si ya terminó, toca Terminar tarea; si cambió, Asignar tarea','info');
+  } else if(data.accion==='linea'){
+    if(!lineaDe(data.lid)){ showToast('Esa línea ya no está','info'); return; }
+    setNav('lineas'); abrirLinea(data.lid); return;
   } else if(data.accion==='pend'){
     const p=pendientes(); if(p.length) abrirCantidad({id:p[0].id}); else showToast('No quedan cantidades pendientes','info');
   }
 }
 // Mensajes del service worker (al tocar una notificación con la app abierta)
 if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',e=>{ if(e.data&&e.data.tipo==='aviso') manejarAviso(e.data.data); });
+// Líneas en marcha: paro de más de N min e insumo que alcanza para menos de 1 pallet (no depende del turno regular)
+function revisarAlertasLineas(){
+  if(IS_TV||!currentUser) return;
+  const lim=(getConfig().alertaParoMin||15)/60;
+  // Quita tarjetas de líneas que ya no aplican (aunque no haya turno regular abierto)
+  const n0=_avisosApp.length;
+  _avisosApp=_avisosApp.filter(a=>{ const d=a.data||{}; if(d.accion!=='linea') return true; const l=lineaDe(d.lid);
+    return !!l&&l.estado==='corriendo'&&(a.key.startsWith('paro|')?!!(l.paroActivo&&a.key==='paro|'+l.paroActivo.id):insumosPorAgotar(l).length>0); });
+  if(_avisosApp.length!==n0) pintarAvisosApp();
+  (S.lineas||[]).filter(l=>l.estado==='corriendo').forEach(l=>{
+    if(l.paroActivo&&paroDur(l.paroActivo)>=lim) avisarUnaVez('paro|'+l.paroActivo.id,'Línea en paro','Línea '+l.nombre+' lleva '+fmtH(paroDur(l.paroActivo))+' en paro: '+l.paroActivo.causa,{accion:'linea',lid:l.id});
+    insumosPorAgotar(l).forEach(i=>avisarUnaVez('insumo|'+l.id+'|'+i.id+'|'+entregado(i),'Insumo por agotarse','Línea '+l.nombre+': '+i.nombre+' alcanza para menos de 1 pallet',{accion:'linea',lid:l.id}));
+  });
+}
 // Revisa cada 30 s: personas sin tarea, tareas o pausas largas y cantidades pendientes al final de la jornada
 function revisarAlertas(){
   if(!S.turno||IS_TV||!currentUser) return;
@@ -1576,6 +1622,7 @@ function revisarAlertas(){
     if(d.accion==='libre') return !actDe(d.pid)&&libreDesde(d.pid)===d.desde;
     if(d.accion==='larga') return S.tareasActivas.some(t=>t.id===d.tid);
     if(d.accion==='pend') return pendientes().length>0;
+    if(d.accion==='linea'){ const l=lineaDe(d.lid); return !!l&&l.estado==='corriendo'&&(a.key.startsWith('paro|')?!!(l.paroActivo&&a.key==='paro|'+l.paroActivo.id):insumosPorAgotar(l).length>0); }
     return true; });
   if(_avisosApp.length!==antes) pintarAvisosApp();
   S.turno.equipo.forEach(c=>{ if(actDe(c.id)) return; const d=libreDesde(c.id), min=(now-d)/60000;
@@ -1660,7 +1707,7 @@ function hideModal(id){
 
 // ═══ CLOCK ═══
 let _tic=0;
-setInterval(()=>{ const v=document.getElementById('viewLineas'); if(v&&!v.classList.contains('hidden')&&document.getElementById('modalLinea').classList.contains('hidden')) renderLineas(); },30000);
+setInterval(()=>{ revisarAlertasLineas(); const v=document.getElementById('viewLineas'); if(v&&!v.classList.contains('hidden')&&document.getElementById('modalLinea').classList.contains('hidden')) renderLineas(); },30000);
 function startClock(){setInterval(()=>{if(!S.turno)return;document.getElementById('turnoReloj').textContent=msHMS(Date.now()-S.turno.inicio);updateBanner();updateTimers();if(++_tic%30===0)revisarAlertas();},1000);}
 const msHMS=ms=>{const s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return`${pad(h)}:${pad(m)}:${pad(sec)}`;};
 const msH=ms=>ms/3600000;
@@ -1790,6 +1837,7 @@ const lineasDeFecha=f=>(S.lineas||[]).filter(l=>l.fecha===f);
 // Hoy: las de la fecha de hoy y las que siguen en marcha de días anteriores
 const lineasHoy=()=>{ const h=hoyStr(); return (S.lineas||[]).filter(l=>l.fecha===h||l.estado==='corriendo').sort((a,b)=>({corriendo:0,pendiente:1,cerrada:2}[a.estado]-{corriendo:0,pendiente:1,cerrada:2}[b.estado])); };
 const fmtN=n=>(Math.round(n*10)/10).toLocaleString('es-PA');
+const horaHM=ts=>ts?new Date(ts).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit',hour12:false}):'';
 function etiquetaDia(f){
   if(f===hoyStr()) return 'Hoy'; if(f===fechaManana()) return 'Mañana';
   return new Date(f+'T12:00:00').toLocaleDateString('es-PA',{weekday:'short',day:'numeric',month:'short'}).replace('.','');
@@ -1798,7 +1846,8 @@ function cuadrilla(meta, prod, horas, apoyo){
   const pal=personasNecesarias(meta,prod,horas), ap=apoyoTotal(apoyo);
   return {pal,ap,total:pal+ap,texto:pal?`<b>${pal+ap} personas</b>: ${pal} que paletizan${ap?' + '+ap+' de apoyo ('+apoyo.filter(a=>+a.cant>0).map(a=>a.cant+' '+esc(a.nombre.toLowerCase())).join(', ')+')':''}`:''};
 }
-function datosDeTipo(t){ return {tipoId:t.id,nombre:t.nombre,clienteId:t.clienteId||null,cliente:(S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||'',prod:t.prod||0,apoyo:JSON.parse(JSON.stringify(t.apoyo||[]))}; }
+function datosDeTipo(t){ return {tipoId:t.id,nombre:t.nombre,clienteId:t.clienteId||null,cliente:(S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||'',prod:t.prod||0,apoyo:JSON.parse(JSON.stringify(t.apoyo||[])),
+  insumos:(t.insumos||[]).map(i=>({id:uid(),nombre:i.nombre,unidad:i.unidad||'unid',porPallet:+i.porPallet||0,entregas:[],sobrante:null}))}; }
 function nuevaLinea(t, meta, horas, fecha){
   fecha=fecha||hoyStr();
   return {id:uid(),fecha,...datosDeTipo(t),meta:+meta||0,horas:+horas||horasLinea(fecha),excel:null,estado:'pendiente',personas:[],inicio:null,fin:null,por:quien()};
@@ -1819,12 +1868,31 @@ function migrarLineas(){
   if(antes!==S.lineas.length) _lineasMigradas=true;
 }
 function ritmoLinea(l, now){
-  const h=l.inicio?Math.max(1/60,msH((l.fin||now||Date.now())-l.inicio)):0, tot=totalPallets(l), ritmo=h?tot/h:0;
-  const proy=l.estado==='corriendo'?Math.round(tot+ritmo*Math.max(0,l.horas-h)):tot;
-  const fin=l.fin||now||Date.now(), hp=pp=>pp.reduce((a,p)=>a+msH(fin-(p.desde||l.inicio)),0);
+  now=now||Date.now();
+  const h=l.inicio?Math.max(1/60,msH((l.fin||now)-l.inicio)):0, tot=totalPallets(l), ritmo=h?tot/h:0;
+  const paroH=horasParo(l,now), corriendoH=Math.max(1/60,h-paroH), ritmoEf=l.inicio?tot/corriendoH:0;
+  // Proyección: al ritmo con la línea corriendo, por las horas que faltan (sin contar un paro en curso)
+  const proy=l.estado==='corriendo'?Math.round(tot+ritmoEf*Math.max(0,l.horas-h)):tot;
+  const fin=l.fin||now, hp=pp=>pp.reduce((a,p)=>a+msH(fin-(p.desde||l.inicio)),0);
   const hPal=l.inicio?hp(paletizadores(l)):0, hTot=l.inicio?hp(l.personas):0;
-  return {h,tot,ritmo,proy,porPaletizador:hPal?tot/hPal:0,porPersona:hTot?tot/hTot:0,hPal,hTot};
+  return {h,tot,ritmo,ritmoEf,proy,paroH,disponibilidad:h?Math.max(0,(h-paroH)/h):1,porPaletizador:hPal?tot/hPal:0,porPersona:hTot?tot/hTot:0,hPal,hTot};
 }
+// ── Paros de línea
+const CAUSAS_PARO_INICIAL=['Falta de insumo','Falta de pallet o abastecimiento','Cambio de formato','Falla de equipo','Calidad o reproceso','Espera del cliente','Otro'];
+const causasParo=()=>(S.causasParo&&S.causasParo.length)?S.causasParo:CAUSAS_PARO_INICIAL;
+const paroDur=(p,now)=>msH((p.fin||now||Date.now())-p.inicio);
+function horasParo(l, now){ return (l.paros||[]).reduce((a,p)=>a+paroDur(p,now),0)+(l.paroActivo?paroDur(l.paroActivo,now):0); }
+function parosPorCausa(L, now){ const o={}; L.forEach(l=>[...(l.paros||[]),...(l.paroActivo?[l.paroActivo]:[])].forEach(p=>{ o[p.causa]=(o[p.causa]||0)+paroDur(p,now); })); return o; }
+// ── Insumos: esperado = pallets × estándar; consumo real = entregado − sobrante; alcanza para N pallets
+const entregado=i=>(i.entregas||[]).reduce((a,e)=>a+(+e.q||0),0);
+function estadoInsumo(i, l){
+  const pal=totalPallets(l), esp=pal*(+i.porPallet||0), ent=entregado(i), sob=i.sobrante==null||i.sobrante===''?null:+i.sobrante;
+  const real=sob==null?null:Math.max(0,ent-sob), dif=real==null?null:real-esp;
+  const alcanza=i.porPallet>0?Math.floor(Math.max(0,ent-esp)/i.porPallet):null;   // pallets que se pueden hacer con lo que queda en la línea
+  return {esp,ent,sob,real,dif,difPct:real!=null&&esp>0?dif/esp*100:null,alcanza};
+}
+// Insumos que alcanzan para menos de 1 pallet (y ya se entregaron alguna vez)
+const insumosPorAgotar=l=>l.estado==='corriendo'?(l.insumos||[]).filter(i=>i.porPallet>0&&(i.entregas||[]).length&&estadoInsumo(i,l).alcanza<1):[];
 // Horas de operadores del maestro registradas como apoyo a la línea (abastecimiento, montacargas…)
 function apoyoOperadores(lineaId){
   const regs=[...S.turnosHistorial.flatMap(t=>t.historial||[]),...(S.historial||[]),...(S.tareasActivas||[])].filter(t=>t.lineaId===lineaId);
@@ -1839,11 +1907,13 @@ function htmlBloques(L, vacio){
     const r=ritmoLinea(l), pct=l.meta?Math.min(100,r.tot/l.meta*100):0, nP=paletizadores(l).length, nA=deApoyo(l).length;
     const est={pendiente:['ba','Por arrancar'],corriendo:['bg','En marcha'],cerrada:['bgy','Cerrada']}[l.estado];
     const c=cuadrilla(l.meta,l.prod,l.horas,l.apoyo);
+    const agota=insumosPorAgotar(l);
     const sub=l.estado==='pendiente'?`Meta ${l.meta} pallets · se necesitan ${c.total} personas`
-      :l.estado==='corriendo'?`${fmtN(r.ritmo)} pallets/h · a este ritmo cierras en <b>${r.proy}</b> de ${l.meta}`
-      :`Cumplimiento ${l.meta?Math.round(r.tot/l.meta*100):0}%`;
-    return `<div class="lb lb-${l.estado}" onclick="abrirLinea('${l.id}')">
-      <div class="lb-top"><span class="lb-name">Línea ${esc(l.nombre)}</span><span class="badge ${est[0]}">${est[1]}</span></div>
+      :l.paroActivo?`<b style="color:var(--red-t)">Paro: ${esc(l.paroActivo.causa)} · ${fmtH(paroDur(l.paroActivo))}</b>`
+      :l.estado==='corriendo'?`${fmtN(r.ritmo)} pallets/h · a este ritmo cierras en <b>${r.proy}</b> de ${l.meta}${agota.length?` · <b style="color:var(--amber)">por agotarse: ${agota.map(i=>esc(i.nombre.toLowerCase())).join(', ')}</b>`:''}`
+      :`Cumplimiento ${l.meta?Math.round(r.tot/l.meta*100):0}%${r.paroH>0.01?' · paros '+fmtH(r.paroH):''}`;
+    return `<div class="lb lb-${l.paroActivo?'paro':l.estado}" onclick="abrirLinea('${l.id}')">
+      <div class="lb-top"><span class="lb-name">Línea ${esc(l.nombre)}</span><span class="badge ${l.paroActivo?'br':est[0]}">${l.paroActivo?'En paro':est[1]}</span></div>
       <div class="lb-cli">${esc(l.cliente||'')}${nP+nA?` · ${nP} paletizan${nA?' · '+nA+' apoyo':''}`:''}${l.fecha!==hoyStr()?' · desde '+etiquetaDia(l.fecha).toLowerCase():''}${l.responsable?' · '+esc(l.responsable):''}</div>
       <div class="lb-num"><b>${r.tot}</b> / ${l.meta} pallets</div>
       <div class="pbar-wrap"><div class="pbar-fill ${pct>=100||r.proy>=l.meta?'pg':'pa'}" style="width:${pct}%"></div></div>
@@ -1903,9 +1973,16 @@ function renderLineaModal(foco){
     <button class="btn btn-ghost btn-sm" style="align-self:center" onclick="eliminarLinea()">Quitar esta línea</button>`;
   } else {
     const pct=l.meta?Math.round(r.tot/l.meta*100):0;
+    if(l.estado==='corriendo') h+=l.paroActivo
+      ?`<div class="paro-on"><div><b>En paro</b> · ${esc(l.paroActivo.causa)}${l.paroActivo.nota?' · '+esc(l.paroActivo.nota):''}<small>desde ${horaHM(l.paroActivo.inicio)} · ${fmtH(paroDur(l.paroActivo))}</small></div><button class="btn btn-green" onclick="reanudarLinea()">Reanudar</button></div>`
+      :_paroPick?`<div class="paro-pick"><div class="asig-ttl">Causa del paro</div><div class="chip-wrap">${causasParo().map((c,i)=>`<div class="chip" onclick="iniciarParo(${i})">${esc(c)}</div>`).join('')}</div>
+          <input type="text" id="paroNota" placeholder="Nota (opcional)"><button class="btn btn-ghost btn-sm" style="align-self:flex-start" onclick="_paroPick=false;renderLineaModal()">Cancelar</button></div>`
+      :`<button class="btn btn-amber btn-full" onclick="_paroPick=true;renderLineaModal()">Registrar paro</button>`;
+    const agota=insumosPorAgotar(l);
+    if(agota.length) h+=`<div class="warn-box">Por agotarse: ${agota.map(i=>esc(i.nombre)+' (alcanza para '+Math.max(0,estadoInsumo(i,l).alcanza)+' pallet'+(estadoInsumo(i,l).alcanza===1?'':'s')+')').join(' · ')}. Pide la entrega antes de que pare la línea.</div>`;
     h+=`<div class="stat-row">
       <div class="stat-card"><div class="stat-label">Pallets</div><div class="stat-val">${r.tot} <span style="font-size:.9rem;color:var(--t3)">/ ${l.meta}</span></div><div class="stat-sub">${pct}% de la meta</div></div>
-      <div class="stat-card"><div class="stat-label">Ritmo</div><div class="stat-val">${fmtN(r.ritmo)}</div><div class="stat-sub">pallets/h · ${fmtH(r.h)}</div></div>
+      <div class="stat-card"><div class="stat-label">Ritmo</div><div class="stat-val">${fmtN(r.ritmo)}</div><div class="stat-sub">pallets/h · ${fmtH(r.h)}${r.paroH>0.01?' · '+Math.round(r.disponibilidad*100)+'% corriendo':''}</div></div>
       <div class="stat-card"><div class="stat-label">${l.estado==='corriendo'?'Proyección':'Cuadrilla'}</div><div class="stat-val ${l.estado==='corriendo'?(r.proy>=l.meta?'g':'a'):''}">${l.estado==='corriendo'?r.proy:l.personas.length}</div><div class="stat-sub">${l.estado==='corriendo'?'al cierre':'personas'}</div></div></div>
     <div class="li-sub">${P.length} paletizan · ${A.length} de apoyo · ${fmtN(r.porPaletizador)} pallets por paletizador-hora · ${fmtN(r.porPersona)} por persona-hora de la cuadrilla${l.responsable?' · a cargo: '+esc(l.responsable):''}</div>
     ${(()=>{ const op=apoyoOperadores(l.id); return op.total?`<div class="info-box">Apoyo de operadores: <b>${fmtN(op.total)} h-persona</b> · ${op.personas.map(o=>esc(o.nombre.split(' ')[0])+' '+fmtN(o.h)+' h ('+[...o.tareas].map(esc).join(', ')+')').join(' · ')}</div>`:''; })()}
@@ -1916,6 +1993,7 @@ function renderLineaModal(foco){
         <span class="lp-cnt">${n}</span>
         ${l.estado==='corriendo'?`<button class="btn btn-green" onclick="sumarPallet('${p.id}',1)">+1 pallet</button>`:''}</div>`; }).join('')||'<div class="empty-text">Nadie paletiza todavía.</div>';
     if(A.length) h+=`<div class="asig-ttl">Apoyo</div><div class="chip-wrap">${chipsApoyo}</div>`;
+    h+=htmlInsumosLinea(l)+htmlParosLinea(l);
     if(l.estado==='corriendo') h+=`<div class="field"><label>Se suma alguien a la línea</label>${agregar}</div>
       <button class="btn btn-indigo btn-full" onclick="cerrarLinea()">Cerrar línea</button>`;
   }
@@ -1955,9 +2033,52 @@ async function sumarPallet(pid, n){
   if(n>0) p.pallets.push(Date.now()); else if(p.pallets.length) p.pallets.pop();
   renderLineaModal(); renderLineas(); await save();
 }
+// Paros: la línea queda «en paro» con su causa hasta que se reanuda
+let _paroPick=false;
+async function iniciarParo(i){
+  const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='corriendo'||l.paroActivo) return;
+  l.paroActivo={id:uid(),causa:causasParo()[i],nota:(document.getElementById('paroNota')?.value||'').trim(),inicio:Date.now(),por:quien()};
+  _paroPick=false; renderLineaModal(); renderLineas(); await save(); showToast('Línea en paro: '+l.paroActivo.causa);
+}
+function terminarParo(l, ts){ if(!l.paroActivo) return; l.paros=l.paros||[]; l.paros.push({...l.paroActivo,fin:Math.max(ts,l.paroActivo.inicio),porFin:quien()}); l.paroActivo=null; }
+async function reanudarLinea(){
+  const l=lineaDe(_lineaAbierta); if(!l||!l.paroActivo) return;
+  const min=Math.round(paroDur(l.paroActivo)*60); terminarParo(l,Date.now());
+  renderLineaModal(); renderLineas(); await save(); showToast('Línea reanudada · paro de '+min+' min');
+}
+function htmlParosLinea(l){
+  const P=l.paros||[]; if(!P.length&&!l.paroActivo) return '';
+  const tot=horasParo(l), pc=parosPorCausa([l]);
+  return `<div class="asig-ttl">Paros · ${fmtH(tot)}</div><div class="li-sub">${Object.entries(pc).sort((a,b)=>b[1]-a[1]).map(([c,hh])=>'<b>'+esc(c)+'</b> '+fmtH(hh)).join(' · ')}</div>`+
+    P.slice().reverse().map(p=>`<div class="mini-row"><span>${horaHM(p.inicio)}–${horaHM(p.fin)} · ${esc(p.causa)}${p.nota?' · '+esc(p.nota):''}</span><span>${Math.round(paroDur(p)*60)} min</span></div>`).join('');
+}
+// Insumos: entregas a la línea y sobrante al final
+function htmlInsumosLinea(l){
+  const I=l.insumos||[]; if(!I.length) return '';
+  const abierta=l.estado==='corriendo';
+  return `<div class="asig-ttl">Insumos</div>`+I.map(i=>{ const e=estadoInsumo(i,l);
+    return `<div class="ins-row"><div class="ins-name">${esc(i.nombre)}<small>${i.porPallet} ${esc(i.unidad)} por pallet</small></div>
+      <div class="ins-nums"><span>Esperado <b>${fmtN(e.esp)}</b></span><span>Entregado <b>${fmtN(e.ent)}</b></span>
+      ${e.real!=null?`<span>Consumo <b>${fmtN(e.real)}</b></span><span>Diferencia <b style="color:${Math.abs(e.difPct||0)<=3?'var(--green)':'var(--amber)'}">${e.dif>0?'+':''}${fmtN(e.dif)}${e.difPct!=null?' ('+(e.difPct>0?'+':'')+Math.round(e.difPct)+'%)':''}</b></span>`
+        :(abierta&&e.alcanza!=null&&(i.entregas||[]).length?`<span>Alcanza para <b style="color:${e.alcanza<1?'var(--red-t)':e.alcanza<3?'var(--amber)':'var(--green)'}">${e.alcanza} pallet${e.alcanza===1?'':'s'}</b></span>`:'')}</div>
+      <div class="ins-act">${abierta?`<input type="number" min="0" step="any" inputmode="decimal" id="insQ_${i.id}" placeholder="Cant."><button class="btn btn-ghost btn-sm" onclick="entregarInsumo('${i.id}')">+ Entrega</button>`:''}
+        <input type="number" min="0" step="any" inputmode="decimal" id="insS_${i.id}" placeholder="Sobrante" value="${e.sob??''}" onchange="guardarSobrante('${i.id}',this.value)" title="Lo que sobró al final"></div></div>`; }).join('');
+}
+async function entregarInsumo(iid){
+  const l=lineaDe(_lineaAbierta), i=l&&(l.insumos||[]).find(x=>x.id===iid), inp=document.getElementById('insQ_'+iid); if(!i||!inp) return;
+  const q=+inp.value; if(!(q>0)){ showToast('Pon la cantidad entregada','error'); return; }
+  i.entregas=i.entregas||[]; i.entregas.push({q,ts:Date.now(),por:quien()});
+  renderLineaModal(); renderLineas(); await save(); showToast(i.nombre+': +'+fmtN(q)+' '+i.unidad);
+}
+async function guardarSobrante(iid, v){
+  const l=lineaDe(_lineaAbierta), i=l&&(l.insumos||[]).find(x=>x.id===iid); if(!i) return;
+  i.sobrante=v===''?null:Math.max(0,+v); renderLineaModal(); await save();
+}
 async function cerrarLinea(){
   const l=lineaDe(_lineaAbierta); if(!l) return;
-  if(!confirm('¿Cerrar la línea '+l.nombre+' con '+totalPallets(l)+' de '+l.meta+' pallets?')) return;
+  const sinSob=(l.insumos||[]).filter(i=>(i.entregas||[]).length&&(i.sobrante==null||i.sobrante===''));
+  if(!confirm('¿Cerrar la línea '+l.nombre+' con '+totalPallets(l)+' de '+l.meta+' pallets?'+(l.paroActivo?'\nEl paro en curso se cerrará ahora.':'')+(sinSob.length?'\nFalta el sobrante de: '+sinSob.map(i=>i.nombre).join(', ')+' (puedes ponerlo después).':''))) return;
+  terminarParo(l,Date.now());
   l.estado='cerrada'; l.fin=Date.now(); l.porFin=quien();
   renderLineaModal(); renderLineas(); await save(); showToast('Línea cerrada');
 }
@@ -2019,7 +2140,14 @@ function openModalTipoLinea(id){
   document.getElementById('tlNombre').value=t.nombre||''; document.getElementById('tlProd').value=t.prod??'';
   document.getElementById('tlCliente').innerHTML='<option value="">— Sin cliente —</option>'+S.clientes.map(c=>`<option value="${c.id}"${c.id===t.clienteId?' selected':''}>${esc(c.nombre)}</option>`).join('');
   document.getElementById('tlApoyo').innerHTML=''; (id?(t.apoyo||[]):APOYO_INICIAL).forEach(a=>addPuestoApoyo(a.nombre,a.cant));
+  document.getElementById('tlInsumos').innerHTML=''; (id?(t.insumos||[]):INSUMOS_INICIAL).forEach(i=>addInsumoTipo(i.nombre,i.unidad,i.porPallet));
   renderTlExcel(t.excel); showModal('modalTipoLinea');
+}
+const INSUMOS_INICIAL=[{nombre:'Cajas',unidad:'unid',porPallet:0},{nombre:'Bandejas',unidad:'unid',porPallet:0},{nombre:'Etiquetas',unidad:'unid',porPallet:0},{nombre:'Stretch',unidad:'rollo',porPallet:0}];
+function addInsumoTipo(nombre, unidad, porPallet){
+  const d=document.createElement('div'); d.className='edit-row';
+  d.innerHTML=`<input type="text" placeholder="Insumo (ej. Cajas)" value="${esc(nombre||'')}"><input type="text" style="max-width:80px" placeholder="Unidad" value="${esc(unidad||'unid')}"><input type="number" min="0" step="any" style="max-width:100px" placeholder="Por pallet" value="${porPallet||''}" title="Consumo estándar por pallet"><button class="btn btn-red btn-sm" onclick="this.parentNode.remove()" aria-label="Quitar insumo">×</button>`;
+  document.getElementById('tlInsumos').appendChild(d);
 }
 function addPuestoApoyo(nombre, cant){
   const d=document.createElement('div'); d.className='edit-row';
@@ -2036,10 +2164,18 @@ async function guardarTipoLinea(){
   const nombre=document.getElementById('tlNombre').value.trim(), prod=+document.getElementById('tlProd').value;
   if(!nombre||!(prod>0)){ showToast('Pon el nombre y la productividad','error'); return; }
   const apoyo=[...document.querySelectorAll('#tlApoyo .edit-row')].map(r=>{ const [n,c]=r.querySelectorAll('input'); return {nombre:n.value.trim(),cant:Math.max(0,Math.round(+c.value||0))}; }).filter(a=>a.nombre);
-  const d={nombre,prod,apoyo,clienteId:document.getElementById('tlCliente').value||null,excel:document.getElementById('tlExcel').value||null};
+  const insumos=[...document.querySelectorAll('#tlInsumos .edit-row')].map(r=>{ const [n,u,q]=r.querySelectorAll('input'); return {nombre:n.value.trim(),unidad:u.value.trim()||'unid',porPallet:Math.max(0,+q.value||0)}; }).filter(i=>i.nombre&&i.porPallet>0);
+  const d={nombre,prod,apoyo,insumos,clienteId:document.getElementById('tlCliente').value||null,excel:document.getElementById('tlExcel').value||null};
   S.lineasTipo=S.lineasTipo||[];
   if(_tipoEdit) Object.assign(tipoLinea(_tipoEdit),d); else S.lineasTipo.push({id:uid(),...d});
   hideModal('modalTipoLinea'); renderInsights(); renderAll(); await save(); showToast('Tipo de línea guardado');
+}
+function openModalCausas(){ document.getElementById('causasLista').innerHTML=''; causasParo().forEach(addCausa); showModal('modalCausas'); }
+function addCausa(c){ const d=document.createElement('div'); d.className='edit-row'; d.innerHTML=`<input type="text" placeholder="Causa (ej. Falta de insumo)" value="${esc(c||'')}"><button class="btn btn-red btn-sm" onclick="this.parentNode.remove()" aria-label="Quitar causa">×</button>`; document.getElementById('causasLista').appendChild(d); }
+async function guardarCausas(){
+  const L=[...document.querySelectorAll('#causasLista input')].map(i=>i.value.trim()).filter(Boolean);
+  if(!L.length){ showToast('Deja al menos una causa','error'); return; }
+  S.causasParo=[...new Set(L)]; hideModal('modalCausas'); renderInsights(); await save(); showToast('Causas de paro guardadas');
 }
 async function eliminarTipoLinea(id){ if(!confirm('¿Eliminar este tipo de línea? Lo ya registrado se conserva.')) return; S.lineasTipo=S.lineasTipo.filter(t=>t.id!==id); renderInsights(); await save(); }
 // Insights: tipos y resultados de las líneas
@@ -2056,6 +2192,18 @@ function buildLineasSection(){
       Object.entries(por).map(([n,o])=>`<tr><td>${esc(n)}</td><td>${o.n}</td><td>${o.pal}</td><td>${o.meta}</td><td><b style="color:${o.pal>=o.meta?'var(--green)':'var(--amber)'}">${o.meta?Math.round(o.pal/o.meta*100):0}%</b></td><td>${fmtN(o.pers/o.n)}</td><td>${o.hPal?fmtN(o.pal/o.hPal):'—'}</td><td>${o.hTot?fmtN(o.pal/o.hTot):'—'}</td><td>${fmtN(o.hOp)}</td></tr>`).join('')+`</table>
       <div class="li-sub">Horas operadores: horas-persona de tareas del turno regular marcadas como apoyo a la línea (abastecimiento, montacargas…).</div>`;
   }
+  // Causas de paro (configurables) y paros por causa
+  h+=`<div class="sub-ttl" style="margin-top:6px">Causas de paro</div><div class="list-item"><div class="li-info"><div class="li-sub">${causasParo().map(esc).join(' · ')}</div></div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalCausas()">Editar</button></div></div>`;
+  const pc=Object.entries(parosPorCausa(L)).sort((a,b)=>b[1]-a[1]);
+  if(pc.length){ const tot=pc.reduce((a,x)=>a+x[1],0);
+    h+=`<table class="rt-table"><tr><th>Causa de paro</th><th>Horas</th><th>%</th></tr>`+pc.map(([c,hh])=>`<tr><td>${esc(c)}</td><td>${fmtN(hh)}</td><td><div style="display:flex;align-items:center;gap:6px"><div class="pbar-wrap" style="flex:1"><div class="pbar-fill pa" style="width:${hh/tot*100}%"></div></div>${Math.round(hh/tot*100)}%</div></td></tr>`).join('')+`</table>`; }
+  // Insumos: esperado contra consumo real (líneas cerradas con sobrante)
+  const ins={}; L.forEach(l=>(l.insumos||[]).forEach(i=>{ const e=estadoInsumo(i,l), k=l.nombre+' · '+i.nombre, o=ins[k]||(ins[k]={u:i.unidad,esp:0,ent:0,real:0,espR:0});
+    o.esp+=e.esp; o.ent+=e.ent; if(e.real!=null){ o.real+=e.real; o.espR+=e.esp; } }));
+  const ik=Object.entries(ins).filter(([,o])=>o.ent>0);
+  if(ik.length) h+=`<table class="rt-table"><tr><th>Insumo</th><th>Esperado</th><th>Entregado</th><th>Consumo real</th><th>Diferencia</th></tr>`+ik.map(([k,o])=>{ const d=o.espR?(o.real-o.espR)/o.espR*100:null;
+    return `<tr><td>${esc(k)}</td><td>${fmtN(o.esp)} ${esc(o.u)}</td><td>${fmtN(o.ent)}</td><td>${o.espR?fmtN(o.real):'—'}</td><td>${d==null?'Sin sobrante':`<b style="color:${Math.abs(d)<=3?'var(--green)':'var(--amber)'}">${d>0?'+':''}${Math.round(d)}%</b>`}</td></tr>`; }).join('')+`</table>
+    <div class="li-sub">Consumo real = entregado − sobrante. Diferencia frente a lo esperado (pallets × consumo por pallet): positivo = merma o exceso.</div>`;
   return h+`</div></div>`;
 }
 
@@ -2822,16 +2970,24 @@ function exportExcel(turnoId){
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(opRows),'Costos por Colaborador');
 
   // Líneas de producción: control de cantidades
-  const linRows=[['Fecha','Línea','Cliente','Actividad en Excel','Meta (pallets)','Pallets','Cumplimiento (%)','Personas','Paletizan','Apoyo','Horas línea','Pallets por paletizador-hora','Pallets por persona-hora','Productividad objetivo','Horas operadores de apoyo','Responsable','Inicio','Fin','Estado']];
+  const linRows=[['Fecha','Línea','Cliente','Actividad en Excel','Meta (pallets)','Pallets','Cumplimiento (%)','Personas','Paletizan','Apoyo','Horas línea','Pallets por paletizador-hora','Pallets por persona-hora','Productividad objetivo','Horas operadores de apoyo','Minutos en paro','Disponibilidad (%)','Responsable','Inicio','Fin','Estado']];
   const perRows=[['Fecha','Línea','Cliente','Persona','Puesto','Pallets','Horas','Pallets por hora','Objetivo (pallets/h)']];
   const fechasT=new Set(turnos.map(t=>t.fecha));
   (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(!turnoId||fechasT.has(l.fecha))).forEach(l=>{ const t={fecha:l.fecha};
     const r=ritmoLinea(l), fin=l.fin||Date.now();
-    linRows.push([t.fecha,l.nombre,l.cliente||'',(l.excel||{}).actividad||'',l.meta,r.tot,l.meta?Math.round(r.tot/l.meta*100):'',l.personas.length,paletizadores(l).length,deApoyo(l).length,r2(r.h),r.hPal?r2(r.porPaletizador):'',r.hTot?r2(r.porPersona):'',l.prod||'',r2(apoyoOperadores(l.id).total),l.responsable||'',hora(l.inicio),l.fin?hora(l.fin):'En marcha',l.estado==='cerrada'?'Cerrada':'En marcha']);
+    linRows.push([t.fecha,l.nombre,l.cliente||'',(l.excel||{}).actividad||'',l.meta,r.tot,l.meta?Math.round(r.tot/l.meta*100):'',l.personas.length,paletizadores(l).length,deApoyo(l).length,r2(r.h),r.hPal?r2(r.porPaletizador):'',r.hTot?r2(r.porPersona):'',l.prod||'',r2(apoyoOperadores(l.id).total),Math.round(r.paroH*60),Math.round(r.disponibilidad*100),l.responsable||'',hora(l.inicio),l.fin?hora(l.fin):'En marcha',l.estado==='cerrada'?'Cerrada':'En marcha']);
     l.personas.forEach(p=>{ const h=msH(fin-(p.desde||l.inicio)), pal=(p.puesto||PALETIZA)===PALETIZA; perRows.push([t.fecha,l.nombre,l.cliente||'',p.nombre,pal?'Paletiza':p.puesto,pal?p.pallets.length:'',r2(h),pal&&h?r2(p.pallets.length/h):'',pal?(l.prod||''):'']); });
   });
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(linRows),'Líneas de producción');
+  const parRows=[['Fecha','Línea','Causa','Inicio','Fin','Minutos','Nota','Registrado por']];
+  const insRows=[['Fecha','Línea','Insumo','Unidad','Consumo por pallet','Pallets','Esperado','Entregado','Sobrante','Consumo real','Diferencia','Diferencia (%)']];
+  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(!turnoId||fechasT.has(l.fecha))).forEach(l=>{
+    [...(l.paros||[]),...(l.paroActivo?[l.paroActivo]:[])].forEach(p=>parRows.push([l.fecha,l.nombre,p.causa,hora(p.inicio),p.fin?hora(p.fin):'En curso',Math.round(paroDur(p)*60),p.nota||'',p.por||'']));
+    (l.insumos||[]).forEach(i=>{ const e=estadoInsumo(i,l); insRows.push([l.fecha,l.nombre,i.nombre,i.unidad,i.porPallet,totalPallets(l),r2(e.esp),r2(e.ent),e.sob??'',e.real==null?'':r2(e.real),e.dif==null?'':r2(e.dif),e.difPct==null?'':Math.round(e.difPct)]); });
+  });
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(perRows),'Pallets por persona');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(parRows),'Paros de línea');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(insRows),'Insumos de línea');
 
   XLSX.writeFile(wb,turnoId?`Turno_${turnos[0]?.fecha||'N/A'}.xlsx`:`Control_Horas_DPWorld_${fechaLocal(new Date())}.xlsx`);
 }
@@ -2839,7 +2995,7 @@ function exportExcel(turnoId){
 // ═══ CONFIG ═══
 const CFG_FIELDS=[['cfgHoraInicio','horaInicio','t'],['cfgHoraFin','horaFin','t'],['cfgAlmuerzo','horasAlmuerzo'],['cfgMultSobre','multSobretiempo'],
   ['cfgHorasSab','horasSabado'],['cfgMultSab','multSabado'],['cfgHorasDom','horasDomingo'],['cfgMultDom','multDomingo'],
-  ['cfgTarOp','tarifaOperador'],['cfgTarAG','tarifaAG'],['cfgFactor','factorCarga'],['cfgAlLibre','alertaLibreMin'],['cfgAlTarea','alertaTareaH']];
+  ['cfgTarOp','tarifaOperador'],['cfgTarAG','tarifaAG'],['cfgFactor','factorCarga'],['cfgAlLibre','alertaLibreMin'],['cfgAlTarea','alertaTareaH'],['cfgAlParo','alertaParoMin']];
 function openConfig(){
   const cfg=getConfig();
   CFG_FIELDS.forEach(([id,k])=>{const el=document.getElementById(id);el.value=cfg[k];el.oninput=updateCfgResumen;});
@@ -3014,7 +3170,7 @@ function renderInsights(){
 
   // Exportar
   h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sExp','cExp')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Exportar Reportería</span></div><span class="chevron open" id="cExp">▼</span></div><div class="sec-body" id="sExp">
-    <div class="info-box">Excel con 7 hojas: Detalle Tareas, Resumen Turnos, Costos por Cliente, Eficiencia por Tarea, Costos por Colaborador, Líneas de producción y Pallets por persona.</div>
+    <div class="info-box">Excel con 9 hojas: Detalle Tareas, Resumen Turnos, Costos por Cliente, Eficiencia por Tarea, Costos por Colaborador, Líneas de producción, Pallets por persona, Paros de línea e Insumos de línea.</div>
     <button class="btn btn-green btn-full" onclick="exportExcel(null)">Descargar Excel Completo</button>
   </div></div>`;
 
@@ -3270,20 +3426,24 @@ function tvLineasBody(){
     const restanH=Math.max(0,l.horas-r.h), necesario=l.estado==='corriendo'&&restanH>0?Math.max(0,l.meta-r.tot)/restanH:null;
     const ultimo=Math.max(0,...l.personas.flatMap(p=>p.pallets||[]));
     const vaBien=r.proy>=l.meta;
-    const estado={pendiente:['tv-ba','Por arrancar'],corriendo:[vaBien?'tv-bg':'tv-ba',vaBien?'En meta':'Bajo el ritmo'],cerrada:['tv-bgy','Cerrada']}[l.estado];
+    const estado=l.paroActivo?['tv-br','En paro']:{pendiente:['tv-ba','Por arrancar'],corriendo:[vaBien?'tv-bg':'tv-ba',vaBien?'En meta':'Bajo el ritmo'],cerrada:['tv-bgy','Cerrada']}[l.estado];
+    const agota=insumosPorAgotar(l);
     const rank=P.map(p=>({n:p.nombre,c:(p.pallets||[]).length,rt:(p.pallets||[]).length/Math.max(1/60,msH((l.fin||now)-(p.desde||l.inicio||now)))})).sort((a,b)=>b.c-a.c);
     if(l.estado==='pendiente'){ const c=cuadrilla(l.meta,l.prod,l.horas,l.apoyo);
       return `<div class="tvl"><div class="tvl-top"><div><div class="tvl-name">Línea ${esc(l.nombre)}</div><div class="tvl-cli">${esc(l.cliente||'')}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
         <div class="tvl-big"><b>0</b><span>/ ${l.meta} pallets</span></div><div class="tvl-sub">Meta del día ${l.meta} pallets · cuadrilla de ${c.total} personas (${c.pal} paletizan${c.ap?' + '+c.ap+' apoyo':''})</div></div>`; }
     return `<div class="tvl tvl-${l.estado}">
       <div class="tvl-top"><div><div class="tvl-name">Línea ${esc(l.nombre)}</div><div class="tvl-cli">${esc(l.cliente||'')} · ${P.length} paletizan${A.length?' · '+A.length+' apoyo':''}${l.responsable?' · '+esc(l.responsable):''}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
+      ${l.paroActivo?`<div class="tvl-paro">EN PARO · ${esc(l.paroActivo.causa)}<span>${fmtH(paroDur(l.paroActivo,now))}</span></div>`:''}
+      ${agota.length?`<div class="tvl-agota">Por agotarse: ${agota.map(i=>esc(i.nombre)+' (alcanza para '+Math.max(0,estadoInsumo(i,l).alcanza)+')').join(' · ')}</div>`:''}
       <div class="tvl-big"><b>${r.tot}</b><span>/ ${l.meta} pallets</span><em>${Math.round(pct)}%</em></div>
       <div class="tvl-bar"><div class="tvl-fill" style="width:${pct}%;background:${vaBien||l.estado==='cerrada'?'var(--green)':'var(--amber)'}"></div>${esperado!=null?`<div class="tvl-mark" style="left:${esperado}%" title="Dónde debería ir a esta hora"></div>`:''}</div>
       <div class="tvl-stats">
         <div><span>Ritmo actual</span><b>${fmtN(r.ritmo)}</b><small>pallets/h</small></div>
         ${l.estado==='corriendo'?`<div><span>Ritmo necesario</span><b class="${necesario!=null&&r.ritmo<necesario?'a':'g'}">${necesario!=null?fmtN(necesario):'—'}</b><small>pallets/h para la meta</small></div>
         <div><span>Proyección</span><b class="${vaBien?'g':'a'}">${r.proy}</b><small>al cierre</small></div>
-        <div><span>Último pallet</span><b>${ultimo?fmtH(msH(now-ultimo)).replace(' min','′'):'—'}</b><small>${ultimo?'atrás':''}</small></div>`
+        <div><span>Último pallet</span><b>${ultimo?fmtH(msH(now-ultimo)).replace(' min','′'):'—'}</b><small>${ultimo?'atrás':''}</small></div>
+        <div><span>En paro hoy</span><b class="${r.paroH>0.25?'a':''}">${Math.round(r.paroH*60)}′</b><small>${Math.round(r.disponibilidad*100)}% corriendo</small></div>`
         :`<div><span>Duración</span><b>${fmtH(r.h)}</b><small></small></div><div><span>Por paletizador</span><b>${fmtN(r.porPaletizador)}</b><small>pallets/h</small></div>`}
       </div>
       ${rank.length?`<div class="tvl-rank">${rank.slice(0,6).map((x,i)=>`<div><span>${i+1}</span>${esc(x.n.split(' ')[0])} <b>${x.c}</b><small style="color:${!l.prod||x.rt>=l.prod?'var(--green)':'var(--amber)'}">${fmtN(x.rt)}/h</small></div>`).join('')}</div>`:''}
