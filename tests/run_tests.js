@@ -227,58 +227,61 @@ async function newPage(browser, opts = {}) {
   const x2 = await page.evaluate(() => window.__xlsx.w.s.slice(-7).map(s => s[1][0]));
   ok(x2[0].includes('Tipo de tiempo') && x2[1].includes('Horas sin registrar') && x2[4].includes('% productivo'), 'Excel: columnas de tiempos y nombre en Excel');
 
-  // 9e) Líneas de producción: personas fuera del maestro, meta diaria, pallets por persona y costo por pallet
+  // 9e) Líneas de producción: control de cantidades; nombres fuera del maestro; paletizan + apoyo; planificar cualquier día
   const ln = await page.evaluate(async () => {
     const r = {};
-    S.lineasTipo = [{ id: 'lt1', nombre: 'Inserto botella', clienteId: 'k1', prod: 0.5, costoPallet: 12, excel: null }];
-    r.calc = personasNecesarias(40, 0.5, 8) === 10 && metaPosible(6, 0.5, 8) === 24;
-    // planificar para mañana: no aparece hoy
-    abrirPlanLinea(fechaManana()); document.getElementById('plTipo').value = 'lt1'; document.getElementById('plMeta').value = '40'; calcPlanLinea();
-    r.calcTxt = /10 personas/.test(document.getElementById('plCalc').textContent);
+    S.lineasTipo = [{ id: 'lt1', nombre: 'Inserto botella', clienteId: 'k1', prod: 0.5, apoyo: [{ nombre: 'Armado de cajas', cant: 2 }, { nombre: 'Etiquetado', cant: 1 }], excel: null }];
+    const c = cuadrilla(40, 0.5, 8, S.lineasTipo[0].apoyo);
+    r.calc = c.pal === 10 && c.ap === 3 && c.total === 13;
+    // planificar el jueves de la semana próxima (cualquier día): no aparece hoy
+    const d = new Date(); d.setDate(d.getDate() + 6); const otroDia = fechaLocal(d);
+    abrirPlanLinea(fechaManana()); r.chips = document.querySelectorAll('#plDias .chip').length === 7;
+    setPlanFecha(otroDia); document.getElementById('plTipo').value = 'lt1'; document.getElementById('plMeta').value = '40'; calcPlanLinea();
+    r.calcTxt = /13 personas/.test(document.getElementById('plCalc').textContent) && /10 que paletizan/.test(document.getElementById('plCalc').textContent);
+    document.getElementById('plPersonas').value = '11'; calcPlanLinea();
+    r.inversa = /8 paletizan\) alcanzas 32 pallets/.test(document.getElementById('plCalc').textContent);
     await guardarPlanLinea();
-    r.manana = (S.turno.lineas || []).length === 0 && S.lineasPlan.length === 1;
+    r.otroDia = (S.turno.lineas || []).length === 0 && S.lineasPlan.some(p => p.fecha === otroDia) && /Planificadas/.test(document.getElementById('lineasPlanTurno').innerHTML);
     // agregar una para hoy: aparece en el tablero
-    abrirPlanLinea(S.turno.fecha); document.getElementById('plTipo').value = 'lt1'; document.getElementById('plMeta').value = '20'; document.getElementById('plHoras').value = '8';
+    abrirPlanLinea(S.turno.fecha); setPlanFecha(S.turno.fecha); document.getElementById('plTipo').value = 'lt1'; document.getElementById('plMeta').value = '20'; document.getElementById('plHoras').value = '8';
     await guardarPlanLinea();
     const l = S.turno.lineas[0]; r.hoy = !!l && l.estado === 'pendiente' && document.querySelectorAll('#lineasList .lb').length === 1;
-    // abrir, escribir nombres (no están en el maestro) y arrancar
+    // nombres escritos (no están en el maestro), con su puesto
     abrirLinea(l.id);
-    for (const n of ['Pedro Temporal', 'María Externa', 'pedro temporal']) { document.getElementById('lmNombre').value = n; await agregarPersonaLinea(); }
-    r.nombres = l.personas.map(p => p.nombre).join('|') === 'Pedro Temporal|María Externa' && !S.colaboradores.some(c => c.nombre === 'Pedro Temporal');
-    r.recuerda = S.nombresLinea.includes('María Externa');
+    const add = async (n, puesto) => { document.getElementById('lmNombre').value = n; document.getElementById('lmPuesto').value = puesto; await agregarPersonaLinea(); };
+    await add('Pedro Temporal', 'pallets'); await add('María Externa', 'pallets'); await add('pedro temporal', 'pallets'); await add('Rosa Cajas', 'Armado de cajas'); await add('Tito Etiquetas', 'Etiquetado');
+    r.nombres = paletizadores(l).map(p => p.nombre).join('|') === 'Pedro Temporal|María Externa' && deApoyo(l).map(p => p.puesto).join('|') === 'Armado de cajas|Etiquetado' && !S.colaboradores.some(x => x.nombre === 'Pedro Temporal');
+    r.recuerda = S.nombresLinea.includes('Tito Etiquetas');
     await arrancarLinea();
-    r.corre = l.estado === 'corriendo' && l.costoPallet === 12;
-    const [p1, p2] = l.personas;
+    r.corre = l.estado === 'corriendo' && !('costoPallet' in l && l.costoPallet);
+    const [p1, p2] = paletizadores(l);
     await sumarPallet(p1.id, 1); await sumarPallet(p1.id, 1); await sumarPallet(p1.id, 1); await sumarPallet(p2.id, 1); await sumarPallet(p1.id, -1);
-    r.pallets = p1.pallets.length === 2 && p2.pallets.length === 1 && totalPallets(l) === 3;
-    r.bloque = /3<\/b> \/ 20 pallets/.test(document.getElementById('lineasList').innerHTML);
-    // se suma alguien a mitad de la línea
-    document.getElementById('lmNombre').value = 'Juana Refuerzo'; await agregarPersonaLinea();
-    r.tarde = l.personas.length === 3 && l.personas[2].desde > l.inicio - 1;
-    // el tipo de línea cambia de costo: lo arrancado conserva el suyo
-    S.lineasTipo[0].costoPallet = 99; r.costoFijo = l.costoPallet === 12;
+    const apoyoSinBoton = !document.getElementById('lineaBody').innerHTML.includes("sumarPallet('" + deApoyo(l)[0].id);
+    r.pallets = p1.pallets.length === 2 && p2.pallets.length === 1 && totalPallets(l) === 3 && apoyoSinBoton;
+    r.bloque = /3<\/b> \/ 20 pallets/.test(document.getElementById('lineasList').innerHTML) && /2 paletizan · 2 apoyo/.test(document.getElementById('lineasList').innerHTML);
+    document.getElementById('lmNombre').value = 'Juana Refuerzo'; document.getElementById('lmPuesto').value = 'pallets'; await agregarPersonaLinea();
+    r.tarde = paletizadores(l).length === 3 && l.personas[l.personas.length - 1].desde > l.inicio - 1;
     hideModal('modalLinea');
-    // otra línea que nunca arrancó se descarta al cerrar el turno; la que corre se cierra
     S.turno.lineas.push(nuevaLinea(S.lineasTipo[0], 10, 8)); cerrarLineasDelTurno(Date.now());
     r.cierre = S.turno.lineas.length === 1 && l.estado === 'cerrada' && l.fin > 0;
     exportExcel(null);
-    const hojas = window.__xlsx.w.s.slice(-2); const lr = hojas[0][1].find(x => x[1] === 'Inserto botella'), pr = hojas[1][1].filter(x => x[1] === 'Inserto botella');
-    r.excel = lr && lr[5] === 3 && lr[13] === 36 && pr.length === 3;
-    r.insights = /Inserto botella/.test(buildLineasSection());
+    const hojas = window.__xlsx.w.s.slice(-2), lr = hojas[0][1].find(x => x[1] === 'Inserto botella'), pr = hojas[1][1].filter(x => x[1] === 'Inserto botella');
+    r.excel = lr && lr[5] === 3 && lr[8] === 3 && lr[9] === 2 && !hojas[0][1][0].some(h => /costo/i.test(h)) && pr.length === 5 && pr.some(x => x[4] === 'Etiquetado' && x[5] === '');
+    r.insights = /Inserto botella/.test(buildLineasSection()) && !/costo/i.test(buildLineasSection());
     return r; });
-  ok(ln.calc && ln.calcTxt, 'línea: personas = meta ÷ (productividad × horas) → 40 ÷ (0.5 × 8) = 10');
-  ok(ln.manana, 'línea: planificada para mañana no aparece hoy');
+  ok(ln.calc && ln.calcTxt, 'línea: cuadrilla = paletizan (40 ÷ (0.5 × 8) = 10) + apoyo (3) = 13');
+  ok(ln.inversa, 'línea: con 11 personas, 8 paletizan y alcanzan 32 pallets');
+  ok(ln.chips && ln.otroDia, 'línea: se planifica cualquier día (accesos a 7 días) y no aparece hoy');
   ok(ln.hoy, 'línea: agregada hoy aparece como bloque en el tablero');
-  ok(ln.nombres && ln.recuerda, 'línea: nombres escritos (fuera del maestro), sin duplicados, y se recuerdan para sugerir');
-  ok(ln.corre, 'línea: arranca y congela el costo por pallet');
-  ok(ln.pallets && ln.bloque, 'línea: +1 / −1 pallet por persona; el bloque muestra el total contra la meta');
-  ok(ln.tarde && ln.costoFijo, 'línea: se puede sumar alguien a mitad; cambiar el costo del tipo no altera lo arrancado');
+  ok(ln.nombres && ln.recuerda, 'línea: nombres escritos con su puesto (paletiza o apoyo), sin duplicados, recordados');
+  ok(ln.corre, 'línea: arranca, sin costo (solo cantidades)');
+  ok(ln.pallets && ln.bloque, 'línea: +1 / −1 pallet a quien paletiza; el apoyo no tiene contador; el bloque muestra total, meta y cuadrilla');
+  ok(ln.tarde, 'línea: se puede sumar alguien a mitad');
   ok(ln.cierre, 'línea: al cerrar el turno se cierra la que corre y se descarta la no arrancada');
-  ok(ln.excel && ln.insights, 'línea: Excel con pallets y costo (3 × $12 = $36) y pallets por persona; resumen en Insights');
-  ok(await page.evaluate(() => { const f = S.turno.fecha, ls = S.turno.lineas; S.turno.fecha = fechaManana(); S.turno.lineas = [];
-    const ok1 = traerLineasPlanificadas() && S.turno.lineas.length === 1 && S.turno.lineas[0].meta === 40 && S.turno.lineas[0].estado === 'pendiente';
-    const ok2 = !traerLineasPlanificadas();   // no se duplica
-    S.turno.fecha = f; S.turno.lineas = ls; return ok1 && ok2; }), 'línea: la planificada para mañana aparece sola en el turno de ese día (una vez)');
+  ok(ln.excel && ln.insights, 'línea: Excel e Insights con pallets, paletizan y apoyo, sin costo');
+  ok(await page.evaluate(() => { const f = S.turno.fecha, ls = S.turno.lineas; const otro = S.lineasPlan.find(p => p.fecha > f); S.turno.fecha = otro.fecha; S.turno.lineas = [];
+    const ok1 = traerLineasPlanificadas() && S.turno.lineas.length === 1 && S.turno.lineas[0].meta === 40 && S.turno.lineas[0].apoyo.length === 2;
+    const ok2 = !traerLineasPlanificadas(); S.turno.fecha = f; S.turno.lineas = ls; return ok1 && ok2; }), 'línea: la planificada aparece sola en el turno de ese día (una vez), con sus puestos de apoyo');
 
   // 10) Sesión persistente
   await page.reload(); await page.waitForTimeout(700);

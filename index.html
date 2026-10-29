@@ -370,6 +370,9 @@ body.con-sel .avisos-app{bottom:90px}
 .lp-name small{display:block;font-weight:500;font-size:.68rem;color:var(--t3)}
 .lp-cnt{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.4rem;min-width:36px;text-align:center;color:var(--t);font-variant-numeric:tabular-nums}
 .lp-row .btn{padding:10px 12px}
+#lineaBody .edit-row{flex-wrap:wrap}
+#lineaBody #lmNombre{flex:1 1 200px}
+#lineaBody #lmPuesto{flex:1 1 140px;max-width:none!important}
 .plan-linea{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px dashed var(--b2);border-radius:9px;padding:8px 11px;margin-top:8px;font-size:.78rem;color:var(--t2)}
 /* TABLERO POR PERSONA */
 .tb-hint{font-size:.74rem;color:var(--t3);margin-bottom:2px}
@@ -604,7 +607,7 @@ body.con-sel .toast{bottom:96px}
         <div class="sec-hdr">
           <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Líneas de producción</span></div>
           <div class="sec-hdr-actions">
-            <button class="btn btn-ghost btn-sm" onclick="abrirPlanLinea(fechaManana())">Planificar mañana</button>
+            <button class="btn btn-ghost btn-sm" onclick="abrirPlanLinea(fechaManana())">Planificar</button>
             <button class="btn btn-green btn-sm" onclick="abrirPlanLinea(S.turno.fecha)">+ Línea</button>
           </div>
         </div>
@@ -1020,8 +1023,9 @@ body.con-sel .toast{bottom:96px}
 <div class="overlay hidden" id="modalPlanLinea">
   <div class="modal">
     <div class="modal-hdr"><span class="modal-title" id="plTitulo">Planificar línea</span><span class="modal-close" onclick="hideModal('modalPlanLinea')">×</span></div>
+    <div class="field"><label>Día</label><div class="chip-wrap" id="plDias"></div></div>
     <div class="field-row">
-      <div class="field"><label>Fecha</label><input type="date" id="plFecha" onchange="plHorasPorFecha();calcPlanLinea()"></div>
+      <div class="field"><label>Otra fecha</label><input type="date" id="plFecha" onchange="plHorasPorFecha()"></div>
       <div class="field"><label>Línea</label><select id="plTipo" onchange="calcPlanLinea()"></select></div>
     </div>
     <div class="field-row">
@@ -1029,7 +1033,7 @@ body.con-sel .toast{bottom:96px}
       <div class="field"><label>Horas de la línea</label><input type="number" id="plHoras" min="0.5" step="0.5" oninput="calcPlanLinea()"></div>
     </div>
     <div class="info-box" id="plCalc">Elige la línea y la meta.</div>
-    <div class="field"><label>Si solo tienes estas personas</label><input type="number" id="plPersonas" min="1" inputmode="numeric" placeholder="Opcional" oninput="calcPlanLinea()"></div>
+    <div class="field"><label>Si solo tienes estas personas (en total)</label><input type="number" id="plPersonas" min="1" inputmode="numeric" placeholder="Opcional" oninput="calcPlanLinea()"></div>
     <button class="btn btn-green btn-full" id="plGuardar" onclick="guardarPlanLinea()">Guardar</button>
   </div>
 </div>
@@ -1039,11 +1043,12 @@ body.con-sel .toast{bottom:96px}
     <div class="field"><label>Nombre de la línea</label><input type="text" id="tlNombre" placeholder="Ej. Inserto botella"></div>
     <div class="field"><label>Cliente</label><select id="tlCliente" onchange="renderTlExcel()"></select></div>
     <div class="field-row">
-      <div class="field"><label>Productividad (pallets por persona por hora)</label><input type="number" id="tlProd" min="0" step="0.01"></div>
-      <div class="field"><label>Costo por pallet ($)</label><input type="number" id="tlCosto" min="0" step="0.01"></div>
+      <div class="field"><label>Productividad (pallets por persona por hora, de quienes paletizan)</label><input type="number" id="tlProd" min="0" step="0.01"></div>
     </div>
+    <div class="field"><label>Puestos de apoyo por línea (no hacen pallets)</label><div id="tlApoyo" style="display:flex;flex-direction:column;gap:6px"></div>
+      <button class="btn btn-ghost btn-sm" style="align-self:flex-start;margin-top:4px" onclick="addPuestoApoyo('',1)">+ Puesto</button></div>
     <div class="field" id="tlExcelField"><label>Nombre en el Excel de ventas</label><select id="tlExcel"></select></div>
-    <div class="li-sub">La cuadrilla necesaria se calcula con la productividad: personas = meta ÷ (productividad × horas). El costo de la línea es pallets producidos × costo por pallet.</div>
+    <div class="li-sub">Cuadrilla = quienes paletizan (meta ÷ (productividad × horas)) + los puestos de apoyo.</div>
     <button class="btn btn-green btn-full" onclick="guardarTipoLinea()">Guardar</button>
   </div>
 </div>
@@ -1716,20 +1721,34 @@ function updateBanner(){
 }
 
 // ═══ LÍNEAS DE PRODUCCIÓN ═══
-// Una línea es un bloque del tablero con su propia cuadrilla: personas fuera del maestro, cuyos nombres se escriben al arrancar.
-// Tiene una meta diaria en pallets y cada pallet se anota a la persona que lo hizo.
-// Personas necesarias = meta ÷ (productividad × horas). Costo = pallets × costo por pallet (no por hora).
+// Control y monitoreo de cantidades por línea. Una línea es un bloque del tablero con su propia cuadrilla
+// (personas fuera del maestro: sus nombres se escriben al arrancar) y una meta diaria en pallets.
+// En la cuadrilla hay quienes paletizan (cada pallet se anota a su nombre) y puestos de apoyo que no hacen pallets
+// (armado de cajas, bandejas, etiquetado...). Personas = paletizadores (meta ÷ (productividad × horas)) + apoyo.
+const PALETIZA='pallets';
 const tipoLinea=id=>(S.lineasTipo||[]).find(t=>t.id===id);
 const totalPallets=l=>(l.personas||[]).reduce((s,p)=>s+(p.pallets||[]).length,0);
+const paletizadores=l=>(l.personas||[]).filter(p=>(p.puesto||PALETIZA)===PALETIZA);
+const deApoyo=l=>(l.personas||[]).filter(p=>(p.puesto||PALETIZA)!==PALETIZA);
+const apoyoTotal=ap=>(ap||[]).reduce((s,a)=>s+(+a.cant||0),0);
 const personasNecesarias=(meta,prod,horas)=>prod>0&&horas>0&&meta>0?Math.ceil(meta/(prod*horas)):0;
-const metaPosible=(personas,prod,horas)=>Math.floor(personas*prod*horas);
+const metaPosible=(paletizan,prod,horas)=>Math.floor(Math.max(0,paletizan)*prod*horas);
 const horasLinea=fecha=>horasProductivas(fecha)||hpRegular();
 const fechaManana=()=>{ const d=new Date(); d.setDate(d.getDate()+1); return fechaLocal(d); };
 const lineaDe=id=>((S.turno&&S.turno.lineas)||[]).find(l=>l.id===id);
 const fmtN=n=>(Math.round(n*10)/10).toLocaleString('es-PA');
+function etiquetaDia(f){
+  if(f===fechaLocal(new Date())) return 'Hoy'; if(f===fechaManana()) return 'Mañana';
+  return new Date(f+'T12:00:00').toLocaleDateString('es-PA',{weekday:'short',day:'numeric',month:'short'}).replace('.','');
+}
+function cuadrilla(meta, prod, horas, apoyo){
+  const pal=personasNecesarias(meta,prod,horas), ap=apoyoTotal(apoyo);
+  return {pal,ap,total:pal+ap,texto:pal?`<b>${pal+ap} personas</b>: ${pal} que paletizan${ap?' + '+ap+' de apoyo ('+apoyo.filter(a=>+a.cant>0).map(a=>a.cant+' '+esc(a.nombre.toLowerCase())).join(', ')+')':''}`:''};
+}
 function nuevaLinea(t, meta, horas, planId){
   return {id:uid(),tipoId:t.id,nombre:t.nombre,clienteId:t.clienteId||null,cliente:(S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||'',
-    meta:+meta||0,horas:+horas||horasLinea(S.turno.fecha),prod:t.prod||0,costoPallet:null,excel:null,estado:'pendiente',personas:[],planId:planId||null,inicio:null,fin:null,por:quien()};
+    meta:+meta||0,horas:+horas||horasLinea(S.turno.fecha),prod:t.prod||0,apoyo:JSON.parse(JSON.stringify(t.apoyo||[])),excel:null,
+    estado:'pendiente',personas:[],planId:planId||null,inicio:null,fin:null,por:quien()};
 }
 // Las líneas planificadas para la fecha del turno aparecen solas en el tablero
 function traerLineasPlanificadas(){
@@ -1741,7 +1760,9 @@ function traerLineasPlanificadas(){
 function ritmoLinea(l, now){
   const h=l.inicio?Math.max(1/60,msH((l.fin||now||Date.now())-l.inicio)):0, tot=totalPallets(l), ritmo=h?tot/h:0;
   const proy=l.estado==='corriendo'?Math.round(tot+ritmo*Math.max(0,l.horas-h)):tot;
-  return {h,tot,ritmo,proy};
+  const fin=l.fin||now||Date.now(), hp=pp=>pp.reduce((a,p)=>a+msH(fin-(p.desde||l.inicio)),0);
+  const hPal=l.inicio?hp(paletizadores(l)):0, hTot=l.inicio?hp(l.personas):0;
+  return {h,tot,ritmo,proy,porPaletizador:hPal?tot/hPal:0,porPersona:hTot?tot/hTot:0,hPal,hTot};
 }
 
 // Bloques del tablero
@@ -1751,45 +1772,57 @@ function renderLineas(){
   sec.classList.toggle('hidden',!hayTipos&&!L.length);
   const el=document.getElementById('lineasList');
   el.innerHTML=L.length?L.map(l=>{
-    const r=ritmoLinea(l), pct=l.meta?Math.min(100,r.tot/l.meta*100):0, n=(l.personas||[]).length;
+    const r=ritmoLinea(l), pct=l.meta?Math.min(100,r.tot/l.meta*100):0, nP=paletizadores(l).length, nA=deApoyo(l).length;
     const est={pendiente:['ba','Por arrancar'],corriendo:['bg','En marcha'],cerrada:['bgy','Cerrada']}[l.estado];
-    const nec=personasNecesarias(l.meta,l.prod,l.horas);
-    const sub=l.estado==='pendiente'?`Meta ${l.meta} pallets · se necesitan ${nec} personas`
+    const c=cuadrilla(l.meta,l.prod,l.horas,l.apoyo);
+    const sub=l.estado==='pendiente'?`Meta ${l.meta} pallets · se necesitan ${c.total} personas`
       :l.estado==='corriendo'?`${fmtN(r.ritmo)} pallets/h · a este ritmo cierras en <b>${r.proy}</b> de ${l.meta}`
       :`Cumplimiento ${l.meta?Math.round(r.tot/l.meta*100):0}%`;
     return `<div class="lb lb-${l.estado}" onclick="abrirLinea('${l.id}')">
       <div class="lb-top"><span class="lb-name">Línea ${esc(l.nombre)}</span><span class="badge ${est[0]}">${est[1]}</span></div>
-      <div class="lb-cli">${esc(l.cliente||'')}${n?' · '+n+' persona'+(n>1?'s':''):''}</div>
+      <div class="lb-cli">${esc(l.cliente||'')}${nP+nA?` · ${nP} paletizan${nA?' · '+nA+' apoyo':''}`:''}</div>
       <div class="lb-num"><b>${r.tot}</b> / ${l.meta} pallets</div>
-      <div class="pbar-wrap"><div class="pbar-fill ${pct>=100?'pg':r.proy>=l.meta?'pg':'pa'}" style="width:${pct}%"></div></div>
+      <div class="pbar-wrap"><div class="pbar-fill ${pct>=100||r.proy>=l.meta?'pg':'pa'}" style="width:${pct}%"></div></div>
       <div class="lb-sub">${sub}</div></div>`;
-  }).join(''):`<div class="empty-text">${hayTipos?'Sin líneas hoy. Usa + Línea, o planifica la de mañana.':'Pide al administrador que configure los tipos de línea en Insights.'}</div>`;
+  }).join(''):`<div class="empty-text">${hayTipos?'Sin líneas hoy. Usa + Línea, o planifica otro día.':'Pide al administrador que configure los tipos de línea en Insights.'}</div>`;
   renderPlanesLinea('lineasPlanTurno',d=>d>S.turno.fecha);
 }
 function renderPlanesLinea(elId, filtro){
   const el=document.getElementById(elId); if(!el) return;
-  const P=(S.lineasPlan||[]).filter(p=>!p.turnoId&&filtro(p.fecha)).sort((a,b)=>a.fecha.localeCompare(b.fecha));
-  el.innerHTML=P.map(p=>{ const t=tipoLinea(p.tipoId)||{nombre:'—'}; return `<div class="plan-linea"><span><b>${p.fecha===fechaManana()?'Mañana':p.fecha}</b> · Línea ${esc(t.nombre)} · ${p.meta} pallets · ${personasNecesarias(p.meta,t.prod,p.horas)} personas</span>
-    <span class="btn-row"><button class="btn btn-ghost btn-sm" onclick="abrirPlanLinea(null,'${p.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarPlanLinea('${p.id}')">×</button></span></div>`; }).join('');
+  const hoy=fechaLocal(new Date());
+  const P=(S.lineasPlan||[]).filter(p=>!p.turnoId&&p.fecha>=hoy&&filtro(p.fecha)).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  el.innerHTML=(P.length?'<div class="asig-ttl" style="margin-top:10px">Planificadas</div>':'')+P.map(p=>{ const t=tipoLinea(p.tipoId)||{nombre:'—'}, c=cuadrilla(p.meta,t.prod,p.horas,t.apoyo);
+    return `<div class="plan-linea"><span><b>${etiquetaDia(p.fecha)}</b> · Línea ${esc(t.nombre)} · ${p.meta} pallets · ${c.total} personas</span>
+    <span class="btn-row"><button class="btn btn-ghost btn-sm" onclick="abrirPlanLinea(null,'${p.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarPlanLinea('${p.id}')" aria-label="Eliminar plan">×</button></span></div>`; }).join('');
 }
 
 // Ventana de la línea
 let _lineaAbierta=null;
 function abrirLinea(id){ _lineaAbierta=id; renderLineaModal(); showModal('modalLinea'); }
+function opcionesPuesto(l, sel){
+  const ap=(l.apoyo||[]).filter(a=>a.nombre);
+  return `<option value="${PALETIZA}">Paletiza</option>`+ap.map(a=>`<option value="${esc(a.nombre)}"${a.nombre===sel?' selected':''}>${esc(a.nombre)}</option>`).join('')+`<option value="Otro apoyo">Otro apoyo</option>`;
+}
 function renderLineaModal(foco){
   const l=lineaDe(_lineaAbierta); if(!l) return;
-  const esAdmin=currentUser&&currentUser.rol==='admin', r=ritmoLinea(l), nec=personasNecesarias(l.meta,l.prod,l.horas);
+  const r=ritmoLinea(l), c=cuadrilla(l.meta,l.prod,l.horas,l.apoyo), P=paletizadores(l), A=deApoyo(l);
   document.getElementById('lineaTitulo').textContent='Línea '+l.nombre;
   document.getElementById('nombresLineaList').innerHTML=(S.nombresLinea||[]).filter(n=>!l.personas.some(p=>p.nombre===n)).map(n=>`<option value="${esc(n)}">`).join('');
-  const agregar=`<div class="edit-row"><input type="text" id="lmNombre" list="nombresLineaList" placeholder="Nombre de la persona" autocomplete="off" onkeydown="if(event.key==='Enter')agregarPersonaLinea()"><button class="btn btn-indigo" onclick="agregarPersonaLinea()">Agregar</button></div>`;
+  // Siguiente puesto sugerido: el primero que aún no tiene su cantidad
+  const falta=l.estado==='pendiente'&&P.length>=c.pal?(l.apoyo||[]).find(a=>A.filter(p=>p.puesto===a.nombre).length<(+a.cant||0)):null;
+  const agregar=`<div class="edit-row"><input type="text" id="lmNombre" list="nombresLineaList" placeholder="Nombre de la persona" autocomplete="off" onkeydown="if(event.key==='Enter')agregarPersonaLinea()">
+    <select id="lmPuesto" style="max-width:42%">${opcionesPuesto(l,falta&&falta.nombre)}</select><button class="btn btn-indigo" onclick="agregarPersonaLinea()">Agregar</button></div>`;
+  const chipsApoyo=A.map(p=>`<span class="chip selected" ${l.estado==='pendiente'?`onclick="quitarPersonaLinea('${p.id}')" title="Quitar"`:''}>${esc(p.nombre)} · ${esc(p.puesto)}${l.estado==='pendiente'?' ×':''}</span>`).join('');
   let h='';
   if(l.estado==='pendiente'){
-    h+=`<div class="li-sub">${esc(l.cliente||'')} · productividad ${l.prod} pallets por persona-hora</div>
+    const puestos=(l.apoyo||[]).filter(a=>+a.cant>0).map(a=>`${esc(a.nombre)} ${A.filter(p=>p.puesto===a.nombre).length} de ${a.cant}`).join(' · ');
+    h+=`<div class="li-sub">${esc(l.cliente||'')} · productividad ${l.prod} pallets por persona-hora (quienes paletizan)</div>
     <div class="field-row"><div class="field"><label>Meta del día (pallets)</label><input type="number" id="lmMeta" min="1" value="${l.meta||''}" oninput="lineaMetaHoras()"></div>
     <div class="field"><label>Horas de la línea</label><input type="number" id="lmHoras" min="0.5" step="0.5" value="${l.horas}" oninput="lineaMetaHoras()"></div></div>
-    <div class="info-box" id="lmCalc">Se necesitan <b>${nec}</b> personas para ${l.meta} pallets en ${l.horas} h.</div>
-    <div class="field"><label>Personas (${l.personas.length}${nec?' de '+nec+' sugeridas':''})</label>${agregar}</div>
-    <div class="chip-wrap">${l.personas.map(p=>`<span class="chip selected" onclick="quitarPersonaLinea('${p.id}')" title="Quitar">${esc(p.nombre)} ×</span>`).join('')}</div>
+    <div class="info-box" id="lmCalc">${c.texto?'Se necesitan '+c.texto+'.':'Ingresa la meta.'}</div>
+    <div class="field"><label>Cuadrilla · ${l.personas.length} de ${c.total}</label>${agregar}</div>
+    <div class="li-sub">Paletizan: ${P.length} de ${c.pal}${puestos?' · '+puestos:''}</div>
+    <div class="chip-wrap">${P.map(p=>`<span class="chip selected" onclick="quitarPersonaLinea('${p.id}')" title="Quitar">${esc(p.nombre)} ×</span>`).join('')}${chipsApoyo}</div>
     <button class="btn btn-green btn-full" onclick="arrancarLinea()">Arrancar línea</button>
     <button class="btn btn-ghost btn-sm" style="align-self:center" onclick="eliminarLinea()">Quitar esta línea de hoy</button>`;
   } else {
@@ -1797,13 +1830,15 @@ function renderLineaModal(foco){
     h+=`<div class="stat-row">
       <div class="stat-card"><div class="stat-label">Pallets</div><div class="stat-val">${r.tot} <span style="font-size:.9rem;color:var(--t3)">/ ${l.meta}</span></div><div class="stat-sub">${pct}% de la meta</div></div>
       <div class="stat-card"><div class="stat-label">Ritmo</div><div class="stat-val">${fmtN(r.ritmo)}</div><div class="stat-sub">pallets/h · ${fmtH(r.h)}</div></div>
-      <div class="stat-card"><div class="stat-label">${l.estado==='corriendo'?'Proyección':'Personas'}</div><div class="stat-val ${l.estado==='corriendo'?(r.proy>=l.meta?'g':'a'):''}">${l.estado==='corriendo'?r.proy:l.personas.length}</div><div class="stat-sub">${l.estado==='corriendo'?'al cierre':'en la línea'}</div></div></div>`;
-    if(esAdmin&&l.costoPallet!=null) h+=`<div class="li-sub">Costo: ${r.tot} pallets × $${l.costoPallet} = <b>$${(r.tot*l.costoPallet).toFixed(2)}</b></div>`;
-    h+=l.personas.map(p=>{ const n=p.pallets.length, hp=Math.max(1/60,msH((l.fin||Date.now())-(p.desde||l.inicio))), rp=n/hp, ok=!l.prod||rp>=l.prod;
+      <div class="stat-card"><div class="stat-label">${l.estado==='corriendo'?'Proyección':'Cuadrilla'}</div><div class="stat-val ${l.estado==='corriendo'?(r.proy>=l.meta?'g':'a'):''}">${l.estado==='corriendo'?r.proy:l.personas.length}</div><div class="stat-sub">${l.estado==='corriendo'?'al cierre':'personas'}</div></div></div>
+    <div class="li-sub">${P.length} paletizan · ${A.length} de apoyo · ${fmtN(r.porPaletizador)} pallets por paletizador-hora · ${fmtN(r.porPersona)} por persona-hora de la cuadrilla</div>
+    <div class="asig-ttl">Paletizan</div>`;
+    h+=P.map(p=>{ const n=p.pallets.length, hp=Math.max(1/60,msH((l.fin||Date.now())-(p.desde||l.inicio))), rp=n/hp, ok=!l.prod||rp>=l.prod;
       return `<div class="lp-row"><div class="lp-name">${esc(p.nombre)}<small style="color:${n?(ok?'var(--green)':'var(--amber)'):'var(--t3)'}">${fmtN(rp)} pallets/h${l.prod?' · objetivo '+l.prod:''}</small></div>
         ${l.estado==='corriendo'?`<button class="btn btn-ghost" onclick="sumarPallet('${p.id}',-1)" aria-label="Restar un pallet">−</button>`:''}
         <span class="lp-cnt">${n}</span>
-        ${l.estado==='corriendo'?`<button class="btn btn-green" onclick="sumarPallet('${p.id}',1)">+1 pallet</button>`:''}</div>`; }).join('');
+        ${l.estado==='corriendo'?`<button class="btn btn-green" onclick="sumarPallet('${p.id}',1)">+1 pallet</button>`:''}</div>`; }).join('')||'<div class="empty-text">Nadie paletiza todavía.</div>';
+    if(A.length) h+=`<div class="asig-ttl">Apoyo</div><div class="chip-wrap">${chipsApoyo}</div>`;
     if(l.estado==='corriendo') h+=`<div class="field"><label>Se suma alguien a la línea</label>${agregar}</div>
       <button class="btn btn-indigo btn-full" onclick="cerrarLinea()">Cerrar línea</button>`;
   }
@@ -1811,27 +1846,27 @@ function renderLineaModal(foco){
   if(foco) setTimeout(()=>document.getElementById('lmNombre')?.focus(),50);
 }
 function lineaMetaHoras(){
-  const l=lineaDe(_lineaAbierta); if(!l) return;
+  const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='pendiente'||!document.getElementById('lmMeta')) return;
   l.meta=+document.getElementById('lmMeta').value||0; l.horas=+document.getElementById('lmHoras').value||l.horas;
-  const nec=personasNecesarias(l.meta,l.prod,l.horas);
-  document.getElementById('lmCalc').innerHTML=nec?`Se necesitan <b>${nec}</b> personas para ${l.meta} pallets en ${l.horas} h.`:'Ingresa la meta.';
+  const c=cuadrilla(l.meta,l.prod,l.horas,l.apoyo);
+  document.getElementById('lmCalc').innerHTML=c.texto?'Se necesitan '+c.texto+'.':'Ingresa la meta.';
 }
 function recordarNombre(n){ S.nombresLinea=[n,...(S.nombresLinea||[]).filter(x=>x.toLowerCase()!==n.toLowerCase())].slice(0,200); }
 async function agregarPersonaLinea(){
   const l=lineaDe(_lineaAbierta), inp=document.getElementById('lmNombre'); if(!l||!inp) return;
   const n=inp.value.trim().replace(/\s+/g,' '); if(!n) return;
   if(l.personas.some(p=>p.nombre.toLowerCase()===n.toLowerCase())){ showToast(n+' ya está en la línea','error'); return; }
-  if(l.estado==='pendiente') lineaMetaHoras();
-  l.personas.push({id:uid(),nombre:n,pallets:[],desde:l.estado==='corriendo'?Date.now():null}); recordarNombre(n);
+  lineaMetaHoras();
+  l.personas.push({id:uid(),nombre:n,puesto:document.getElementById('lmPuesto').value||PALETIZA,pallets:[],desde:l.estado==='corriendo'?Date.now():null}); recordarNombre(n);
   renderLineaModal(true); renderLineas(); await save();
 }
-async function quitarPersonaLinea(pid){ const l=lineaDe(_lineaAbierta); if(!l) return; lineaMetaHoras(); l.personas=l.personas.filter(p=>p.id!==pid); renderLineaModal(); renderLineas(); await save(); }
+async function quitarPersonaLinea(pid){ const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='pendiente') return; lineaMetaHoras(); l.personas=l.personas.filter(p=>p.id!==pid); renderLineaModal(); renderLineas(); await save(); }
 async function arrancarLinea(){
   const l=lineaDe(_lineaAbierta); if(!l) return; lineaMetaHoras();
   if(!(l.meta>0)){ showToast('Pon la meta del día','error'); return; }
-  if(!l.personas.length){ showToast('Escribe al menos una persona','error'); return; }
+  if(!paletizadores(l).length){ showToast('Escribe al menos una persona que paletice','error'); return; }
   const t=tipoLinea(l.tipoId)||{}, mk=t.excel&&maestroRow(t.excel);
-  Object.assign(l,{estado:'corriendo',inicio:Date.now(),costoPallet:t.costoPallet||0,prod:t.prod||l.prod,
+  Object.assign(l,{estado:'corriendo',inicio:Date.now(),prod:t.prod||l.prod,
     excel:mk?{actividad:mk.actividad,categoria:mk.categoria,tipoActividad:mk.tipoActividad,subActividad:mk.subActividad}:null,porInicio:quien()});
   l.personas.forEach(p=>p.desde=l.inicio);
   renderLineaModal(); renderLineas(); await save(); showToast('Línea '+l.nombre+' en marcha');
@@ -1859,29 +1894,36 @@ function cerrarLineasDelTurno(ts){
   S.turno.lineas.forEach(l=>{ if(l.estado==='corriendo'){ l.estado='cerrada'; l.fin=ts; l.porFin=quien(); } });
 }
 
-// Planificar (desde un día antes) o agregar una línea hoy
+// Planificar cualquier día (o agregar una línea hoy)
 let _planEdit=null;
 function abrirPlanLinea(fecha, planId){
   const T=S.lineasTipo||[]; if(!T.length){ showToast('Primero configura los tipos de línea en Insights','error'); return; }
   _planEdit=planId||null; const pl=planId&&(S.lineasPlan||[]).find(x=>x.id===planId);
   document.getElementById('plTipo').innerHTML=T.map(t=>`<option value="${t.id}">${esc(t.nombre)}${t.clienteId?' · '+esc((S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||''):''}</option>`).join('');
-  document.getElementById('plFecha').value=pl?pl.fecha:(fecha||fechaManana());
   document.getElementById('plFecha').min=fechaLocal(new Date());
   if(pl) document.getElementById('plTipo').value=pl.tipoId;
   document.getElementById('plMeta').value=pl?pl.meta:''; document.getElementById('plPersonas').value='';
-  if(pl) document.getElementById('plHoras').value=pl.horas; else plHorasPorFecha();
-  const hoy=S.turno&&document.getElementById('plFecha').value===S.turno.fecha;
-  document.getElementById('plTitulo').textContent=pl?'Editar plan de línea':hoy?'Agregar línea hoy':'Planificar línea';
-  document.getElementById('plGuardar').textContent=hoy&&!pl?'Agregar al tablero':'Guardar plan';
-  calcPlanLinea(); showModal('modalPlanLinea');
+  setPlanFecha(pl?pl.fecha:(fecha||fechaManana()), pl?pl.horas:null);
+  document.getElementById('plTitulo').textContent=pl?'Editar plan de línea':'Planificar línea';
+  showModal('modalPlanLinea');
 }
-function plHorasPorFecha(){ document.getElementById('plHoras').value=horasLinea(document.getElementById('plFecha').value); }
+// Accesos rápidos a los próximos 7 días
+function setPlanFecha(f, horas){
+  const inp=document.getElementById('plFecha'); inp.value=f;
+  document.getElementById('plHoras').value=horas||horasLinea(f);
+  const dias=[...Array(7)].map((_,i)=>{ const d=new Date(); d.setDate(d.getDate()+i); return fechaLocal(d); });
+  document.getElementById('plDias').innerHTML=dias.map(d=>`<div class="chip${d===f?' selected':''}" onclick="setPlanFecha('${d}')">${etiquetaDia(d)}</div>`).join('');
+  const hoy=S.turno&&f===S.turno.fecha;
+  document.getElementById('plGuardar').textContent=hoy&&!_planEdit?'Agregar al tablero de hoy':'Guardar plan';
+  calcPlanLinea();
+}
+function plHorasPorFecha(){ setPlanFecha(document.getElementById('plFecha').value); }
 function calcPlanLinea(){
   const t=tipoLinea(document.getElementById('plTipo').value)||{}, meta=+document.getElementById('plMeta').value||0, horas=+document.getElementById('plHoras').value||0, per=+document.getElementById('plPersonas').value||0;
-  const nec=personasNecesarias(meta,t.prod,horas);
-  let h=t.prod?`Productividad: <b>${t.prod}</b> pallets por persona-hora.`:'Este tipo de línea no tiene productividad configurada.';
-  if(nec) h+=`<br>Se necesitan <b>${nec} personas</b> para ${meta} pallets en ${horas} h (${meta} ÷ (${t.prod} × ${horas})).`;
-  if(per&&t.prod) h+=`<br>Con ${per} personas alcanzas <b>${metaPosible(per,t.prod,horas)} pallets</b>${nec&&per<nec?` · faltan ${nec-per} personas para la meta`:''}.`;
+  const c=cuadrilla(meta,t.prod,horas,t.apoyo);
+  let h=t.prod?`Productividad: <b>${t.prod}</b> pallets por persona-hora (quienes paletizan).`:'Este tipo de línea no tiene productividad configurada.';
+  if(c.pal) h+=`<br>Se necesitan ${c.texto} para ${meta} pallets en ${horas} h.`;
+  if(per&&t.prod){ const pal=per-c.ap; h+=pal>0?`<br>Con ${per} personas (${pal} paletizan) alcanzas <b>${metaPosible(pal,t.prod,horas)} pallets</b>${c.total&&per<c.total?` · faltan ${c.total-per} personas para la meta`:''}.`:`<br>Con ${per} personas no alcanza ni para los ${c.ap} puestos de apoyo.`; }
   document.getElementById('plCalc').innerHTML=h;
 }
 async function guardarPlanLinea(){
@@ -1892,18 +1934,25 @@ async function guardarPlanLinea(){
   else S.lineasPlan.push({id:uid(),fecha,tipoId,meta,horas,por:quien()});
   traerLineasPlanificadas();   // si es para hoy, aparece de inmediato en el tablero
   hideModal('modalPlanLinea'); renderLineas(); renderPlanesLinea('lineasPlanNoTurno',()=>true); await save();
-  showToast(S.turno&&fecha===S.turno.fecha?'Línea agregada al tablero':'Línea planificada para '+(fecha===fechaManana()?'mañana':fecha));
+  showToast(S.turno&&fecha===S.turno.fecha?'Línea agregada al tablero':'Línea planificada para '+etiquetaDia(fecha).toLowerCase());
 }
 async function eliminarPlanLinea(id){ if(!confirm('¿Eliminar este plan de línea?')) return; S.lineasPlan=(S.lineasPlan||[]).filter(x=>x.id!==id); renderAll(); await save(); }
 
 // Tipos de línea (administrador)
 let _tipoEdit=null;
+const APOYO_INICIAL=[{nombre:'Armado de cajas',cant:1},{nombre:'Bandejas',cant:1},{nombre:'Etiquetado',cant:1}];
 function openModalTipoLinea(id){
   _tipoEdit=id||null; const t=id?tipoLinea(id):{};
   document.getElementById('tlTitulo').textContent=id?'Editar tipo de línea':'Nuevo tipo de línea';
-  document.getElementById('tlNombre').value=t.nombre||''; document.getElementById('tlProd').value=t.prod??''; document.getElementById('tlCosto').value=t.costoPallet??'';
+  document.getElementById('tlNombre').value=t.nombre||''; document.getElementById('tlProd').value=t.prod??'';
   document.getElementById('tlCliente').innerHTML='<option value="">— Sin cliente —</option>'+S.clientes.map(c=>`<option value="${c.id}"${c.id===t.clienteId?' selected':''}>${esc(c.nombre)}</option>`).join('');
+  document.getElementById('tlApoyo').innerHTML=''; (id?(t.apoyo||[]):APOYO_INICIAL).forEach(a=>addPuestoApoyo(a.nombre,a.cant));
   renderTlExcel(t.excel); showModal('modalTipoLinea');
+}
+function addPuestoApoyo(nombre, cant){
+  const d=document.createElement('div'); d.className='edit-row';
+  d.innerHTML=`<input type="text" placeholder="Puesto (ej. Etiquetado)" value="${esc(nombre||'')}"><input type="number" min="0" step="1" style="max-width:80px" placeholder="Cant." value="${cant??1}"><button class="btn btn-red btn-sm" onclick="this.parentNode.remove()" aria-label="Quitar puesto">×</button>`;
+  document.getElementById('tlApoyo').appendChild(d);
 }
 function renderTlExcel(sel){
   const cli=document.getElementById('tlCliente').value, M=(S.maestro||[]).filter(m=>!cli||m.clienteId===cli);
@@ -1912,9 +1961,10 @@ function renderTlExcel(sel){
   document.getElementById('tlExcel').innerHTML='<option value="">— No aplica —</option>'+M.map(m=>`<option value="${m.k}"${m.k===sel?' selected':''}>${esc(m.actividad)}</option>`).join('');
 }
 async function guardarTipoLinea(){
-  const nombre=document.getElementById('tlNombre').value.trim(), prod=+document.getElementById('tlProd').value, costoPallet=+document.getElementById('tlCosto').value;
+  const nombre=document.getElementById('tlNombre').value.trim(), prod=+document.getElementById('tlProd').value;
   if(!nombre||!(prod>0)){ showToast('Pon el nombre y la productividad','error'); return; }
-  const d={nombre,prod,costoPallet:costoPallet||0,clienteId:document.getElementById('tlCliente').value||null,excel:document.getElementById('tlExcel').value||null};
+  const apoyo=[...document.querySelectorAll('#tlApoyo .edit-row')].map(r=>{ const [n,c]=r.querySelectorAll('input'); return {nombre:n.value.trim(),cant:Math.max(0,Math.round(+c.value||0))}; }).filter(a=>a.nombre);
+  const d={nombre,prod,apoyo,clienteId:document.getElementById('tlCliente').value||null,excel:document.getElementById('tlExcel').value||null};
   S.lineasTipo=S.lineasTipo||[];
   if(_tipoEdit) Object.assign(tipoLinea(_tipoEdit),d); else S.lineasTipo.push({id:uid(),...d});
   hideModal('modalTipoLinea'); renderInsights(); renderAll(); await save(); showToast('Tipo de línea guardado');
@@ -1924,14 +1974,14 @@ async function eliminarTipoLinea(id){ if(!confirm('¿Eliminar este tipo de líne
 function buildLineasSection(){
   const T=S.lineasTipo||[], L=[...S.turnosHistorial.flatMap(t=>(t.lineas||[]).map(l=>({...l,fecha:t.fecha}))),...((S.turno&&S.turno.lineas)||[]).map(l=>({...l,fecha:S.turno.fecha}))].filter(l=>l.estado!=='pendiente');
   let h=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sLinCfg','cLinCfg')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Líneas de producción</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalTipoLinea()">+ Tipo</button><span class="chevron open" id="cLinCfg">▼</span></div></div><div class="sec-body" id="sLinCfg">`;
-  if(!T.length) h+=`<div class="warn-box">Crea los tipos de línea (por ejemplo Inserto botella, Canastilla) con su productividad y costo por pallet. Luego los supervisores podrán planificarlas y arrancarlas desde el tablero.</div>`;
-  T.forEach(t=>{ const mk=t.excel&&maestroRow(t.excel); h+=`<div class="list-item"><div class="li-info"><div class="li-name">${esc(t.nombre)}</div><div class="li-sub">${esc((S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||'Sin cliente')} · ${t.prod} pallets por persona-hora · $${t.costoPallet||0} por pallet${mk?' · Excel: '+esc(mk.actividad):''}</div></div>
-    <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalTipoLinea('${t.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarTipoLinea('${t.id}')">×</button></div></div>`; });
+  if(!T.length) h+=`<div class="warn-box">Crea los tipos de línea (por ejemplo Inserto botella, Canastilla) con su productividad y sus puestos de apoyo. Luego los supervisores podrán planificarlas y arrancarlas desde el tablero.</div>`;
+  T.forEach(t=>{ const mk=t.excel&&maestroRow(t.excel), ap=(t.apoyo||[]).filter(a=>+a.cant>0);
+    h+=`<div class="list-item"><div class="li-info"><div class="li-name">${esc(t.nombre)}</div><div class="li-sub">${esc((S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||'Sin cliente')} · ${t.prod} pallets por persona-hora${ap.length?' · apoyo: '+ap.map(a=>a.cant+' '+esc(a.nombre.toLowerCase())).join(', '):''}${mk?' · Excel: '+esc(mk.actividad):''}</div></div>
+    <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalTipoLinea('${t.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarTipoLinea('${t.id}')" aria-label="Eliminar tipo">×</button></div></div>`; });
   if(L.length){
-    const por={}; L.forEach(l=>{ const o=por[l.nombre]||(por[l.nombre]={n:0,pal:0,meta:0,hp:0,costo:0}); const tot=totalPallets(l); o.n++; o.pal+=tot; o.meta+=l.meta||0; o.costo+=tot*(l.costoPallet||0);
-      l.personas.forEach(p=>o.hp+=msH((l.fin||Date.now())-(p.desde||l.inicio))); });
-    h+=`<table class="rt-table"><tr><th>Línea</th><th>Días</th><th>Pallets</th><th>Meta</th><th>Cumpl.</th><th>Pallets/pers-h</th><th>Costo</th></tr>`+
-      Object.entries(por).map(([n,o])=>`<tr><td>${esc(n)}</td><td>${o.n}</td><td>${o.pal}</td><td>${o.meta}</td><td><b style="color:${o.pal>=o.meta?'var(--green)':'var(--amber)'}">${o.meta?Math.round(o.pal/o.meta*100):0}%</b></td><td>${o.hp?fmtN(o.pal/o.hp):'—'}</td><td>$${o.costo.toFixed(2)}</td></tr>`).join('')+`</table>`;
+    const por={}; L.forEach(l=>{ const o=por[l.nombre]||(por[l.nombre]={n:0,pal:0,meta:0,hPal:0,hTot:0,pers:0}); const r=ritmoLinea(l); o.n++; o.pal+=r.tot; o.meta+=l.meta||0; o.hPal+=r.hPal; o.hTot+=r.hTot; o.pers+=l.personas.length; });
+    h+=`<table class="rt-table"><tr><th>Línea</th><th>Días</th><th>Pallets</th><th>Meta</th><th>Cumpl.</th><th>Personas prom.</th><th>Pallets/paletizador-h</th><th>Pallets/persona-h</th></tr>`+
+      Object.entries(por).map(([n,o])=>`<tr><td>${esc(n)}</td><td>${o.n}</td><td>${o.pal}</td><td>${o.meta}</td><td><b style="color:${o.pal>=o.meta?'var(--green)':'var(--amber)'}">${o.meta?Math.round(o.pal/o.meta*100):0}%</b></td><td>${fmtN(o.pers/o.n)}</td><td>${o.hPal?fmtN(o.pal/o.hPal):'—'}</td><td>${o.hTot?fmtN(o.pal/o.hTot):'—'}</td></tr>`).join('')+`</table>`;
   }
   return h+`</div></div>`;
 }
@@ -2688,13 +2738,13 @@ function exportExcel(turnoId){
   Object.entries(opMap).forEach(([n,d])=>{const b=d.prod+d.apoyo+d.noprod+d.libre;opRows.push([n,d.cargo==='operador'?'Operador':'Ayudante General',d.turnos,r2(d.horas),r2(d.extra),r2(d.libre),r2(d.costo),r2(d.prod),r2(d.apoyo),r2(d.noprod),b>0?Math.round(d.prod/b*100):''])});
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(opRows),'Costos por Colaborador');
 
-  // Líneas de producción: costo por pallet (no por hora)
-  const linRows=[['Fecha','Línea','Cliente','Actividad en Excel','Meta (pallets)','Pallets','Cumplimiento (%)','Personas','Horas línea','Horas-persona','Pallets por persona-hora','Productividad objetivo','Costo por pallet ($)','Costo total ($)','Inicio','Fin','Estado']];
-  const perRows=[['Fecha','Línea','Cliente','Persona','Pallets','Horas','Pallets por hora','Objetivo (pallets/h)']];
+  // Líneas de producción: control de cantidades
+  const linRows=[['Fecha','Línea','Cliente','Actividad en Excel','Meta (pallets)','Pallets','Cumplimiento (%)','Personas','Paletizan','Apoyo','Horas línea','Pallets por paletizador-hora','Pallets por persona-hora','Productividad objetivo','Inicio','Fin','Estado']];
+  const perRows=[['Fecha','Línea','Cliente','Persona','Puesto','Pallets','Horas','Pallets por hora','Objetivo (pallets/h)']];
   turnos.forEach(t=>(t.lineas||[]).filter(l=>l.estado!=='pendiente').forEach(l=>{
-    const tot=totalPallets(l), fin=l.fin||Date.now(), hl=msH(fin-l.inicio), hp=l.personas.reduce((a,p)=>a+msH(fin-(p.desde||l.inicio)),0);
-    linRows.push([t.fecha,l.nombre,l.cliente||'',(l.excel||{}).actividad||'',l.meta,tot,l.meta?Math.round(tot/l.meta*100):'',l.personas.length,r2(hl),r2(hp),hp?r2(tot/hp):'',l.prod||'',l.costoPallet||0,r2(tot*(l.costoPallet||0)),hora(l.inicio),l.fin?hora(l.fin):'En marcha',l.estado==='cerrada'?'Cerrada':'En marcha']);
-    l.personas.forEach(p=>{ const h=msH(fin-(p.desde||l.inicio)); perRows.push([t.fecha,l.nombre,l.cliente||'',p.nombre,p.pallets.length,r2(h),h?r2(p.pallets.length/h):'',l.prod||'']); });
+    const r=ritmoLinea(l), fin=l.fin||Date.now();
+    linRows.push([t.fecha,l.nombre,l.cliente||'',(l.excel||{}).actividad||'',l.meta,r.tot,l.meta?Math.round(r.tot/l.meta*100):'',l.personas.length,paletizadores(l).length,deApoyo(l).length,r2(r.h),r.hPal?r2(r.porPaletizador):'',r.hTot?r2(r.porPersona):'',l.prod||'',hora(l.inicio),l.fin?hora(l.fin):'En marcha',l.estado==='cerrada'?'Cerrada':'En marcha']);
+    l.personas.forEach(p=>{ const h=msH(fin-(p.desde||l.inicio)), pal=(p.puesto||PALETIZA)===PALETIZA; perRows.push([t.fecha,l.nombre,l.cliente||'',p.nombre,pal?'Paletiza':p.puesto,pal?p.pallets.length:'',r2(h),pal&&h?r2(p.pallets.length/h):'',pal?(l.prod||''):'']); });
   }));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(linRows),'Líneas de producción');
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(perRows),'Pallets por persona');
