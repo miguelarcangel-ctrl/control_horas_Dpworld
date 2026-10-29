@@ -103,7 +103,7 @@ async function newPage(browser, opts = {}) {
   // 8) Excel
   await page.evaluate(() => exportExcel(null));
   const x = await page.evaluate(() => window.__xlsx.w.s.map(s => s[0] + ':' + s[1].length));
-  ok(x.length === 5, 'Excel con 5 hojas: ' + x.join(', '));
+  ok(x.length === 7, 'Excel con 7 hojas: ' + x.join(', '));
 
   // 9) Configuración con tarifas
   await irA(page, 'Insights'); await page.evaluate(() => openConfig()); await page.waitForTimeout(200);
@@ -224,8 +224,61 @@ async function newPage(browser, opts = {}) {
   ok(await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())), 'app instalable: service worker registrado');
   ok(await page.evaluate(async () => (await (await fetch('manifest.webmanifest')).json()).icons.length >= 2), 'app instalable: manifest con íconos');
   await page.evaluate(() => exportExcel(null));
-  const x2 = await page.evaluate(() => window.__xlsx.w.s.slice(-5).map(s => s[1][0]));
+  const x2 = await page.evaluate(() => window.__xlsx.w.s.slice(-7).map(s => s[1][0]));
   ok(x2[0].includes('Tipo de tiempo') && x2[1].includes('Horas sin registrar') && x2[4].includes('% productivo'), 'Excel: columnas de tiempos y nombre en Excel');
+
+  // 9e) Líneas de producción: personas fuera del maestro, meta diaria, pallets por persona y costo por pallet
+  const ln = await page.evaluate(async () => {
+    const r = {};
+    S.lineasTipo = [{ id: 'lt1', nombre: 'Inserto botella', clienteId: 'k1', prod: 0.5, costoPallet: 12, excel: null }];
+    r.calc = personasNecesarias(40, 0.5, 8) === 10 && metaPosible(6, 0.5, 8) === 24;
+    // planificar para mañana: no aparece hoy
+    abrirPlanLinea(fechaManana()); document.getElementById('plTipo').value = 'lt1'; document.getElementById('plMeta').value = '40'; calcPlanLinea();
+    r.calcTxt = /10 personas/.test(document.getElementById('plCalc').textContent);
+    await guardarPlanLinea();
+    r.manana = (S.turno.lineas || []).length === 0 && S.lineasPlan.length === 1;
+    // agregar una para hoy: aparece en el tablero
+    abrirPlanLinea(S.turno.fecha); document.getElementById('plTipo').value = 'lt1'; document.getElementById('plMeta').value = '20'; document.getElementById('plHoras').value = '8';
+    await guardarPlanLinea();
+    const l = S.turno.lineas[0]; r.hoy = !!l && l.estado === 'pendiente' && document.querySelectorAll('#lineasList .lb').length === 1;
+    // abrir, escribir nombres (no están en el maestro) y arrancar
+    abrirLinea(l.id);
+    for (const n of ['Pedro Temporal', 'María Externa', 'pedro temporal']) { document.getElementById('lmNombre').value = n; await agregarPersonaLinea(); }
+    r.nombres = l.personas.map(p => p.nombre).join('|') === 'Pedro Temporal|María Externa' && !S.colaboradores.some(c => c.nombre === 'Pedro Temporal');
+    r.recuerda = S.nombresLinea.includes('María Externa');
+    await arrancarLinea();
+    r.corre = l.estado === 'corriendo' && l.costoPallet === 12;
+    const [p1, p2] = l.personas;
+    await sumarPallet(p1.id, 1); await sumarPallet(p1.id, 1); await sumarPallet(p1.id, 1); await sumarPallet(p2.id, 1); await sumarPallet(p1.id, -1);
+    r.pallets = p1.pallets.length === 2 && p2.pallets.length === 1 && totalPallets(l) === 3;
+    r.bloque = /3<\/b> \/ 20 pallets/.test(document.getElementById('lineasList').innerHTML);
+    // se suma alguien a mitad de la línea
+    document.getElementById('lmNombre').value = 'Juana Refuerzo'; await agregarPersonaLinea();
+    r.tarde = l.personas.length === 3 && l.personas[2].desde > l.inicio - 1;
+    // el tipo de línea cambia de costo: lo arrancado conserva el suyo
+    S.lineasTipo[0].costoPallet = 99; r.costoFijo = l.costoPallet === 12;
+    hideModal('modalLinea');
+    // otra línea que nunca arrancó se descarta al cerrar el turno; la que corre se cierra
+    S.turno.lineas.push(nuevaLinea(S.lineasTipo[0], 10, 8)); cerrarLineasDelTurno(Date.now());
+    r.cierre = S.turno.lineas.length === 1 && l.estado === 'cerrada' && l.fin > 0;
+    exportExcel(null);
+    const hojas = window.__xlsx.w.s.slice(-2); const lr = hojas[0][1].find(x => x[1] === 'Inserto botella'), pr = hojas[1][1].filter(x => x[1] === 'Inserto botella');
+    r.excel = lr && lr[5] === 3 && lr[13] === 36 && pr.length === 3;
+    r.insights = /Inserto botella/.test(buildLineasSection());
+    return r; });
+  ok(ln.calc && ln.calcTxt, 'línea: personas = meta ÷ (productividad × horas) → 40 ÷ (0.5 × 8) = 10');
+  ok(ln.manana, 'línea: planificada para mañana no aparece hoy');
+  ok(ln.hoy, 'línea: agregada hoy aparece como bloque en el tablero');
+  ok(ln.nombres && ln.recuerda, 'línea: nombres escritos (fuera del maestro), sin duplicados, y se recuerdan para sugerir');
+  ok(ln.corre, 'línea: arranca y congela el costo por pallet');
+  ok(ln.pallets && ln.bloque, 'línea: +1 / −1 pallet por persona; el bloque muestra el total contra la meta');
+  ok(ln.tarde && ln.costoFijo, 'línea: se puede sumar alguien a mitad; cambiar el costo del tipo no altera lo arrancado');
+  ok(ln.cierre, 'línea: al cerrar el turno se cierra la que corre y se descarta la no arrancada');
+  ok(ln.excel && ln.insights, 'línea: Excel con pallets y costo (3 × $12 = $36) y pallets por persona; resumen en Insights');
+  ok(await page.evaluate(() => { const f = S.turno.fecha, ls = S.turno.lineas; S.turno.fecha = fechaManana(); S.turno.lineas = [];
+    const ok1 = traerLineasPlanificadas() && S.turno.lineas.length === 1 && S.turno.lineas[0].meta === 40 && S.turno.lineas[0].estado === 'pendiente';
+    const ok2 = !traerLineasPlanificadas();   // no se duplica
+    S.turno.fecha = f; S.turno.lineas = ls; return ok1 && ok2; }), 'línea: la planificada para mañana aparece sola en el turno de ese día (una vez)');
 
   // 10) Sesión persistente
   await page.reload(); await page.waitForTimeout(700);
