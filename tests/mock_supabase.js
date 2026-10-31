@@ -21,6 +21,9 @@
     users:[{id:'u1',username:'admin',nombre:'Admin Prueba',rol:'admin',pass:'secreto1',activo:true},{id:'u2',username:'super',nombre:'Super Visor',rol:'supervisor',pass:'secreto2',activo:true}],
     sessions:JSON.parse(localStorage.getItem('__mock_sess')||'{}'),calls:[]};
   const err=(m,code)=>({data:null,error:{message:m,code}});
+  const normCed=c=>String(c||'').replace(/\s/g,'').toUpperCase();
+  const fechaPA=ms=>new Date(ms-new Date(ms).getTimezoneOffset()*60000).toISOString().slice(0,10);   // el servidor usa hora de Panamá; aquí, la del equipo
+  SRV.personal=[]; SRV.marcas=[]; SRV.marcaSeq=0;
   const user=t=>{const uid=SRV.sessions[t];const u=SRV.users.find(x=>x.id===uid&&x.activo);return u;};
   const clone=o=>JSON.parse(JSON.stringify(o));
   const strip=v=>{const o=clone(v||{});delete o.usuarios;return o;};
@@ -37,6 +40,37 @@
       if(SRV.users.some(x=>x.username===a.p_username&&x.id!==a.p_id&&x.activo))return err('USUARIO_EXISTE');
       const ex=SRV.users.find(x=>x.id===a.p_id);if(!ex){if(!a.p_pass)return err('CLAVE_CORTA');SRV.users.push({id:'u'+Math.random(),username:a.p_username,nombre:a.p_nombre,rol:a.p_rol,pass:a.p_pass,activo:true});}
       else{Object.assign(ex,{username:a.p_username,nombre:a.p_nombre,rol:a.p_rol});if(a.p_pass)ex.pass=a.p_pass;}return{data:null};},
+    // Marcaje (misma semántica que 20261031_marcaje.sql; cédula en claro solo en el simulador)
+    ch_personal_list:a=>{if(!user(a.p_token))return err('SESION','28000');return{data:SRV.personal.filter(x=>x.key===a.p_key).map(x=>({id:x.id,nombre:x.nombre,puesto_def:x.puesto_def,activo:x.activo,tiene_cedula:!!x.cedula})).sort((x,y)=>x.nombre.localeCompare(y.nombre))};},
+    ch_personal_upsert:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(u.rol!=='admin')return err('PERMISO','42501');
+      const ced=normCed(a.p_cedula);if(!String(a.p_nombre||'').trim())return err('DATOS');if(ced&&ced.length<4)return err('CEDULA_CORTA');
+      const id=a.p_id||('p'+Math.random().toString(36).slice(2,10));
+      if(ced&&SRV.personal.some(x=>x.key===a.p_key&&x.id!==id&&x.cedula===ced))return err('CEDULA_EXISTE');
+      const ex=SRV.personal.find(x=>x.key===a.p_key&&x.id===id);
+      if(ex)Object.assign(ex,{nombre:a.p_nombre.trim(),puesto_def:a.p_puesto,activo:a.p_activo!==false},ced?{cedula:ced}:{});
+      else SRV.personal.push({key:a.p_key,id,nombre:a.p_nombre.trim(),cedula:ced||null,puesto_def:a.p_puesto,activo:a.p_activo!==false});
+      return{data:id};},
+    ch_marcar:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(u.rol!=='admin')return err('PERMISO','42501');
+      const per=SRV.personal.find(x=>x.key===a.p_key&&x.id===a.p_persona&&x.activo);if(!per||!per.cedula||per.cedula!==normCed(a.p_cedula))return err('CEDULA','28000');
+      const now=SRV.ahora?SRV.ahora():Date.now();
+      const ult=SRV.marcas.filter(m=>m.key===a.p_key&&m.persona_id===a.p_persona&&!m.anulado&&Date.parse(m.ts)>now-20*3600000).sort((x,y)=>Date.parse(y.ts)-Date.parse(x.ts))[0];
+      let f=fechaPA(now),pu=null;if(ult&&ult.tipo!=='salida'){f=ult.fecha;pu=ult.puesto;}
+      const t=a.p_tipo;
+      if(t==='entrada'){if(ult&&ult.tipo!=='salida')return err('SECUENCIA');if(!['supervisor','operador','ag','linea'].includes(a.p_puesto))return err('PUESTO');pu=a.p_puesto;}
+      else if(t==='salida_almuerzo'){if(!ult||!['entrada','regreso_almuerzo'].includes(ult.tipo))return err('SECUENCIA');}
+      else if(t==='regreso_almuerzo'){if(!ult||ult.tipo!=='salida_almuerzo')return err('SECUENCIA');}
+      else if(t==='salida'){if(!ult||ult.tipo==='salida')return err('SECUENCIA');}
+      else return err('TIPO');
+      const m={id:++SRV.marcaSeq,key:a.p_key,persona_id:per.id,nombre:per.nombre,fecha:f,tipo:t,puesto:pu,ts:new Date(now).toISOString(),por:u.username,anulado:false,motivo:null,corregido_por:null,corregido_en:null};
+      SRV.marcas.push(m);return{data:{id:m.id,persona_id:m.persona_id,nombre:m.nombre,fecha:m.fecha,tipo:m.tipo,puesto:m.puesto,ts:m.ts}};},
+    ch_marcajes:a=>{if(!user(a.p_token))return err('SESION','28000');return{data:clone(SRV.marcas.filter(m=>m.key===a.p_key&&m.fecha>=a.p_desde&&m.fecha<=a.p_hasta).sort((x,y)=>Date.parse(x.ts)-Date.parse(y.ts)))};},
+    ch_marcaje_admin:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(u.rol!=='admin')return err('PERMISO','42501');if(!String(a.p_motivo||'').trim())return err('MOTIVO');
+      if(a.p_id==null){const per=SRV.personal.find(x=>x.key===a.p_key&&x.id===a.p_persona);if(!per)return err('PERSONA');
+        const m={id:++SRV.marcaSeq,key:a.p_key,persona_id:per.id,nombre:per.nombre,fecha:a.p_fecha,tipo:a.p_tipo,puesto:a.p_puesto,ts:new Date(a.p_ts).toISOString(),por:u.username,anulado:false,motivo:a.p_motivo,corregido_por:u.username,corregido_en:new Date().toISOString()};SRV.marcas.push(m);return{data:m.id};}
+      const m=SRV.marcas.find(x=>x.id===a.p_id&&x.key===a.p_key);if(!m)return{data:null};
+      if(a.p_ts)m.ts=new Date(a.p_ts).toISOString();if(a.p_tipo)m.tipo=a.p_tipo;if(a.p_puesto)m.puesto=a.p_puesto;if(a.p_anulado!=null)m.anulado=a.p_anulado;
+      Object.assign(m,{motivo:a.p_motivo,corregido_por:u.username,corregido_en:new Date().toISOString()});return{data:m.id};},
+    ch_check_pass:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');return{data:u.rol==='admin'&&u.pass===a.p_pass};},
     ch_disable_user:a=>{const u=user(a.p_token);if(a.p_id===u.id)return err('ULTIMO_ADMIN');SRV.users.find(x=>x.id===a.p_id).activo=false;return{data:null};},
   };
   window.supabase={createClient:()=>({rpc:async(fn,args)=>{SRV.calls.push(fn);await new Promise(r=>setTimeout(r,5));
