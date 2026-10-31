@@ -343,6 +343,67 @@ async function newPage(browser, opts = {}) {
   ok(pi.cierre, 'insumos: consumo real = entregado − sobrante y diferencia; cerrar la línea termina el paro abierto');
   ok(pi.excel && pi.insights && pi.causas, 'paros/insumos: Excel (Paros e Insumos de línea), Insights y causas configurables');
 
+  // 9g) Marcaje de asistencia: personal con cédula, tablet en modo quiosco, turno armado solo, horas pagadas, planilla
+  const mk = await page.evaluate(async () => {
+    const r = {}, c0 = window.confirm; window.confirm = () => true;
+    hideModal('modalLinea'); S.tareasActivas = []; S.historial.forEach(h => h.cantPend = false);
+    // alta de personal (admin): colaborador del maestro + supervisor + persona de línea
+    const alta = async (id, nombre, ced, puesto) => { openModalPersona(id); document.getElementById('peNombre').value = nombre; document.getElementById('peCedula').value = ced; _pePuesto = puesto; await guardarPersona(); };
+    await alta('c1', 'Juan Pérez', '8-111-1111', 'operador'); await alta(null, 'Sara Supervisora', '8-222-2222', 'supervisor'); await alta(null, 'Rosa Línea', 'E-8-333', 'linea');
+    openModalPersona(); document.getElementById('peNombre').value = 'Copia'; document.getElementById('peCedula').value = '8-111-1111'; await guardarPersona();
+    r.dup = /ya está registrada/.test(document.getElementById('peErr').textContent); hideModal('modalPersona');
+    r.cifrada = !JSON.stringify(S).includes('8-111-1111') && !JSON.stringify(window.__SRV.rows.ctrl_horas_test.value).includes('8-111-1111');
+    const sara = _personal.find(p => p.nombre === 'Sara Supervisora').id, rosa = _personal.find(p => p.nombre === 'Rosa Línea').id;
+    // tablet en modo quiosco
+    await activarKiosco();
+    r.kiosco = document.body.classList.contains('en-kiosco') && !document.getElementById('viewMarcaje').classList.contains('hidden') && document.querySelectorAll('#kiGrid .ki-p').length === 3;
+    const marcar = async (pid, ced, tipo, puesto) => { abrirMarca(pid); if (tipo) _marca.tipo = tipo; if (puesto) _marca.puesto = puesto; document.getElementById('mmCedula').value = ced; await confirmarMarca(); await new Promise(res => setTimeout(res, 20)); };
+    abrirMarca('c1'); r.soloEntrada = [...document.querySelectorAll('#mmAcciones button')].map(b => b.dataset.t).join() === 'entrada' && _marca.puesto === 'operador';
+    await marcar('c1', '0000', 'entrada'); r.cedulaMala = /Cédula incorrecta/.test(document.getElementById('mmErr').textContent) && window.__SRV.marcas.length === 0;
+    hideModal('modalMarca');
+    await marcar('c1', '8-111-1111', 'entrada'); r.ok = !document.getElementById('kiOk').classList.contains('hidden') && /Bienvenido, Juan/.test(document.getElementById('kiOkTit').textContent);
+    await marcar(sara, '8-222-2222', 'entrada', 'supervisor'); await marcar(rosa, 'e-8-333', 'entrada', 'linea');
+    // con el turno abierto: el operador queda con sus marcajes; la supervisora entra al tablero; la de línea no
+    const e1 = S.turno.equipo.find(c => c.id === 'c1'), es = S.turno.equipo.find(c => c.id === sara);
+    r.turno = e1 && e1.marcas && e1.marcas.length === 1 && es && es.cargo === 'supervisor' && !S.turno.equipo.some(c => c.id === rosa);
+    r.linea = disponiblesLinea().some(p => p.id === rosa);
+    await marcar('c1', '8-111-1111', 'salida_almuerzo'); r.almuerzo = (actDe('c1') || {}).causa === 'almuerzo';
+    abrirMarca('c1'); r.accAlm = [...document.querySelectorAll('#mmAcciones button')].map(b => b.dataset.t).join() === 'regreso_almuerzo,salida'; hideModal('modalMarca');
+    await marcar('c1', '8-111-1111', 'regreso_almuerzo'); r.regreso = !actDe('c1');
+    await marcar('c1', '8-111-1111', 'salida'); r.salida = !!salioDelTurno(S.turno.equipo.find(c => c.id === 'c1')) && /Salió a las/.test(document.querySelector('.pc[data-pid="c1"]').innerHTML);
+    r.secuencia = (await rpc('ch_marcar', { p_token: SESSION.token, p_key: STATE_KEY, p_persona: sara, p_cedula: '8-222-2222', p_tipo: 'regreso_almuerzo' }).catch(e => e.message)) === 'SECUENCIA';
+    // salir del modo marcaje: pide la contraseña del administrador
+    kioscoAdmin('salir'); document.getElementById('apPass').value = 'mala'; await confirmarAdminPass(); r.salirMal = document.body.classList.contains('en-kiosco');
+    document.getElementById('apPass').value = 'secreto1'; await confirmarAdminPass(); r.salirBien = !document.body.classList.contains('en-kiosco') && !enKiosco();
+    // horas pagadas desde el marcaje: 8:00–12:00 y 13:00–18:00 = 9 h → 8 h de jornada + 1 h de sobretiempo
+    const H = 3600000, b = new Date('2026-10-20T08:00:00').getTime(), c = { id: 'zz', nombre: 'Test', cargo: 'operador', marcas: [{ tipo: 'entrada', ts: b }, { tipo: 'salida_almuerzo', ts: b + 4 * H }, { tipo: 'regreso_almuerzo', ts: b + 5 * H }, { tipo: 'salida', ts: b + 10 * H }] };
+    const k = calcTurno({ fecha: '2026-10-20', inicio: b, fin: b + 10 * H, equipo: [c], hpPorPersona: 8 }, [{ id: 'x', tareaId: 't1', tarea: 'x', colaboradores: [c], inicio: b, fin: b + 4 * H, durH: 4 }], [], b + 10 * H), p = k.per.zz;
+    r.pagadas = Math.abs(p.pagadasH - 9) < 1e-9 && Math.abs(p.extra - 1) < 1e-9 && Math.abs(p.libre - 5) < 1e-9 && Math.abs(p.pagado - p.rate * (8 + (getConfig().multSobretiempo || 1.5))) < 0.01;
+    const d = diaAsistencia([{ tipo: 'entrada', ts: new Date('2026-10-20T08:20:00').getTime() }, { tipo: 'salida', ts: new Date('2026-10-20T16:20:00').getTime() }], '2026-10-20');
+    r.tarde = d.tarde === 15 && Math.abs(d.horas - 8) < 1e-9;
+    // planilla: período, detalle, corrección con motivo y exportación
+    setNav('insights'); await cargarAsistencia(hoyStr(), hoyStr());
+    const R = resumenAsistencia(); r.planilla = R.length === 3 && R.find(o => o.id === 'c1').D.length === 1;
+    verAsistencia('c1'); const sal = _asist.marcas.find(m => m.persona_id === 'c1' && m.tipo === 'salida');
+    abrirCorreccion(sal.id); document.getElementById('coHora').value = '23:59'; await guardarCorreccion(); r.sinMotivo = !sal.corregido_por && !window.__SRV.marcas.find(m => m.id === sal.id).corregido_por;
+    document.getElementById('coMotivo').value = 'Olvidó marcar'; await guardarCorreccion();
+    const sm = window.__SRV.marcas.find(m => m.id === sal.id); r.correccion = sm.corregido_por === 'admin' && sm.motivo === 'Olvidó marcar';
+    exportarAsistencia(); r.excel = window.__xlsx.w.s.slice(-3).map(x => x[0]).join('|') === 'Resumen por persona|Asistencia diaria|Marcajes';
+    // aviso de llegada para el supervisor (no en la tablet)
+    const nuevo = { id: 999, persona_id: sara, nombre: 'Sara Supervisora', fecha: hoyStr(), tipo: 'entrada', puesto: 'supervisor', ts: new Date().toISOString() };
+    avisarMarcas([nuevo]); r.aviso = /Llegó Sara Supervisora/.test(document.getElementById('toast').textContent);
+    hideModal('modalAsist'); setNav('supervisor'); window.confirm = c0; return r; });
+  ok(mk.dup && mk.cifrada, 'marcaje: alta de personal; cédula repetida rechazada; la cédula no viaja con los datos de la app');
+  ok(mk.kiosco, 'marcaje: la tablet queda en modo quiosco con el personal que tiene cédula');
+  ok(mk.soloEntrada && mk.cedulaMala && mk.ok, 'marcaje: ofrece solo lo que corresponde, propone la posición, rechaza cédula incorrecta y confirma en grande');
+  ok(mk.turno && mk.linea, 'marcaje: operador y supervisor al tablero del turno; la persona de línea a la cuadrilla disponible');
+  ok(mk.almuerzo && mk.accAlm && mk.regreso && mk.salida, 'marcaje: almuerzo pone la pausa, el regreso la quita y la salida cierra su día en el tablero');
+  ok(mk.secuencia, 'marcaje: el servidor rechaza marcajes fuera de secuencia');
+  ok(mk.salirMal && mk.salirBien, 'marcaje: salir del modo quiosco pide la contraseña del administrador');
+  ok(mk.pagadas && mk.tarde, 'marcaje: horas pagadas desde el marcaje (9 h = 8 + 1 extra); tardanza con tolerancia');
+  ok(mk.planilla && mk.sinMotivo && mk.correccion && mk.excel, 'asistencia: resumen del período, corrección solo con motivo (queda quién) y Excel de 3 hojas');
+  ok(mk.aviso, 'marcaje: aviso de llegada al supervisor/administrador');
+
   const resp = await page.evaluate(() => { const u = currentUser; currentUser = { ...u, rol: 'responsable' }; setNav('supervisor'); pintarMenu();
     const r = { vista: !document.getElementById('viewLineas').classList.contains('hidden') && document.getElementById('viewSupervisor').classList.contains('hidden') };
     currentUser = u; setNav('supervisor'); return r; });
