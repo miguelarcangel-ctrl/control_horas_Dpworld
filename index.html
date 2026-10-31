@@ -257,6 +257,17 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 .rt-table th{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--t3);padding:6px 7px;text-align:left;border-bottom:1px solid var(--b1)}
 .rt-table td{padding:7px;border-bottom:1px solid var(--b0);vertical-align:middle;color:var(--t2)}
 .rt-table tr:last-child td{border-bottom:none}
+.av-grupo{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--t3);margin:12px 0 2px}
+.av-row{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--b0)}
+.av-row:last-child{border-bottom:none}
+.av-txt{flex:1;min-width:0}.av-txt b{display:block;font-weight:600;color:var(--t);font-size:.86rem}.av-txt small{display:block;color:var(--t3);font-size:.72rem;margin-top:1px}
+.sw{position:relative;flex:0 0 auto;width:46px;height:26px;cursor:pointer}
+.sw input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+.sw span{position:absolute;inset:0;border-radius:13px;background:var(--b1);transition:background .15s}
+.sw span::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
+.sw input:checked+span{background:var(--green)}
+.sw input:checked+span::after{transform:translateX(20px)}
+.sw input:focus-visible+span{outline:2px solid var(--green);outline-offset:2px}
 .rt-table tr.rt-total td{border-top:2px solid var(--b1);color:var(--t1)}
 
 /* SOLICITUD */
@@ -1156,6 +1167,12 @@ body.con-sel .toast{bottom:96px}
     <div id="asBody" style="display:flex;flex-direction:column;gap:8px"></div>
   </div>
 </div>
+<div class="overlay hidden" id="modalAvisos">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title" id="avTitulo">Avisos</span><span class="modal-close" onclick="hideModal('modalAvisos')">×</span></div>
+    <div id="avBody"></div>
+  </div>
+</div>
 <div class="overlay hidden" id="modalCorreccion">
   <div class="modal">
     <div class="modal-hdr"><span class="modal-title" id="coTitulo">Corregir marcaje</span><span class="modal-close" onclick="hideModal('modalCorreccion')">×</span></div>
@@ -1595,7 +1612,7 @@ async function startApp(){
   document.getElementById('hdrUser').textContent=currentUser.nombre;
   DPW.quien('Sesión',currentUser.nombre+' · '+(ROL_NOMBRE[currentUser.rol]||currentUser.rol));
   setNav(esResponsable()?'lineas':'supervisor');
-  cargarPersonal().then(cargarMarcas).then(()=>{ if(!enKiosco()) suscribirPush(); if(enKiosco()){ if(currentUser.rol==='admin') entrarKiosco(); else try{ localStorage.removeItem(KIOSCO_KEY); }catch(e){} } });
+  cargarMisAvisos(); cargarPersonal().then(cargarMarcas).then(()=>{ if(!enKiosco()) suscribirPush(); if(enKiosco()){ if(currentUser.rol==='admin') entrarKiosco(); else try{ localStorage.removeItem(KIOSCO_KEY); }catch(e){} } });
   if(_lineasMigradas){ _lineasMigradas=false; save(); }
   const now=new Date();
   document.getElementById('tFecha').value=fechaLocal(now);
@@ -1645,7 +1662,7 @@ const b64aBytes=s=>{ const p='='.repeat((4-s.length%4)%4), b=atob((s+p).replace(
 async function funcionPush(body){ const {data,error}=await db.functions.invoke('push-marcaje',{body}); if(error) throw error; return data; }
 // Registra este celular para recibir las llegadas (admin y supervisor; nunca la tablet de marcaje)
 async function suscribirPush(){
-  if(!pushSoportado()||avisosEstado()!=='granted'||!SESSION||!currentUser||enKiosco()||!['admin','supervisor'].includes(currentUser.rol)) return false;
+  if(!pushSoportado()||avisosEstado()!=='granted'||!SESSION||!currentUser||enKiosco()||!['admin','supervisor','responsable'].includes(currentUser.rol)) return false;
   try{
     const reg=await navigator.serviceWorker.ready;
     let sub=await reg.pushManager.getSubscription();
@@ -1653,14 +1670,14 @@ async function suscribirPush(){
       sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64aBytes(publicKey)}); }
     const j=sub.toJSON();
     await rpc('ch_push_subscribe',{p_token:SESSION.token,p_key:STATE_KEY,p_endpoint:j.endpoint,p_p256dh:j.keys.p256dh,p_auth:j.keys.auth,p_ua:navigator.userAgent});
-    return true;
+    _pushOk=true; return true;
   }catch(e){ console.warn('Push:',e); return false; }
 }
 async function desuscribirPush(){
   if(!pushSoportado()) return;
   try{ const reg=await navigator.serviceWorker.getRegistration(), sub=reg&&await reg.pushManager.getSubscription(); if(!sub) return;
     if(SESSION) await rpc('ch_push_unsubscribe',{p_token:SESSION.token,p_endpoint:sub.endpoint}).catch(()=>{});
-    await sub.unsubscribe(); }catch(e){ console.warn('Push:',e); }
+    await sub.unsubscribe(); _pushOk=false; }catch(e){ console.warn('Push:',e); }
 }
 async function probarAviso(){
   if(!(await suscribirPush())){ showToast('No se pudo registrar este equipo para avisos. En iPhone, instala la app (Compartir → Agregar a inicio) y vuelve a intentar.','error'); return; }
@@ -1674,8 +1691,102 @@ async function activarAvisos(){
   pintarAvisos();
   if(st==='granted'){ await probarAviso(); return; }   // ya activos: prueba que lleguen a este equipo
   const push=await suscribirPush();
-  showToast(push?'Avisos activados: este equipo recibirá las llegadas aunque la app esté cerrada':'Avisos activados con la app abierta','success');
+  showToast(push?'Avisos activados: este equipo recibirá los avisos que elijas aunque la app esté cerrada':'Avisos activados con la app abierta','success');
   if(push) probarAviso();
+  if(!document.getElementById('modalAvisos').classList.contains('hidden')) renderAvisos();
+}
+// ── Qué avisa a cada usuario: catálogo con interruptores. Sin elección guardada, los de su rol.
+const AVISOS_CAT=[
+  {g:'Asistencia (marcaje en la tablet)',items:[
+    ['ent_sup','Entrada de supervisores'],
+    ['ent_resp','Entrada de responsables de línea'],
+    ['ent_op','Entrada de operadores y ayudantes'],
+    ['ent_lin','Entrada de integrantes de las líneas'],
+    ['solo_tarde','Solo las entradas con tardanza','Las entradas de arriba avisan solo si la persona llega tarde'],
+    ['alm_sal','Salida a almuerzo'],
+    ['alm_reg','Regreso de almuerzo','Con los minutos que duró el almuerzo'],
+    ['salida','Salida del día','Con las horas trabajadas'],
+  ]},
+  {g:'Producción (líneas)',items:[
+    ['lin_arranca','Una línea arrancó','Meta, cuadrilla y quién está a cargo'],
+    ['lin_mitad','La línea llegó a la mitad de la meta'],
+    ['lin_meta','Meta del día completada'],
+    ['lin_riesgo','Productividad en riesgo','A este ritmo la línea no llega a la meta del día'],
+    ['lin_paro','Paro de línea largo',()=>'Más de '+(getConfig().alertaParoMin||15)+' min en paro'],
+    ['lin_insumo','Insumo por agotarse','Alcanza para menos de 1 pallet'],
+    ['lin_cierre','Línea cerrada','Resumen: pallets, cumplimiento y paros'],
+  ]},
+  {g:'Turno regular',items:[
+    ['tur_libre','Personas sin tarea asignada',()=>'Más de '+(getConfig().alertaLibreMin||15)+' min sin tarea'],
+    ['tur_larga','Tarea o pausa demasiado larga'],
+    ['tur_pend','Cantidades pendientes al final de la jornada'],
+  ]},
+];
+const AVISOS_DEF={
+  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre'],
+  supervisor:['ent_sup','ent_op','alm_reg','lin_riesgo','lin_paro','tur_libre','tur_larga','tur_pend'],
+  responsable:['ent_resp','ent_lin','alm_reg','lin_arranca','lin_mitad','lin_meta','lin_riesgo','lin_paro','lin_insumo'],
+};
+const avisosDeRol=rol=>{ const o={}; AVISOS_CAT.forEach(g=>g.items.forEach(([id])=>o[id]=(AVISOS_DEF[rol]||[]).includes(id))); return o; };
+let _misAvisos=null, _pushOk=false;
+async function cargarMisAvisos(){ if(!SESSION||IS_TV) return; try{ _misAvisos=await rpc('ch_avisos_get',{p_token:SESSION.token,p_key:STATE_KEY}); }catch(e){ console.warn('Avisos:',e.message); } }
+const avisoOn=ev=>{ const p=_misAvisos||avisosDeRol(currentUser&&currentUser.rol); return !!p[ev]; };
+const EVENTO_MARCA=m=>m.tipo==='entrada'?({supervisor:'ent_sup',responsable:'ent_resp',linea:'ent_lin'}[m.puesto]||'ent_op'):{salida_almuerzo:'alm_sal',regreso_almuerzo:'alm_reg',salida:'salida'}[m.tipo];
+// Pantalla Avisos: la del propio usuario (con el estado de este equipo) o, para el administrador, la de otro usuario
+let _avEdit={uid:null,prefs:null,rol:null,nombre:''};
+async function abrirAvisos(uid){
+  const propio=!uid||uid===currentUser.id, u=propio?currentUser:(_usuarios.find(x=>x.id===uid)||{});
+  if(!propio&&currentUser.rol!=='admin') return;
+  let prefs=null; try{ prefs=await rpc('ch_avisos_get',{p_token:SESSION.token,p_key:STATE_KEY,p_usuario:propio?null:uid}); }catch(e){ showToast('No se pudieron leer los avisos: '+e.message,'error'); return; }
+  _avEdit={uid:propio?null:uid,prefs:prefs||avisosDeRol(u.rol),propios:!!prefs,rol:u.rol,nombre:u.nombre||''};
+  renderAvisos(); showModal('modalAvisos');
+}
+function renderAvisos(){
+  const E=_avEdit, st=avisosEstado(), n=Object.values(E.prefs).filter(Boolean).length-(E.prefs.solo_tarde?1:0);
+  document.getElementById('avTitulo').textContent=E.uid?'Avisos de '+E.nombre:'Mis avisos';
+  let h='';
+  if(!E.uid) h+=`<div class="info-box">${st==='granted'?(_pushOk?'Este equipo recibe tus avisos aunque la app esté cerrada.':'Los avisos están permitidos en este equipo.')
+      :st==='denied'?'Los avisos están bloqueados en este equipo: habilítalos en la configuración del navegador.'
+      :st==='no'?'Este navegador no muestra avisos. En iPhone, instala la app (Compartir → Agregar a inicio).':'Activa los avisos para que lleguen a este equipo.'}
+    <div class="btn-row" style="margin-top:8px">${st==='default'?'<button class="btn btn-green btn-sm" onclick="activarAvisos()">Activar en este equipo</button>':''}${st==='granted'?'<button class="btn btn-ghost btn-sm" onclick="probarAviso()">Probar aviso</button>':''}</div></div>`;
+  else h+=`<div class="info-box">${esc(E.nombre)} · ${ROL_NOMBRE[E.rol]||E.rol}. Le llegan a los celulares donde activó los avisos.</div>`;
+  h+=`<div class="li-sub">Elige qué momentos son importantes: ${n} activo(s)${E.propios?'':' · por ahora, los de su rol'}.</div>`;
+  AVISOS_CAT.forEach(g=>{ h+=`<div class="av-grupo">${g.g}</div>`+g.items.map(([id,nom,det])=>{ const d=typeof det==='function'?det():det;
+    return `<label class="av-row"><span class="av-txt"><b>${nom}</b>${d?`<small>${d}</small>`:''}</span><span class="sw"><input type="checkbox" data-av="${id}" ${E.prefs[id]?'checked':''} onchange="cambiarAviso('${id}',this.checked)"><span></span></span></label>`; }).join(''); });
+  h+=`<button class="btn btn-ghost btn-sm" style="align-self:center;margin-top:8px" onclick="restablecerAvisos()">Volver a los de su rol</button>`;
+  document.getElementById('avBody').innerHTML=h;
+}
+async function guardarAvisos(){
+  const E=_avEdit;
+  try{ await rpc('ch_avisos_set',{p_token:SESSION.token,p_key:STATE_KEY,p_usuario:E.uid,p_prefs:E.prefs}); E.propios=true;
+    if(!E.uid) _misAvisos={...E.prefs}; showToast('Avisos guardados','success'); }
+  catch(e){ showToast('No se pudieron guardar: '+e.message,'error'); }
+  renderAvisos(); pintarMenu();
+}
+async function cambiarAviso(id, on){ _avEdit.prefs={..._avEdit.prefs,[id]:!!on}; await guardarAvisos(); }
+async function restablecerAvisos(){ _avEdit.prefs=avisosDeRol(_avEdit.rol); await guardarAvisos(); }
+// Avisos de producción y del turno: los detecta cualquier equipo con la app abierta y el servidor los manda una sola vez
+// a los celulares de quienes los tienen encendidos. Aquí, además, el aviso del sistema si este equipo no recibe push.
+function emitirAviso(evento, key, titulo, cuerpo, data){
+  if(IS_TV||!SESSION) return;
+  if(_avisados.has(key)) return; _avisados.add(key);
+  try{ sessionStorage.setItem('ch_avisados',JSON.stringify([..._avisados].slice(-200))); }catch(e){}
+  funcionPush({accion:'evento',token:SESSION.token,key:STATE_KEY,evento,ref:key,titulo,cuerpo,data:data||{}}).catch(e=>console.warn('Aviso:',e));
+  if(!_pushOk&&!enKiosco()&&avisoOn(evento)) notificar(titulo,cuerpo,key,data);
+}
+// Producción: arranque, mitad y meta, riesgo de no llegar y cierre
+function revisarProduccion(l){
+  if(!l||l.estado==='pendiente') return;
+  const r=ritmoLinea(l), d={accion:'linea',lid:l.id};
+  if(l.estado==='corriendo'&&l.meta>0){
+    if(r.tot>=l.meta) emitirAviso('lin_meta','meta|'+l.id,'Meta cumplida: línea '+l.nombre,r.tot+' de '+l.meta+' pallets en '+fmtH(r.h),d);
+    else if(r.tot>=l.meta/2) emitirAviso('lin_mitad','mitad|'+l.id,'Mitad de la meta: línea '+l.nombre,r.tot+' de '+l.meta+' pallets en '+fmtH(r.h)+' · a este ritmo cierra en '+r.proy,d);
+    const enRiesgo=r.tot<l.meta&&r.h>=Math.max(1,l.horas*0.25)&&r.proy<l.meta*0.95;
+    if(enRiesgo){ const falta=Math.max(0.1,l.horas-r.h), nec=(l.meta-r.tot)/falta;
+      emitirAviso('lin_riesgo','riesgo|'+l.id,'Productividad en riesgo: línea '+l.nombre,'A este ritmo cierra en '+r.proy+' de '+l.meta+' pallets. Va a '+fmtN(r.ritmo)+'/h y necesita '+fmtN(nec)+'/h en lo que queda',d); }
+  }
+  if(l.estado==='cerrada'&&l.fin&&Date.now()-l.fin<6*3600000){ const pct=l.meta?Math.round(r.tot/l.meta*100):0;
+    emitirAviso('lin_cierre','cierre|'+l.id,'Línea '+l.nombre+' cerrada',r.tot+' de '+l.meta+' pallets ('+pct+'%) en '+fmtH(r.h)+(r.paroH>0.01?' · paros '+fmtH(r.paroH):''),d); }
 }
 // Aviso del sistema (con permiso) + tarjeta en la app. "data" dice qué abrir al tocarlo.
 async function notificar(titulo, cuerpo, tag, data){
@@ -1689,11 +1800,9 @@ async function notificar(titulo, cuerpo, tag, data){
 const fmtH=h=>h>=1?Math.floor(h)+' h '+Math.round((h%1)*60)+' min':Math.round(h*60)+' min';
 let _avisados=new Set(); try{ _avisados=new Set(JSON.parse(sessionStorage.getItem('ch_avisados')||'[]')); }catch(e){}
 let _avisosApp=[];   // tarjetas visibles en la app
-function avisarUnaVez(key, titulo, cuerpo, data){
+function avisarUnaVez(key, titulo, cuerpo, data, evento){
   if(!_avisosApp.some(a=>a.key===key)){ _avisosApp.push({key,titulo,cuerpo,data}); pintarAvisosApp(); }
-  if(_avisados.has(key)) return; _avisados.add(key);
-  try{ sessionStorage.setItem('ch_avisados',JSON.stringify([..._avisados].slice(-200))); }catch(e){}
-  notificar(titulo,cuerpo,key,data);
+  emitirAviso(evento,key,titulo,cuerpo,data);
 }
 const ACCION_AVISO={libre:'Asignar tarea',larga:'Ver tarea',pend:'Poner cantidad',linea:'Ver línea'};
 // Las personas sin tarea se agrupan en una sola tarjeta; como máximo 3 tarjetas a la vez
@@ -1747,8 +1856,9 @@ function revisarAlertasLineas(){
     return !!l&&l.estado==='corriendo'&&(a.key.startsWith('paro|')?!!(l.paroActivo&&a.key==='paro|'+l.paroActivo.id):insumosPorAgotar(l).length>0); });
   if(_avisosApp.length!==n0) pintarAvisosApp();
   (S.lineas||[]).filter(l=>l.estado==='corriendo').forEach(l=>{
-    if(l.paroActivo&&paroDur(l.paroActivo)>=lim) avisarUnaVez('paro|'+l.paroActivo.id,'Línea en paro','Línea '+l.nombre+' lleva '+fmtH(paroDur(l.paroActivo))+' en paro: '+l.paroActivo.causa,{accion:'linea',lid:l.id});
-    insumosPorAgotar(l).forEach(i=>avisarUnaVez('insumo|'+l.id+'|'+i.id+'|'+entregado(i),'Insumo por agotarse','Línea '+l.nombre+': '+i.nombre+' alcanza para menos de 1 pallet',{accion:'linea',lid:l.id}));
+    if(l.paroActivo&&paroDur(l.paroActivo)>=lim) avisarUnaVez('paro|'+l.paroActivo.id,'Línea en paro','Línea '+l.nombre+' lleva '+fmtH(paroDur(l.paroActivo))+' en paro: '+l.paroActivo.causa,{accion:'linea',lid:l.id},'lin_paro');
+    insumosPorAgotar(l).forEach(i=>avisarUnaVez('insumo|'+l.id+'|'+i.id+'|'+entregado(i),'Insumo por agotarse','Línea '+l.nombre+': '+i.nombre+' alcanza para menos de 1 pallet',{accion:'linea',lid:l.id},'lin_insumo'));
+    revisarProduccion(l);
   });
 }
 // Revisa cada 30 s: personas sin tarea, tareas o pausas largas y cantidades pendientes al final de la jornada
@@ -1765,12 +1875,12 @@ function revisarAlertas(){
     return true; });
   if(_avisosApp.length!==antes) pintarAvisosApp();
   S.turno.equipo.forEach(c=>{ if(actDe(c.id)||salioDelTurno(c)) return; const d=libreDesde(c.id), min=(now-d)/60000;
-    if(min>=(cfg.alertaLibreMin||15)) avisarUnaVez('libre|'+c.id+'|'+d,'Sin tarea asignada',c.nombre+' lleva '+fmtH(min/60)+' sin tarea',{accion:'libre',pid:c.id,desde:d}); });
+    if(min>=(cfg.alertaLibreMin||15)) avisarUnaVez('libre|'+c.id+'|'+d,'Sin tarea asignada',c.nombre+' lleva '+fmtH(min/60)+' sin tarea',{accion:'libre',pid:c.id,desde:d},'tur_libre'); });
   S.tareasActivas.forEach(t=>{ const h=msH(now-t.inicio), td=t.tdId&&(S.turno.tareasDia||[]).find(x=>x.id===t.tdId);
     const lim=t.isEspecial?(LIM_PAUSA[t.causa]||1):td&&td.horasEsperadas?Math.max(td.horasEsperadas*1.5,0.5):(cfg.alertaTareaH||3);
-    if(h>=lim) avisarUnaVez('larga|'+t.id,t.isEspecial?'Pausa larga':'¿Sigue en curso?',t.tarea+' · '+t.colaboradores.map(c=>c.nombre.split(' ')[0]).join(', ')+' lleva '+fmtH(h),{accion:'larga',tid:t.id}); });
+    if(h>=lim) avisarUnaVez('larga|'+t.id,t.isEspecial?'Pausa larga':'¿Sigue en curso?',t.tarea+' · '+t.colaboradores.map(c=>c.nombre.split(' ')[0]).join(', ')+' lleva '+fmtH(h),{accion:'larga',tid:t.id},'tur_larga'); });
   const hoy=new Date(), hNow=hoy.getHours()+hoy.getMinutes()/60, p=pendientes().length;
-  if(p&&hNow>=hmToH(cfg.horaFin)-0.25) avisarUnaVez('pend|'+S.turno.id+'|'+p,'Cantidades pendientes',p+' tarea(s) sin cantidad. Complétalas para cerrar el turno.',{accion:'pend'});
+  if(p&&hNow>=hmToH(cfg.horaFin)-0.25) avisarUnaVez('pend|'+S.turno.id+'|'+p,'Cantidades pendientes',p+' tarea(s) sin cantidad. Complétalas para cerrar el turno.',{accion:'pend'},'tur_pend');
 }
 // Al abrir la app desde una notificación (?aviso=...) se ejecuta la acción cuando ya hay sesión y datos
 function avisoDesdeUrl(){
@@ -1796,7 +1906,7 @@ function pintarMenu(){
     {id:'insights',label:'Insights',badge:pend||0,hidden:!currentUser||currentUser.rol!=='admin',on:()=>setNav('insights')},
     {id:'tv',label:'Vista TV',hint:'pantalla completa',on:openDashboard},
     {id:'marcaje',label:'Marcaje en esta tablet',group:'Ajustes',hint:'modo quiosco',hidden:!currentUser||currentUser.rol!=='admin'||IS_TV,on:activarKiosco},
-    {id:'avisos',label:'Avisos',group:'Ajustes',hint:st==='granted'?'Activos · probar':st==='denied'?'Bloqueados':'Activar',hidden:st==='no'||IS_TV,on:activarAvisos}
+    {id:'avisos',label:'Avisos',group:'Ajustes',hint:st==='denied'?'Bloqueados en este equipo':st==='granted'?'Elegir qué avisa':'Activar y elegir',hidden:IS_TV||!currentUser,on:()=>abrirAvisos()}
   ],_nav);
 }
 function esResponsable(){ return !!currentUser&&currentUser.rol==='responsable'; }
@@ -2213,13 +2323,14 @@ async function arrancarLinea(){
     porInicio:quien(),responsable:currentUser?currentUser.nombre:''});
   l.personas.forEach(p=>p.desde=l.inicio);
   renderLineaModal(); renderLineas(); await save(); showToast('Línea '+l.nombre+' en marcha');
+  emitirAviso('lin_arranca','arranca|'+l.id,'Arrancó la línea '+l.nombre,'Meta '+l.meta+' pallets · '+l.personas.length+' personas'+(l.responsable?' · a cargo '+l.responsable:''),{accion:'linea',lid:l.id});
 }
 async function sumarPallet(pid, n){
   const l=lineaDe(_lineaAbierta), p=l&&l.personas.find(x=>x.id===pid); if(!p||l.estado!=='corriendo') return;
   const e=estadoEnLinea(p);
   if(n>0&&e.bloqueo){ showToast(p.nombre+': '+e.texto.toLowerCase()+'. No se le suman pallets hasta que marque su regreso.','error'); return; }
   if(n>0) p.pallets.push(Date.now()); else if(p.pallets.length) p.pallets.pop();
-  renderLineaModal(); renderLineas(); await save();
+  renderLineaModal(); renderLineas(); await save(); revisarProduccion(l);
 }
 // Paros: la línea queda «en paro» con su causa hasta que se reanuda
 let _paroPick=false;
@@ -2268,7 +2379,7 @@ async function cerrarLinea(){
   if(!confirm('¿Cerrar la línea '+l.nombre+' con '+totalPallets(l)+' de '+l.meta+' pallets?'+(l.paroActivo?'\nEl paro en curso se cerrará ahora.':'')+(sinSob.length?'\nFalta el sobrante de: '+sinSob.map(i=>i.nombre).join(', ')+' (puedes ponerlo después).':''))) return;
   terminarParo(l,Date.now());
   l.estado='cerrada'; l.fin=Date.now(); l.porFin=quien();
-  renderLineaModal(); renderLineas(); await save(); showToast('Línea cerrada');
+  renderLineaModal(); renderLineas(); await save(); showToast('Línea cerrada'); revisarProduccion(l);
 }
 async function eliminarLinea(){
   const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='pendiente') return;
@@ -2495,15 +2606,17 @@ function pintarSinMarcas(hintId, btnId, n){
 
 // ── Avisos de llegada y salida (supervisores y administradores; no en la tablet)
 function avisarMarcas(nuevas){
-  if(!currentUser||enKiosco()||!['admin','supervisor'].includes(currentUser.rol)) return;
-  nuevas.filter(m=>!m.anulado&&['entrada','regreso_almuerzo','salida'].includes(m.tipo)&&Date.now()-msTs(m.ts)<30*60000).forEach(m=>{
+  if(!currentUser||enKiosco()||!['admin','supervisor','responsable'].includes(currentUser.rol)) return;
+  nuevas.filter(m=>!m.anulado&&EVENTO_MARCA(m)&&avisoOn(EVENTO_MARCA(m))&&Date.now()-msTs(m.ts)<30*60000).forEach(m=>{
     const key='marca|'+m.id; if(_avisados.has(key)) return; _avisados.add(key);
     let tit, cuerpo;
     if(m.tipo==='entrada'){ const d=diaAsistencia(marcasDe(m.persona_id).filter(x=>x.fecha===m.fecha),m.fecha);
+      if(avisoOn('solo_tarde')&&!d.tarde) return;
       tit='Llegó '+m.nombre; cuerpo=horaHM(msTs(m.ts))+' · '+(PUESTOS[m.puesto]||'')+(d.tarde?' · '+d.tarde+' min tarde':''); }
+    else if(m.tipo==='salida_almuerzo'){ tit='Salió a almuerzo: '+m.nombre; cuerpo=horaHM(msTs(m.ts))+' · '+(PUESTOS[m.puesto]||''); }
     else if(m.tipo==='regreso_almuerzo'){ const sa=marcasDe(m.persona_id).filter(x=>x.tipo==='salida_almuerzo'&&msTs(x.ts)<msTs(m.ts)).pop(); tit='Regresó de almuerzo: '+m.nombre; cuerpo=horaHM(msTs(m.ts))+' · '+(PUESTOS[m.puesto]||'')+(sa?' · almuerzo de '+Math.round((msTs(m.ts)-msTs(sa.ts))/60000)+' min':''); }
     else { const d=diaAsistencia(marcasDe(m.persona_id).filter(x=>x.fecha===m.fecha),m.fecha); tit='Salió '+m.nombre; cuerpo=horaHM(msTs(m.ts))+' · '+fmtH(d.horas)+' trabajadas'; }
-    showToast(tit+' · '+cuerpo,'info'); notificar(tit,cuerpo,key,{accion:'marca'});
+    showToast(tit+' · '+cuerpo,'info'); if(!_pushOk) notificar(tit,cuerpo,key,{accion:'marca'});
   });
 }
 
@@ -2568,7 +2681,7 @@ async function confirmarMarca(){
     const nom=m.nombre.split(' ')[0], hh=horaHM(msTs(m.ts));
     const txt={entrada:['Bienvenido, '+nom,'Entrada '+hh+' · '+(PUESTOS[m.puesto]||'')],salida_almuerzo:['Buen provecho, '+nom,'Salida a almuerzo '+hh],regreso_almuerzo:['De vuelta, '+nom,'Regreso de almuerzo '+hh],salida:['Hasta luego, '+nom,'Salida '+hh]}[m.tipo];
     mostrarOkKiosco(txt[0],txt[1]);
-    if(m.tipo==='entrada'||m.tipo==='regreso_almuerzo') funcionPush({accion:'marca',token:SESSION.token,key:STATE_KEY,marcaId:m.id}).catch(e=>console.warn('Aviso de llegada:',e));
+    funcionPush({accion:'marca',token:SESSION.token,key:STATE_KEY,marcaId:m.id}).catch(e=>console.warn('Aviso de llegada:',e));
     await cargarMarcas();
   }catch(e){
     const msg=/CEDULA/.test(e.message)?'Cédula incorrecta':/SECUENCIA/.test(e.message)?'Ese marcaje no corresponde ahora. Avisa al supervisor.':/SESION/.test(e.message)?'La sesión de la tablet venció: el administrador debe volver a entrar':'No se pudo marcar: '+e.message;
@@ -3807,7 +3920,7 @@ function renderInsights(){
     // USUARIOS
     h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sUsers','cUsers')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Usuarios</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalUsuario()">+ Nuevo</button><span class="chevron open" id="cUsers">▼</span></div></div><div class="sec-body" id="sUsers">`;
     if(!_usuarios.length)h+=`<div class="info-box">Cargando usuarios…</div>`;
-    _usuarios.forEach(u=>{const yo=u.id===currentUser?.id;h+=`<div class="list-item"><div class="li-info"><div class="li-name">${esc(u.nombre)}${yo?' <span class="badge bg">Tú</span>':''}</div><div class="li-sub">@${esc(u.username)} · ${ROL_NOMBRE[u.rol]||u.rol}</div></div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalUsuario('${u.id}')">Editar</button>${yo?'':`<button class="btn btn-red btn-sm" title="Desactivar" onclick="eliminarUsuario('${u.id}')">×</button>`}</div></div>`;});
+    _usuarios.forEach(u=>{const yo=u.id===currentUser?.id;h+=`<div class="list-item"><div class="li-info"><div class="li-name">${esc(u.nombre)}${yo?' <span class="badge bg">Tú</span>':''}</div><div class="li-sub">@${esc(u.username)} · ${ROL_NOMBRE[u.rol]||u.rol}</div></div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="abrirAvisos('${u.id}')">Avisos</button><button class="btn btn-ghost btn-sm" onclick="openModalUsuario('${u.id}')">Editar</button>${yo?'':`<button class="btn btn-red btn-sm" title="Desactivar" onclick="eliminarUsuario('${u.id}')">×</button>`}</div></div>`;});
     h+=`</div></div>`;
 
     // COLABORADORES

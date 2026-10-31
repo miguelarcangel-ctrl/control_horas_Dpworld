@@ -75,12 +75,16 @@
   };
   // Edge Function push-marcaje simulada: deja registro de los pedidos
   SRV.push=[]; SRV.subs=[];
-  fns.ch_push_subscribe=a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(!['admin','supervisor'].includes(u.rol))return err('PERMISO','42501');SRV.subs=SRV.subs.filter(x=>x.endpoint!==a.p_endpoint);SRV.subs.push({endpoint:a.p_endpoint,usuario_id:u.id,key:a.p_key});return{data:null};};
+  fns.ch_push_subscribe=a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(!['admin','supervisor','responsable'].includes(u.rol))return err('PERMISO','42501');SRV.subs=SRV.subs.filter(x=>x.endpoint!==a.p_endpoint);SRV.subs.push({endpoint:a.p_endpoint,usuario_id:u.id,key:a.p_key});return{data:null};};
+  SRV.prefs={}; SRV.eventos=new Set();
+  fns.ch_avisos_get=a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');const uid=a.p_usuario||u.id;if(uid!==u.id&&u.rol!=='admin')return err('PERMISO','42501');return{data:SRV.prefs[a.p_key+'|'+uid]?clone(SRV.prefs[a.p_key+'|'+uid]):null};};
+  fns.ch_avisos_set=a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');const uid=a.p_usuario||u.id;if(uid!==u.id&&u.rol!=='admin')return err('PERMISO','42501');SRV.prefs[a.p_key+'|'+uid]=a.p_prefs;return{data:null};};
   fns.ch_push_unsubscribe=a=>{SRV.subs=SRV.subs.filter(x=>x.endpoint!==a.p_endpoint);return{data:null};};
   const functions={invoke:async(name,{body}={})=>{SRV.push.push({name,body});await new Promise(r=>setTimeout(r,5));
     if(body.accion==='clave')return{data:{publicKey:'BKfake'},error:null};
     const u=user(body.token);if(!u)return{data:null,error:{message:'SESION'}};
-    if(body.accion==='marca'){if(u.rol!=='admin')return{data:null,error:{message:'PERMISO'}};const m=SRV.marcas.find(x=>x.id===body.marcaId);if(!m||m.push_enviado||!['entrada','regreso_almuerzo'].includes(m.tipo))return{data:{ok:true,enviados:0},error:null};m.push_enviado=true;return{data:{ok:true,enviados:SRV.subs.filter(x=>x.key===body.key).length},error:null};}
+    if(body.accion==='marca'){if(u.rol!=='admin')return{data:null,error:{message:'PERMISO'}};const m=SRV.marcas.find(x=>x.id===body.marcaId);if(!m||m.push_enviado)return{data:{ok:true,enviados:0},error:null};m.push_enviado=true;return{data:{ok:true,enviados:SRV.subs.filter(x=>x.key===body.key).length},error:null};}
+    if(body.accion==='evento'){if(SRV.eventos.has(body.key+'|'+body.ref))return{data:{ok:true,enviados:0,repetido:true},error:null};SRV.eventos.add(body.key+'|'+body.ref);return{data:{ok:true,enviados:1},error:null};}
     if(body.accion==='prueba')return{data:{ok:true,enviados:SRV.subs.filter(x=>x.usuario_id===u.id).length},error:null};
     return{data:null,error:{message:'ACCION'}};}};
   window.supabase={createClient:()=>({functions,rpc:async(fn,args)=>{SRV.calls.push(fn);await new Promise(r=>setTimeout(r,5));

@@ -441,23 +441,70 @@ async function newPage(browser, opts = {}) {
     const m = SRV.marcas.find(x => x.persona_id === ivan && x.tipo === 'entrada');
     r.pide = SRV.push.some(x => x.name === 'push-marcaje' && x.body.accion === 'marca' && x.body.marcaId === m.id) && m.push_enviado;
     const n = SRV.push.length; abrirMarca(ivan); _marca.tipo = 'salida_almuerzo'; document.getElementById('mmCedula').value = '8-999-0001'; await confirmarMarca(); await new Promise(res => setTimeout(res, 30));
-    r.soloEntrada = SRV.push.length === n;
+    r.soloEntrada = SRV.push.length === n + 1 && SRV.push[n].body.accion === 'marca';
     abrirMarca(ivan); _marca.tipo = 'regreso_almuerzo'; document.getElementById('mmCedula').value = '8-999-0001'; await confirmarMarca(); await new Promise(res => setTimeout(res, 30));
     const rg = SRV.marcas.find(x => x.persona_id === ivan && x.tipo === 'regreso_almuerzo');
-    r.regreso = SRV.push.length === n + 1 && SRV.push[n].body.marcaId === rg.id && rg.push_enviado;
+    r.regreso = SRV.push.length === n + 2 && SRV.push[n + 1].body.marcaId === rg.id && rg.push_enviado;
     r.unaVez = (await funcionPush({ accion: 'marca', token: SESSION.token, key: STATE_KEY, marcaId: m.id })).enviados === 0;
     r.tabletNoRecibe = !(await suscribirPush());
     kioscoAdmin('salir'); document.getElementById('apPass').value = 'secreto1'; await confirmarAdminPass();
     r.sinPermiso = avisosEstado() !== 'granted' ? !(await suscribirPush()) : true;
     r.sw = /addEventListener\('push'/.test(await (await fetch('sw.js')).text());
-    // solo admin y supervisor registran su celular
+    // admin, supervisor y responsable de línea registran su celular
     const t = SESSION.token, u = currentUser; currentUser = { ...u, rol: 'responsable' }; SRV.users.find(x => x.id === u.id).rol = 'responsable';
-    r.permiso = (await rpc('ch_push_subscribe', { p_token: t, p_key: STATE_KEY, p_endpoint: 'https://push.example/x', p_p256dh: 'a', p_auth: 'b' }).catch(e => e.message)) === 'PERMISO';
+    r.permiso = (await rpc('ch_push_subscribe', { p_token: t, p_key: STATE_KEY, p_endpoint: 'https://push.example/x', p_p256dh: 'a', p_auth: 'b' }).catch(e => e.message)) === null;
+    SRV.subs = SRV.subs.filter(x => x.endpoint !== 'https://push.example/x');
     SRV.users.find(x => x.id === u.id).rol = 'admin'; currentUser = u;
     window.confirm = c0; return r; });
-  ok(pu.pide && pu.soloEntrada && pu.unaVez && pu.regreso, 'push: la tablet pide el aviso en cada entrada y en cada regreso de almuerzo (no al salir a almorzar) y no se repite');
+  ok(pu.pide && pu.soloEntrada && pu.unaVez && pu.regreso, 'push: la tablet pide el aviso en cada marcaje (el servidor decide a quién según sus interruptores) y no se repite');
   ok(pu.tabletNoRecibe && pu.sinPermiso, 'push: la tablet de marcaje y los equipos sin permiso no se registran');
-  ok(pu.sw && pu.permiso, 'push: el service worker muestra el aviso con la app cerrada; solo admin y supervisor registran su celular');
+  ok(pu.sw && pu.permiso, 'push: el service worker muestra el aviso con la app cerrada; admin, supervisor y responsable registran su celular');
+
+  // 9j) Avisos a elección: interruptores por usuario y avisos de producción
+  const avs = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, c0 = window.confirm; window.confirm = () => true;
+    hideModal('modalAsist'); document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
+    // pantalla propia: todos los momentos con su interruptor, por omisión los del rol
+    _misAvisos = null; await abrirAvisos();
+    const sw = [...document.querySelectorAll('#avBody input[data-av]')], total = AVISOS_CAT.reduce((a, g) => a + g.items.length, 0);
+    r.lista = sw.length === total && total >= 18 && !document.getElementById('modalAvisos').classList.contains('hidden') && /Mis avisos/.test(document.getElementById('avTitulo').textContent);
+    r.porRol = sw.find(x => x.dataset.av === 'ent_op').checked && !sw.find(x => x.dataset.av === 'lin_mitad').checked;
+    // apagar y encender: se guarda en el servidor y rige los avisos de esta app
+    await cambiarAviso('ent_op', false); await cambiarAviso('lin_mitad', true);
+    const mio = SRV.prefs[STATE_KEY + '|' + currentUser.id];
+    r.guarda = mio && mio.ent_op === false && mio.lin_mitad === true && !avisoOn('ent_op') && avisoOn('lin_mitad');
+    // en la app: la entrada de un operador ya no avisa a este usuario; la de un supervisor sí
+    const tsAhora = new Date().toISOString(); showToast('-');
+    avisarMarcas([{ id: 9101, persona_id: 'x1', nombre: 'Op Uno', fecha: hoyStr(), tipo: 'entrada', puesto: 'operador', ts: tsAhora }]);
+    const t1 = document.getElementById('toast').textContent;
+    avisarMarcas([{ id: 9102, persona_id: 'x2', nombre: 'Sup Dos', fecha: hoyStr(), tipo: 'entrada', puesto: 'supervisor', ts: tsAhora }]);
+    r.filtra = !/Op Uno/.test(t1) && /Llegó Sup Dos/.test(document.getElementById('toast').textContent);
+    hideModal('modalAvisos');
+    // el administrador elige los avisos de otro usuario desde Usuarios
+    const sup = SRV.users.find(u => u.rol === 'supervisor'); _usuarios = SRV.users.map(u => ({ id: u.id, nombre: u.nombre, username: u.username, rol: u.rol }));
+    await abrirAvisos(sup.id);
+    r.otro = /Avisos de/.test(document.getElementById('avTitulo').textContent) && document.querySelector('#avBody input[data-av="tur_libre"]').checked;
+    await cambiarAviso('lin_meta', true);
+    r.otroGuarda = SRV.prefs[STATE_KEY + '|' + sup.id].lin_meta === true && SRV.prefs[STATE_KEY + '|' + sup.id].tur_libre === true && avisoOn('lin_mitad');
+    hideModal('modalAvisos');
+    r.botonUsuarios = (() => { setNav('insights'); return /abrirAvisos\('/.test(document.getElementById('insightsContent').innerHTML); })(); setNav('supervisor');
+    // producción: mitad, meta y riesgo salen una sola vez al servidor
+    SRV.push = []; _avisados.clear();
+    const H = 3600000, l = nuevaLinea(S.lineasTipo[0], 10, 8); S.lineas.push(l);
+    Object.assign(l, { estado: 'corriendo', inicio: Date.now() - 4 * H, personas: [{ id: 'q1', nombre: 'Q', puesto: 'pallets', pallets: [], desde: Date.now() - 4 * H }] });
+    const ev = () => SRV.push.filter(x => x.body.accion === 'evento').map(x => x.body.evento);
+    l.personas[0].pallets = [1, 2]; revisarProduccion(l); r.riesgo = ev().includes('lin_riesgo') && !ev().includes('lin_mitad');
+    l.personas[0].pallets = [1, 2, 3, 4, 5]; revisarProduccion(l); revisarProduccion(l); r.mitad = ev().filter(e => e === 'lin_mitad').length === 1;
+    l.personas[0].pallets = Array.from({ length: 10 }, (_, i) => i); revisarProduccion(l); r.meta = ev().includes('lin_meta');
+    const rel = SRV.push.find(x => x.body.evento === 'lin_meta').body; r.texto = /Meta cumplida/.test(rel.titulo) && rel.data.lid === l.id && rel.ref === 'meta|' + l.id;
+    l.estado = 'cerrada'; l.fin = Date.now(); revisarProduccion(l); r.cierre = ev().includes('lin_cierre');
+    r.unaVezServidor = (await funcionPush({ accion: 'evento', token: SESSION.token, key: STATE_KEY, evento: 'lin_meta', ref: 'meta|' + l.id })).repetido === true;
+    S.lineas = S.lineas.filter(x => x.id !== l.id);
+    window.confirm = c0; return r; });
+  ok(avs.lista && avs.porRol, 'avisos: pantalla con todos los momentos y su interruptor; por omisión los de su rol');
+  ok(avs.guarda && avs.filtra, 'avisos: cada interruptor se guarda en el servidor y decide qué avisa (entrada de operador apagada, de supervisor encendida)');
+  ok(avs.otro && avs.otroGuarda && avs.botonUsuarios, 'avisos: el administrador elige los avisos de cada usuario desde Usuarios');
+  ok(avs.riesgo && avs.mitad && avs.meta && avs.texto && avs.cierre && avs.unaVezServidor, 'avisos de producción: riesgo de no llegar, mitad, meta cumplida y cierre; una sola vez');
 
   // 9i) El turno solo se inicia con personal que marcó entrada
   const tm = await page.evaluate(async () => {
