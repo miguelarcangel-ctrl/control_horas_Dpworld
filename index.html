@@ -743,7 +743,7 @@ body.con-sel .toast{bottom:96px}
     </div>
     <div class="field"><label>Colaboradores del turno</label><div class="li-sub" id="colabChipsHint"></div><div class="chip-wrap" id="colabChips"></div></div>
     <div class="info-box" id="turnoResumen">Selecciona colaboradores para ver el resumen</div>
-    <button class="btn btn-green btn-full" onclick="abrirTurno()">Iniciar Turno</button>
+    <button class="btn btn-green btn-full" id="btnAbrirTurno" onclick="abrirTurno()">Iniciar Turno</button>
   </div>
 </div>
 
@@ -1017,9 +1017,9 @@ body.con-sel .toast{bottom:96px}
   <div class="modal">
     <div class="modal-hdr"><span class="modal-title">Iniciar Turno Planificado</span><span class="modal-close" onclick="hideModal('modalIniciarPlan')">×</span></div>
     <div class="info-box" id="iniciarPlanInfo"></div>
-    <div class="field"><label>Confirmar Colaboradores (ajustar si hay ausencias)</label><div class="chip-wrap" id="iniciarPlanColabs"></div></div>
+    <div class="field"><label>Colaboradores del turno</label><div class="li-sub" id="iniciarPlanHint"></div><div class="chip-wrap" id="iniciarPlanColabs"></div></div>
     <div class="info-box" id="iniciarPlanResumen">Selecciona colaboradores para ver el resumen</div>
-    <button class="btn btn-green btn-full" onclick="iniciarTurnoPlan()">Iniciar Turno</button>
+    <button class="btn btn-green btn-full" id="btnIniciarPlan" onclick="iniciarTurnoPlan()">Iniciar Turno</button>
   </div>
 </div>
 
@@ -1814,7 +1814,7 @@ function toggleSec(b,c){
 }
 async function showModal(id){
   document.getElementById(id).classList.remove('hidden');
-  if(id==='modalAbrirTurno'){await reload();prepModalTurno();}
+  if(id==='modalAbrirTurno'){prepModalTurno();await reload();await cargarPersonal();await cargarMarcas();prepModalTurno();}
   else if(id==='modalNuevaTarea') prepModalTarea();
   else if(id==='modalColab') updateColabCosto();
   else if(id==='modalDimensionador') initDimensionador();
@@ -1877,8 +1877,8 @@ function prepModalTurno(){
   const completa=document.querySelector('#jornadaChips .chip[data-jornada="completa"]');
   if(completa) completa.classList.add('selected');
   const w=document.getElementById('colabChips');w.innerHTML='';
-  const P=personasParaTurno(), hayMarcas=P.some(c=>c.presente);
-  document.getElementById('colabChipsHint').textContent=hayMarcas?'Ya vienen seleccionadas las personas que marcaron entrada. Las que lleguen después se agregan solas al tablero.':'';
+  const P=personasMarcadas();
+  pintarSinMarcas('colabChipsHint','btnAbrirTurno',P.length);
   P.forEach(c=>{
     const el=document.createElement('div');el.className='chip'+(c.presente?' selected':'');el.dataset.id=c.id;
     el.textContent=c.nombre+' ('+({operador:'Op',ag:'AG',supervisor:'Sup'}[c.cargo]||'Op')+')'+(c.presente?' · marcó':'');
@@ -1903,9 +1903,12 @@ function updateTurnoResumen(){
   Total equipo: <b>${(eq.length*hpPP).toFixed(1)}h</b> · Almuerzo: ${cfg.horasAlmuerzo}h/persona`;
 }
 async function abrirTurno(){
+  await cargarMarcas();
+  if(!personasMarcadas().length){ alert(MSG_SIN_MARCAS); prepModalTurno(); return; }
   const ids=[...document.querySelectorAll('#colabChips .chip.selected')].map(c=>c.dataset.id);
-  if(!ids.length){alert('Selecciona al menos un colaborador');return;}
-  const eq=personasParaTurno().filter(c=>ids.includes(c.id)).map(c=>{ const o={id:c.id,nombre:c.nombre,cargo:c.cargo}; if(c.presente) o.marcaje=true; return o; });
+  if(!ids.length){alert('Selecciona al menos una persona que haya marcado entrada');return;}
+  const eq=equipoMarcado(ids);
+  if(!eq.length){ alert(MSG_SIN_MARCAS); prepModalTurno(); return; }
   const fecha=document.getElementById('tFecha').value;
   const jornada=getJornadaSeleccionada();
   const hpPorPersona=horasJornada(jornada,fecha);
@@ -2443,6 +2446,17 @@ function personasParaTurno(){
   presentes(['operador','ag','supervisor']).forEach(p=>{ const e=estadoMarca(p.id), c=L.find(x=>x.id===p.id);
     if(c){ c.cargo=CARGO_DE[e.puesto]||c.cargo; c.presente=true; } else L.push({id:p.id,nombre:p.nombre,cargo:CARGO_DE[e.puesto],presente:true}); });
   return L;
+}
+
+// El turno solo arranca con personal que marcó entrada en la tablet (operador, ayudante o supervisor)
+const MSG_SIN_MARCAS='No se puede iniciar el turno: nadie ha marcado entrada en la tablet de marcaje.\n\nEl personal debe marcar su entrada primero. Si alguien no pudo marcar, el administrador puede registrarle la entrada en Asistencia.';
+const personasMarcadas=()=>personasParaTurno().filter(c=>c.presente);
+const equipoMarcado=ids=>personasMarcadas().filter(c=>ids.includes(c.id)).map(c=>({id:c.id,nombre:c.nombre,cargo:c.cargo,marcaje:true}));
+function pintarSinMarcas(hintId, btnId, n){
+  const h=document.getElementById(hintId), b=document.getElementById(btnId);
+  h.textContent=!_marcasCargadas?'Leyendo el marcaje…':n?'Personas que marcaron entrada (vienen seleccionadas). Las que lleguen después se agregan solas al tablero.':'Nadie ha marcado entrada todavía. El turno se habilita cuando el personal marque en la tablet.';
+  h.style.color=_marcasCargadas&&!n?'var(--red)':'';
+  if(b){ b.disabled=!n; b.textContent=n?'Iniciar Turno':'Esperando marcajes'; }
 }
 
 // ── Avisos de llegada y salida (supervisores y administradores; no en la tablet)
@@ -4975,24 +4989,28 @@ function prepIniciarPlan(planId){
     `<b>${plan.fecha} ${plan.hora}</b> · ${plan.jornada==='media'?'Media':'Completa'}<br>
     ${plan.tareas.length} tarea(s) · ${plan.totalHNecesarias.toFixed(1)}h necesarias · ${plan.personasNecesarias} persona(s)`;
 
+  pintarPlanColabs(plan);
+  showModal('modalIniciarPlan');
+  cargarPersonal().then(cargarMarcas).then(()=>{ if(_planIniciandoId===planId) pintarPlanColabs(plan); });
+}
+function pintarPlanColabs(plan){
   const wrap=document.getElementById('iniciarPlanColabs');
   wrap.innerHTML='';
-  S.colaboradores.forEach(c=>{
+  const P=personasMarcadas();
+  pintarSinMarcas('iniciarPlanHint','btnIniciarPlan',P.length);
+  P.forEach(c=>{
     const chip=document.createElement('div');
-    chip.className='chip'; chip.dataset.id=c.id;
-    chip.textContent=c.nombre+' ('+(c.cargo==='operador'?'Op':'AG')+')';
-    // Pre-select suggested
-    if((plan.colabs||[]).some(x=>x.id===c.id)) chip.classList.add('selected');
+    chip.className='chip selected'; chip.dataset.id=c.id;
+    chip.textContent=c.nombre+' ('+({operador:'Op',ag:'AG',supervisor:'Sup'}[c.cargo]||'Op')+') · marcó';
     chip.onclick=()=>{chip.classList.toggle('selected');updateIniciarResumen(plan);};
     wrap.appendChild(chip);
   });
   updateIniciarResumen(plan);
-  showModal('modalIniciarPlan');
 }
 
 function updateIniciarResumen(plan){
   const ids=[...document.querySelectorAll('#iniciarPlanColabs .chip.selected')].map(c=>c.dataset.id);
-  const eq=S.colaboradores.filter(c=>ids.includes(c.id));
+  const eq=personasMarcadas().filter(c=>ids.includes(c.id));
   const el=document.getElementById('iniciarPlanResumen');
   if(!eq.length){el.textContent='Selecciona colaboradores';return;}
   const hpPP=plan.hpPorPersona||8;
@@ -5004,9 +5022,12 @@ function updateIniciarResumen(plan){
 async function iniciarTurnoPlan(){
   const plan=S.turnosProgramados.find(p=>p.id===_planIniciandoId);
   if(!plan) return;
+  await cargarMarcas();
+  if(!personasMarcadas().length){ alert(MSG_SIN_MARCAS); pintarPlanColabs(plan); return; }
   const ids=[...document.querySelectorAll('#iniciarPlanColabs .chip.selected')].map(c=>c.dataset.id);
-  if(!ids.length){alert('Selecciona al menos un colaborador');return;}
-  const eq=S.colaboradores.filter(c=>ids.includes(c.id));
+  if(!ids.length){alert('Selecciona al menos una persona que haya marcado entrada');return;}
+  const eq=equipoMarcado(ids);
+  if(!eq.length){ alert(MSG_SIN_MARCAS); pintarPlanColabs(plan); return; }
   // Import plan tareas as tareasDia
   const tareasDiaFromPlan=(plan.tareas||[]).map(t=>({
     id:uid(), tareaId:t.tareaId, tarea:t.tarea,
@@ -5024,6 +5045,7 @@ async function iniciarTurnoPlan(){
     tareasDia:tareasDiaFromPlan,
   };
   S.tareasActivas=[]; S.historial=[];
+  aplicarMarcasAlTurno();
   // Mark plan as iniciado
   plan.estado='iniciado';
   await save();

@@ -428,6 +428,24 @@ async function newPage(browser, opts = {}) {
   ok(pu.tabletNoRecibe && pu.sinPermiso, 'push: la tablet de marcaje y los equipos sin permiso no se registran');
   ok(pu.sw && pu.permiso, 'push: el service worker muestra el aviso con la app cerrada; solo admin y supervisor registran su celular');
 
+  // 9i) El turno solo se inicia con personal que marcó entrada
+  const tm = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, a0 = window.alert; let alerta = ''; window.alert = m => { alerta = m; };
+    const orig = { turno: S.turno, act: S.tareasActivas, hist: S.historial }, marcas = SRV.marcas;
+    S.turno = null; document.getElementById('tFecha').value = hoyStr(); document.getElementById('tHora').value = '07:00';
+    SRV.marcas = []; await cargarMarcas(); prepModalTurno();
+    r.bloqueado = document.getElementById('btnAbrirTurno').disabled && document.querySelectorAll('#colabChips .chip').length === 0 && /Nadie ha marcado/.test(document.getElementById('colabChipsHint').textContent);
+    await abrirTurno(); r.noAbre = !S.turno && /nadie ha marcado/.test(alerta);
+    SRV.marcas = marcas; await cargarMarcas(); prepModalTurno();
+    const chips = [...document.querySelectorAll('#colabChips .chip')];
+    r.soloMarcados = chips.length === personasMarcadas().length && chips.length > 0 && chips.every(c => c.classList.contains('selected')) && !chips.some(c => c.dataset.id === 'c2');
+    r.habilitado = !document.getElementById('btnAbrirTurno').disabled;
+    await abrirTurno(); r.abre = !!S.turno && chips.every(c => S.turno.equipo.some(e => e.id === c.dataset.id)) && S.turno.equipo.every(e => e.marcaje);
+    hideModal('modalAbrirTurno'); document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
+    S.turno = orig.turno; S.tareasActivas = orig.act; S.historial = orig.hist; await save(); window.alert = a0; renderAll(); return r; });
+  ok(tm.bloqueado && tm.noAbre, 'turno: sin nadie marcado no se puede iniciar (botón deshabilitado y aviso)');
+  ok(tm.soloMarcados && tm.habilitado && tm.abre, 'turno: solo ofrece y arranca con quienes marcaron entrada');
+
   const resp = await page.evaluate(() => { const u = currentUser; currentUser = { ...u, rol: 'responsable' }; setNav('supervisor'); pintarMenu();
     const r = { vista: !document.getElementById('viewLineas').classList.contains('hidden') && document.getElementById('viewSupervisor').classList.contains('hidden') };
     currentUser = u; setNav('supervisor'); return r; });
