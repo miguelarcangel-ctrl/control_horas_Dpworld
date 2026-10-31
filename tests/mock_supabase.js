@@ -73,7 +73,17 @@
     ch_check_pass:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');return{data:u.rol==='admin'&&u.pass===a.p_pass};},
     ch_disable_user:a=>{const u=user(a.p_token);if(a.p_id===u.id)return err('ULTIMO_ADMIN');SRV.users.find(x=>x.id===a.p_id).activo=false;return{data:null};},
   };
-  window.supabase={createClient:()=>({rpc:async(fn,args)=>{SRV.calls.push(fn);await new Promise(r=>setTimeout(r,5));
+  // Edge Function push-marcaje simulada: deja registro de los pedidos
+  SRV.push=[]; SRV.subs=[];
+  fns.ch_push_subscribe=a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(!['admin','supervisor'].includes(u.rol))return err('PERMISO','42501');SRV.subs=SRV.subs.filter(x=>x.endpoint!==a.p_endpoint);SRV.subs.push({endpoint:a.p_endpoint,usuario_id:u.id,key:a.p_key});return{data:null};};
+  fns.ch_push_unsubscribe=a=>{SRV.subs=SRV.subs.filter(x=>x.endpoint!==a.p_endpoint);return{data:null};};
+  const functions={invoke:async(name,{body}={})=>{SRV.push.push({name,body});await new Promise(r=>setTimeout(r,5));
+    if(body.accion==='clave')return{data:{publicKey:'BKfake'},error:null};
+    const u=user(body.token);if(!u)return{data:null,error:{message:'SESION'}};
+    if(body.accion==='marca'){if(u.rol!=='admin')return{data:null,error:{message:'PERMISO'}};const m=SRV.marcas.find(x=>x.id===body.marcaId);if(!m||m.push_enviado||m.tipo!=='entrada')return{data:{ok:true,enviados:0},error:null};m.push_enviado=true;return{data:{ok:true,enviados:SRV.subs.filter(x=>x.key===body.key).length},error:null};}
+    if(body.accion==='prueba')return{data:{ok:true,enviados:SRV.subs.filter(x=>x.usuario_id===u.id).length},error:null};
+    return{data:null,error:{message:'ACCION'}};}};
+  window.supabase={createClient:()=>({functions,rpc:async(fn,args)=>{SRV.calls.push(fn);await new Promise(r=>setTimeout(r,5));
     if(SRV.offline)return{data:null,error:{message:'Failed to fetch',code:''}};
     if(!fns[fn])return err('no fn '+fn);return fns[fn](clone(args||{}));}})};
 })();

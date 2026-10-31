@@ -404,6 +404,30 @@ async function newPage(browser, opts = {}) {
   ok(mk.planilla && mk.sinMotivo && mk.correccion && mk.excel, 'asistencia: resumen del período, corrección solo con motivo (queda quién) y Excel de 3 hojas');
   ok(mk.aviso, 'marcaje: aviso de llegada al supervisor/administrador');
 
+  // 9h) Notificaciones push de llegada
+  const pu = await page.evaluate(async () => {
+    const r = {}, c0 = window.confirm; window.confirm = () => true; const SRV = window.__SRV;
+    SRV.push = []; await activarKiosco();
+    const ivan = 'p_push'; await rpc('ch_personal_upsert', { p_token: SESSION.token, p_key: STATE_KEY, p_id: ivan, p_nombre: 'Iván Push', p_cedula: '8-999-0001', p_puesto: 'operador', p_activo: true }); await cargarPersonal();
+    abrirMarca(ivan); document.getElementById('mmCedula').value = '8-999-0001'; await confirmarMarca(); await new Promise(res => setTimeout(res, 30));
+    const m = SRV.marcas.find(x => x.persona_id === ivan && x.tipo === 'entrada');
+    r.pide = SRV.push.some(x => x.name === 'push-marcaje' && x.body.accion === 'marca' && x.body.marcaId === m.id) && m.push_enviado;
+    const n = SRV.push.length; abrirMarca(ivan); _marca.tipo = 'salida_almuerzo'; document.getElementById('mmCedula').value = '8-999-0001'; await confirmarMarca(); await new Promise(res => setTimeout(res, 30));
+    r.soloEntrada = SRV.push.length === n;
+    r.unaVez = (await funcionPush({ accion: 'marca', token: SESSION.token, key: STATE_KEY, marcaId: m.id })).enviados === 0;
+    r.tabletNoRecibe = !(await suscribirPush());
+    kioscoAdmin('salir'); document.getElementById('apPass').value = 'secreto1'; await confirmarAdminPass();
+    r.sinPermiso = avisosEstado() !== 'granted' ? !(await suscribirPush()) : true;
+    r.sw = /addEventListener\('push'/.test(await (await fetch('sw.js')).text());
+    // solo admin y supervisor registran su celular
+    const t = SESSION.token, u = currentUser; currentUser = { ...u, rol: 'responsable' }; SRV.users.find(x => x.id === u.id).rol = 'responsable';
+    r.permiso = (await rpc('ch_push_subscribe', { p_token: t, p_key: STATE_KEY, p_endpoint: 'https://push.example/x', p_p256dh: 'a', p_auth: 'b' }).catch(e => e.message)) === 'PERMISO';
+    SRV.users.find(x => x.id === u.id).rol = 'admin'; currentUser = u;
+    window.confirm = c0; return r; });
+  ok(pu.pide && pu.soloEntrada && pu.unaVez, 'push: la tablet pide el aviso en cada entrada (no en el almuerzo) y no se repite');
+  ok(pu.tabletNoRecibe && pu.sinPermiso, 'push: la tablet de marcaje y los equipos sin permiso no se registran');
+  ok(pu.sw && pu.permiso, 'push: el service worker muestra el aviso con la app cerrada; solo admin y supervisor registran su celular');
+
   const resp = await page.evaluate(() => { const u = currentUser; currentUser = { ...u, rol: 'responsable' }; setNav('supervisor'); pintarMenu();
     const r = { vista: !document.getElementById('viewLineas').classList.contains('hidden') && document.getElementById('viewSupervisor').classList.contains('hidden') };
     currentUser = u; setNav('supervisor'); return r; });

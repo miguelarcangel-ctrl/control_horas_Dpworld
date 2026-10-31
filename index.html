@@ -1578,6 +1578,7 @@ async function doLogin(){
   }
 }
 async function doLogout(){
+  await desuscribirPush();   // este equipo deja de recibir avisos de llegada
   if(SESSION){ try{ await rpc('ch_logout',{p_token:SESSION.token}); }catch(e){} }
   SESSION=null; currentUser=null; localStorage.removeItem(SESS_KEY);
   document.getElementById('loginScreen').style.display='flex';document.getElementById('appScreen').classList.add('hidden');
@@ -1592,7 +1593,7 @@ async function startApp(){
   document.getElementById('hdrUser').textContent=currentUser.nombre;
   DPW.quien('Sesión',currentUser.nombre+' · '+(ROL_NOMBRE[currentUser.rol]||currentUser.rol));
   setNav(esResponsable()?'lineas':'supervisor');
-  cargarPersonal().then(cargarMarcas).then(()=>{ if(enKiosco()){ if(currentUser.rol==='admin') entrarKiosco(); else try{ localStorage.removeItem(KIOSCO_KEY); }catch(e){} } });
+  cargarPersonal().then(cargarMarcas).then(()=>{ if(!enKiosco()) suscribirPush(); if(enKiosco()){ if(currentUser.rol==='admin') entrarKiosco(); else try{ localStorage.removeItem(KIOSCO_KEY); }catch(e){} } });
   if(_lineasMigradas){ _lineasMigradas=false; save(); }
   const now=new Date();
   document.getElementById('tFecha').value=fechaLocal(now);
@@ -1636,11 +1637,43 @@ const avisosEstado=()=>!('Notification' in window)?'no':Notification.permission;
 function pintarAvisos(){
   pintarMenu();
 }
+// ═══ NOTIFICACIONES PUSH: llegan aunque la app esté cerrada (Edge Function push-marcaje) ═══
+const pushSoportado=()=>'serviceWorker' in navigator&&'PushManager' in window&&!IS_TV;
+const b64aBytes=s=>{ const p='='.repeat((4-s.length%4)%4), b=atob((s+p).replace(/-/g,'+').replace(/_/g,'/')); return Uint8Array.from(b,c=>c.charCodeAt(0)); };
+async function funcionPush(body){ const {data,error}=await db.functions.invoke('push-marcaje',{body}); if(error) throw error; return data; }
+// Registra este celular para recibir las llegadas (admin y supervisor; nunca la tablet de marcaje)
+async function suscribirPush(){
+  if(!pushSoportado()||avisosEstado()!=='granted'||!SESSION||!currentUser||enKiosco()||!['admin','supervisor'].includes(currentUser.rol)) return false;
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub){ const {publicKey}=await funcionPush({accion:'clave'}); if(!publicKey) return false;
+      sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64aBytes(publicKey)}); }
+    const j=sub.toJSON();
+    await rpc('ch_push_subscribe',{p_token:SESSION.token,p_key:STATE_KEY,p_endpoint:j.endpoint,p_p256dh:j.keys.p256dh,p_auth:j.keys.auth,p_ua:navigator.userAgent});
+    return true;
+  }catch(e){ console.warn('Push:',e); return false; }
+}
+async function desuscribirPush(){
+  if(!pushSoportado()) return;
+  try{ const reg=await navigator.serviceWorker.getRegistration(), sub=reg&&await reg.pushManager.getSubscription(); if(!sub) return;
+    if(SESSION) await rpc('ch_push_unsubscribe',{p_token:SESSION.token,p_endpoint:sub.endpoint}).catch(()=>{});
+    await sub.unsubscribe(); }catch(e){ console.warn('Push:',e); }
+}
+async function probarAviso(){
+  if(!(await suscribirPush())){ showToast('No se pudo registrar este equipo para avisos. En iPhone, instala la app (Compartir → Agregar a inicio) y vuelve a intentar.','error'); return; }
+  try{ const r=await funcionPush({accion:'prueba',token:SESSION.token,key:STATE_KEY}); showToast(r&&r.enviados?'Aviso de prueba enviado a '+r.enviados+' equipo(s)':'No se pudo enviar el aviso de prueba','info'); }
+  catch(e){ showToast('No se pudo enviar el aviso de prueba','error'); }
+}
 async function activarAvisos(){
   const st=avisosEstado();
   if(st==='denied'){ showToast('Los avisos están bloqueados: habilítalos en la configuración del navegador','error'); return; }
   if(st!=='granted'&&(await Notification.requestPermission())!=='granted'){ pintarAvisos(); return; }
-  pintarAvisos(); notificar('Avisos activados','Te avisaremos si alguien queda sin tarea, si una tarea se alarga o si faltan cantidades. Toca el aviso para ir a la acción.','ch-prueba'); showToast('Avisos activados','success');
+  pintarAvisos();
+  if(st==='granted'){ await probarAviso(); return; }   // ya activos: prueba que lleguen a este equipo
+  const push=await suscribirPush();
+  showToast(push?'Avisos activados: este equipo recibirá las llegadas aunque la app esté cerrada':'Avisos activados con la app abierta','success');
+  if(push) probarAviso();
 }
 // Aviso del sistema (con permiso) + tarjeta en la app. "data" dice qué abrir al tocarlo.
 async function notificar(titulo, cuerpo, tag, data){
@@ -1761,7 +1794,7 @@ function pintarMenu(){
     {id:'insights',label:'Insights',badge:pend||0,hidden:!currentUser||currentUser.rol!=='admin',on:()=>setNav('insights')},
     {id:'tv',label:'Vista TV',hint:'pantalla completa',on:openDashboard},
     {id:'marcaje',label:'Marcaje en esta tablet',group:'Ajustes',hint:'modo quiosco',hidden:!currentUser||currentUser.rol!=='admin'||IS_TV,on:activarKiosco},
-    {id:'avisos',label:'Avisos',group:'Ajustes',hint:st==='granted'?'Activos':st==='denied'?'Bloqueados':'Activar',hidden:st==='no'||IS_TV,on:activarAvisos}
+    {id:'avisos',label:'Avisos',group:'Ajustes',hint:st==='granted'?'Activos · probar':st==='denied'?'Bloqueados':'Activar',hidden:st==='no'||IS_TV,on:activarAvisos}
   ],_nav);
 }
 function esResponsable(){ return !!currentUser&&currentUser.rol==='responsable'; }
@@ -2433,6 +2466,7 @@ async function activarKiosco(){
   await entrarKiosco();
 }
 async function entrarKiosco(){
+  desuscribirPush();   // la tablet no recibe avisos de llegada
   document.body.classList.add('en-kiosco'); DPW.cerrarMenu&&DPW.cerrarMenu();
   document.getElementById('viewMarcaje').classList.remove('hidden');
   await cargarPersonal(); await cargarMarcas(); renderKiosco();
@@ -2485,6 +2519,7 @@ async function confirmarMarca(){
     const nom=m.nombre.split(' ')[0], hh=horaHM(msTs(m.ts));
     const txt={entrada:['Bienvenido, '+nom,'Entrada '+hh+' · '+(PUESTOS[m.puesto]||'')],salida_almuerzo:['Buen provecho, '+nom,'Salida a almuerzo '+hh],regreso_almuerzo:['De vuelta, '+nom,'Regreso de almuerzo '+hh],salida:['Hasta luego, '+nom,'Salida '+hh]}[m.tipo];
     mostrarOkKiosco(txt[0],txt[1]);
+    if(m.tipo==='entrada') funcionPush({accion:'marca',token:SESSION.token,key:STATE_KEY,marcaId:m.id}).catch(e=>console.warn('Aviso de llegada:',e));
     await cargarMarcas();
   }catch(e){
     const msg=/CEDULA/.test(e.message)?'Cédula incorrecta':/SECUENCIA/.test(e.message)?'Ese marcaje no corresponde ahora. Avisa al supervisor.':/SESION/.test(e.message)?'La sesión de la tablet venció: el administrador debe volver a entrar':'No se pudo marcar: '+e.message;
