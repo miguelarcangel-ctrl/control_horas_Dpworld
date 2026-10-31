@@ -271,10 +271,8 @@ async function newPage(browser, opts = {}) {
     const add = async (pid, puesto) => { renderLineaModal(); document.getElementById('lmPuesto').value = puesto; await agregarMarcadoLinea(pid); };
     await add('tmp_p1', 'pallets'); await add('tmp_p2', 'pallets'); await add('tmp_p1', 'pallets'); await add('tmp_r', 'Armado de cajas'); await add('tmp_t', 'Etiquetado');
     r.nombres = paletizadores(l).map(p => p.nombre).join('|') === 'Pedro Temporal|María Externa' && deApoyo(l).map(p => p.puesto).join('|') === 'Armado de cajas|Etiquetado' && !S.colaboradores.some(x => x.nombre === 'Pedro Temporal');
-    // falta el supervisor o responsable de línea: no arranca
-    await arrancarLinea(); r.sinJefe = l.estado === 'pendiente' && /responsable de línea debe marcar/.test(lb());
-    mkTmp('tmp_jefe', 'Raúl Responsable', 'responsable'); await cargarPersonal(); await cargarMarcas(); renderLineaModal();
-    r.recuerda = r.sinMarcas && r.sinJefe;
+    // sin supervisor ni responsable marcados la línea arranca igual (la producción no se detiene por una ausencia)
+    r.recuerda = r.sinMarcas && !presentes(['supervisor', 'responsable']).length;
     await arrancarLinea();
     r.corre = l.estado === 'corriendo' && l.responsable === 'Admin Prueba' && !S.turno;
     const [p1, p2] = paletizadores(l);
@@ -312,7 +310,7 @@ async function newPage(browser, opts = {}) {
   ok(ln.calc && ln.calcTxt && ln.inversa, 'línea: cuadrilla = paletizan + apoyo (10 + 3 = 13); con 11 personas, 8 paletizan → 32 pallets');
   ok(ln.chips && ln.otroDia && ln.futura, 'línea: se planifica cualquier día; la futura no se arranca antes de su fecha');
   ok(ln.hoy && ln.corre, 'línea: funciona sin turno regular abierto y guarda quién está a cargo');
-  ok(ln.nombres && ln.recuerda, 'línea: la cuadrilla sale solo de quienes marcaron (con su puesto, sin duplicados); sin marcajes ni responsable marcado no arranca');
+  ok(ln.nombres && ln.recuerda, 'línea: la cuadrilla sale solo de quienes marcaron (con su puesto, sin duplicados); sin marcajes no arranca; sin supervisor ni responsable sí');
   ok(ln.almBloq && ln.almOk, 'línea: en almuerzo no se le suman pallets; al regresar sí; su almuerzo no cuenta en sus horas de línea');
   ok(ln.pallets && ln.bloque, 'línea: +1 / −1 pallet a quien paletiza; el apoyo no tiene contador');
   ok(ln.resumen && ln.chipLinea && ln.apoyoOp, 'línea: resumen en el turno; tarea de operador marcada como apoyo a la línea (2 h)');
@@ -515,8 +513,8 @@ async function newPage(browser, opts = {}) {
     r.bloqueado = document.getElementById('btnAbrirTurno').disabled && document.querySelectorAll('#colabChips .chip').length === 0 && /Nadie ha marcado/.test(document.getElementById('colabChipsHint').textContent);
     await abrirTurno(); r.noAbre = !S.turno && /nadie ha marcado/.test(alerta);
     SRV.marcas = marcas.filter(m => m.puesto !== 'supervisor'); await cargarMarcas(); prepModalTurno();
-    r.sinSup = document.getElementById('btnAbrirTurno').disabled && /Falta que un supervisor/.test(document.getElementById('colabChipsHint').textContent);
-    await abrirTurno(); r.sinSup = r.sinSup && !S.turno && /ningún supervisor/.test(alerta);
+    r.sinSup = !document.getElementById('btnAbrirTurno').disabled && /Ningún supervisor ha marcado hoy: el turno inicia igual/.test(document.getElementById('colabChipsHint').textContent);
+    await abrirTurno(); r.sinSup = r.sinSup && !!S.turno; S.turno = null;
     SRV.marcas = marcas; await cargarMarcas(); prepModalTurno();
     const chips = [...document.querySelectorAll('#colabChips .chip')];
     r.soloMarcados = chips.length === personasMarcadas().length && chips.length > 0 && chips.every(c => c.classList.contains('selected')) && !chips.some(c => c.dataset.id === 'c2');
@@ -524,7 +522,7 @@ async function newPage(browser, opts = {}) {
     await abrirTurno(); r.abre = !!S.turno && chips.every(c => S.turno.equipo.some(e => e.id === c.dataset.id)) && S.turno.equipo.every(e => e.marcaje);
     hideModal('modalAbrirTurno'); document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
     S.turno = orig.turno; S.tareasActivas = orig.act; S.historial = orig.hist; await save(); window.alert = a0; renderAll(); return r; });
-  ok(tm.sinSup, 'turno: sin un supervisor marcado no se puede iniciar');
+  ok(tm.sinSup, 'turno: sin supervisor marcado se inicia igual (solo se indica)');
   ok(tm.bloqueado && tm.noAbre, 'turno: sin nadie marcado no se puede iniciar (botón deshabilitado y aviso)');
   ok(tm.soloMarcados && tm.habilitado && tm.abre, 'turno: solo ofrece y arranca con quienes marcaron entrada');
 
