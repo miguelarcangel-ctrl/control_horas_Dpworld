@@ -257,6 +257,7 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 .rt-table th{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--t3);padding:6px 7px;text-align:left;border-bottom:1px solid var(--b1)}
 .rt-table td{padding:7px;border-bottom:1px solid var(--b0);vertical-align:middle;color:var(--t2)}
 .rt-table tr:last-child td{border-bottom:none}
+.rt-table tr.rt-total td{border-top:2px solid var(--b1);color:var(--t1)}
 
 /* SOLICITUD */
 .solicit-card{border:1px solid rgba(245,162,11,.35);border-radius:9px;padding:11px 13px;background:rgba(245,162,11,.06);display:flex;flex-direction:column;gap:7px}
@@ -402,7 +403,9 @@ body.con-sel .avisos-app{bottom:90px}
 .lp-cnt{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.4rem;min-width:36px;text-align:center;color:var(--t);font-variant-numeric:tabular-nums}
 .lp-row .btn{padding:10px 12px}
 #lineaBody .edit-row{flex-wrap:wrap}
-#lineaBody #lmNombre{flex:1 1 200px}
+#lineaBody .lp-off{opacity:.75}
+#lineaBody .lp-estado{color:var(--amber)!important;font-weight:600;white-space:normal}
+.chip.chip-off{opacity:.6;text-decoration:none}
 #lineaBody #lmPuesto{flex:1 1 140px;max-width:none!important}
 .lb.lb-paro{border-left-color:var(--red);background:rgba(232,0,61,.06)}
 .paro-on{display:flex;justify-content:space-between;align-items:center;gap:10px;background:rgba(232,0,61,.1);border:1.5px solid var(--red);border-radius:10px;padding:10px 12px;color:var(--t)}
@@ -1160,7 +1163,7 @@ body.con-sel .toast{bottom:96px}
       <div class="field"><label>Marcaje</label><select id="coTipo"><option value="entrada">Entrada</option><option value="salida_almuerzo">Salida a almuerzo</option><option value="regreso_almuerzo">Regreso de almuerzo</option><option value="salida">Salida</option></select></div>
       <div class="field"><label>Hora</label><input type="time" id="coHora"></div>
     </div>
-    <div class="field" id="coPuestoField"><label>Posición</label><select id="coPuesto"><option value="operador">Operador</option><option value="ag">Ayudante general</option><option value="supervisor">Supervisor</option><option value="linea">Línea de producción</option></select></div>
+    <div class="field" id="coPuestoField"><label>Posición</label><select id="coPuesto"><option value="operador">Operador</option><option value="ag">Ayudante general</option><option value="supervisor">Supervisor</option><option value="linea">Línea de producción</option><option value="responsable">Responsable de línea</option></select></div>
     <div class="field"><label>Motivo (obligatorio)</label><input type="text" id="coMotivo" placeholder="Ej. Olvidó marcar la salida"></div>
     <label class="li-sub hidden" id="coAnularWrap" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="coAnular"> Anular este marcaje</label>
     <button class="btn btn-green btn-full" onclick="guardarCorreccion()">Guardar</button>
@@ -1172,7 +1175,6 @@ body.con-sel .toast{bottom:96px}
     <div id="lineaBody" style="display:flex;flex-direction:column;gap:10px"></div>
   </div>
 </div>
-<datalist id="nombresLineaList"></datalist>
 <div class="overlay hidden" id="modalPlanLinea">
   <div class="modal">
     <div class="modal-hdr"><span class="modal-title" id="plTitulo">Planificar línea</span><span class="modal-close" onclick="hideModal('modalPlanLinea')">×</span></div>
@@ -1905,6 +1907,7 @@ function updateTurnoResumen(){
 async function abrirTurno(){
   await cargarMarcas();
   if(!personasMarcadas().length){ alert(MSG_SIN_MARCAS); prepModalTurno(); return; }
+  if(!supMarcado()){ alert(MSG_SIN_SUP); prepModalTurno(); return; }
   const ids=[...document.querySelectorAll('#colabChips .chip.selected')].map(c=>c.dataset.id);
   if(!ids.length){alert('Selecciona al menos una persona que haya marcado entrada');return;}
   const eq=equipoMarcado(ids);
@@ -2017,7 +2020,7 @@ function ritmoLinea(l, now){
   const paroH=horasParo(l,now), corriendoH=Math.max(1/60,h-paroH), ritmoEf=l.inicio?tot/corriendoH:0;
   // Proyección: al ritmo con la línea corriendo, por las horas que faltan (sin contar un paro en curso)
   const proy=l.estado==='corriendo'?Math.round(tot+ritmoEf*Math.max(0,l.horas-h)):tot;
-  const fin=l.fin||now, hp=pp=>pp.reduce((a,p)=>a+msH(fin-(p.desde||l.inicio)),0);
+  const fin=l.fin||now, hp=pp=>pp.reduce((a,p)=>a+horasEnLinea(p,l,fin),0);
   const hPal=l.inicio?hp(paletizadores(l)):0, hTot=l.inicio?hp(l.personas):0;
   return {h,tot,ritmo,ritmoEf,proy,paroH,disponibilidad:h?Math.max(0,(h-paroH)/h):1,porPaletizador:hPal?tot/hPal:0,porPersona:hTot?tot/hTot:0,hPal,hTot};
 }
@@ -2097,12 +2100,10 @@ function renderLineaModal(foco){
   const l=lineaDe(_lineaAbierta); if(!l) return;
   const r=ritmoLinea(l), c=cuadrilla(l.meta,l.prod,l.horas,l.apoyo), P=paletizadores(l), A=deApoyo(l);
   document.getElementById('lineaTitulo').textContent='Línea '+l.nombre;
-  document.getElementById('nombresLineaList').innerHTML=(S.nombresLinea||[]).filter(n=>!l.personas.some(p=>p.nombre===n)).map(n=>`<option value="${esc(n)}">`).join('');
   // Siguiente puesto sugerido: el primero que aún no tiene su cantidad
   const falta=l.estado==='pendiente'&&P.length>=c.pal?(l.apoyo||[]).find(a=>A.filter(p=>p.puesto===a.nombre).length<(+a.cant||0)):null;
-  const agregar=`<div class="edit-row"><input type="text" id="lmNombre" list="nombresLineaList" placeholder="Nombre de la persona" autocomplete="off" onkeydown="if(event.key==='Enter')agregarPersonaLinea()">
-    <select id="lmPuesto" style="max-width:42%">${opcionesPuesto(l,falta&&falta.nombre)}</select><button class="btn btn-indigo" onclick="agregarPersonaLinea()">Agregar</button></div>`+htmlCuadrillaMarcada(l);
-  const chipsApoyo=A.map(p=>`<span class="chip selected" ${l.estado==='pendiente'?`onclick="quitarPersonaLinea('${p.id}')" title="Quitar"`:''}>${esc(p.nombre)} · ${esc(p.puesto)}${l.estado==='pendiente'?' ×':''}</span>`).join('');
+  const agregar=htmlCuadrillaMarcada(l, falta&&falta.nombre);
+  const chipsApoyo=A.map(p=>{ const e=estadoEnLinea(p); return `<span class="chip selected${e.bloqueo?' chip-off':''}" ${l.estado==='pendiente'?`onclick="quitarPersonaLinea('${p.id}')" title="Quitar"`:''}>${esc(p.nombre)} · ${esc(p.puesto)}${e.bloqueo?' · '+e.texto:''}${l.estado==='pendiente'?' ×':''}</span>`; }).join('');
   let h='';
   if(l.estado==='pendiente'){
     const puestos=(l.apoyo||[]).filter(a=>+a.cant>0).map(a=>`${esc(a.nombre)} ${A.filter(p=>p.puesto===a.nombre).length} de ${a.cant}`).join(' · ');
@@ -2112,8 +2113,8 @@ function renderLineaModal(foco){
     <div class="info-box" id="lmCalc">${c.texto?'Se necesitan '+c.texto+'.':'Ingresa la meta.'}</div>
     <div class="field"><label>Cuadrilla · ${l.personas.length} de ${c.total}</label>${agregar}</div>
     <div class="li-sub">Paletizan: ${P.length} de ${c.pal}${puestos?' · '+puestos:''}</div>
-    <div class="chip-wrap">${P.map(p=>`<span class="chip selected" onclick="quitarPersonaLinea('${p.id}')" title="Quitar">${esc(p.nombre)} ×</span>`).join('')}${chipsApoyo}</div>
-    ${l.fecha>hoyStr()?`<div class="warn-box">Planificada para ${etiquetaDia(l.fecha).toLowerCase()}: se podrá arrancar ese día. Ya puedes ir escribiendo la cuadrilla.</div>`:`<button class="btn btn-green btn-full" onclick="arrancarLinea()">Arrancar línea</button>`}
+    <div class="chip-wrap">${P.map(p=>{ const e=estadoEnLinea(p); return `<span class="chip selected${e.bloqueo?' chip-off':''}" onclick="quitarPersonaLinea('${p.id}')" title="Quitar">${esc(p.nombre)}${e.bloqueo?' · '+e.texto:''} ×</span>`; }).join('')}${chipsApoyo}</div>
+    ${l.fecha>hoyStr()?`<div class="warn-box">Planificada para ${etiquetaDia(l.fecha).toLowerCase()}: ese día la cuadrilla se arma con quienes marquen entrada en la tablet.</div>`:(()=>{ const f=faltaParaArrancar(l); return f?`<div class="warn-box">${f}</div><button class="btn btn-green btn-full" disabled>Arrancar línea</button>`:`<button class="btn btn-green btn-full" onclick="arrancarLinea()">Arrancar línea</button>`; })()}
     <button class="btn btn-ghost btn-sm" style="align-self:center" onclick="eliminarLinea()">Quitar esta línea</button>`;
   } else {
     const pct=l.meta?Math.round(r.tot/l.meta*100):0;
@@ -2131,18 +2132,17 @@ function renderLineaModal(foco){
     <div class="li-sub">${P.length} paletizan · ${A.length} de apoyo · ${fmtN(r.porPaletizador)} pallets por paletizador-hora · ${fmtN(r.porPersona)} por persona-hora de la cuadrilla${l.responsable?' · a cargo: '+esc(l.responsable):''}</div>
     ${(()=>{ const op=apoyoOperadores(l.id); return op.total?`<div class="info-box">Apoyo de operadores: <b>${fmtN(op.total)} h-persona</b> · ${op.personas.map(o=>esc(o.nombre.split(' ')[0])+' '+fmtN(o.h)+' h ('+[...o.tareas].map(esc).join(', ')+')').join(' · ')}</div>`:''; })()}
     <div class="asig-ttl">Paletizan</div>`;
-    h+=P.map(p=>{ const n=p.pallets.length, hp=Math.max(1/60,msH((l.fin||Date.now())-(p.desde||l.inicio))), rp=n/hp, ok=!l.prod||rp>=l.prod;
-      return `<div class="lp-row"><div class="lp-name">${esc(p.nombre)}<small style="color:${n?(ok?'var(--green)':'var(--amber)'):'var(--t3)'}">${fmtN(rp)} pallets/h${l.prod?' · objetivo '+l.prod:''}</small></div>
-        ${l.estado==='corriendo'?`<button class="btn btn-ghost" onclick="sumarPallet('${p.id}',-1)" aria-label="Restar un pallet">−</button>`:''}
+    h+=P.map(p=>{ const n=p.pallets.length, hp=Math.max(1/60,horasEnLinea(p,l)), rp=n/hp, ok=!l.prod||rp>=l.prod, e=estadoEnLinea(p), corre=l.estado==='corriendo';
+      return `<div class="lp-row${e.bloqueo&&corre?' lp-off':''}"><div class="lp-name">${esc(p.nombre)}<small style="color:${n?(ok?'var(--green)':'var(--amber)'):'var(--t3)'}">${fmtN(rp)} pallets/h${l.prod?' · objetivo '+l.prod:''}</small>${e.bloqueo&&corre?`<small class="lp-estado">${e.texto}</small>`:''}</div>
+        ${corre?`<button class="btn btn-ghost" onclick="sumarPallet('${p.id}',-1)" aria-label="Restar un pallet">−</button>`:''}
         <span class="lp-cnt">${n}</span>
-        ${l.estado==='corriendo'?`<button class="btn btn-green" onclick="sumarPallet('${p.id}',1)">+1 pallet</button>`:''}</div>`; }).join('')||'<div class="empty-text">Nadie paletiza todavía.</div>';
+        ${corre?(e.bloqueo?`<button class="btn btn-ghost" disabled>${e.corto}</button>`:`<button class="btn btn-green" onclick="sumarPallet('${p.id}',1)">+1 pallet</button>`):''}</div>`; }).join('')||'<div class="empty-text">Nadie paletiza todavía.</div>';
     if(A.length) h+=`<div class="asig-ttl">Apoyo</div><div class="chip-wrap">${chipsApoyo}</div>`;
     h+=htmlInsumosLinea(l)+htmlParosLinea(l);
     if(l.estado==='corriendo') h+=`<div class="field"><label>Se suma alguien a la línea</label>${agregar}</div>
       <button class="btn btn-indigo btn-full" onclick="cerrarLinea()">Cerrar línea</button>`;
   }
   document.getElementById('lineaBody').innerHTML=h;
-  if(foco) setTimeout(()=>document.getElementById('lmNombre')?.focus(),50);
 }
 function lineaMetaHoras(){
   const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='pendiente'||!document.getElementById('lmMeta')) return;
@@ -2155,30 +2155,58 @@ function disponiblesLinea(){
   const ocupados=new Set((S.lineas||[]).filter(x=>x.estado!=='cerrada'&&(x.fecha===hoyStr()||x.estado==='corriendo')).flatMap(x=>x.personas.map(p=>p.personaId||'n:'+normTxt(p.nombre))));
   return presentes(['linea']).filter(p=>!ocupados.has(p.id)&&!ocupados.has('n:'+normTxt(p.nombre)));
 }
-function htmlCuadrillaMarcada(l){
+function htmlCuadrillaMarcada(l, puestoSug){
   if(l.estado==='cerrada') return '';
-  const D=disponiblesLinea(); if(!D.length) return '';
-  return `<div class="li-sub" style="margin-top:6px">Marcaron para la línea (toca para agregar con el puesto elegido):</div><div class="chip-wrap">${D.map(p=>`<div class="chip" onclick="agregarMarcadoLinea('${p.id}')">${esc(p.nombre)}</div>`).join('')}</div>`;
+  const D=disponiblesLinea();
+  if(!D.length) return `<div class="li-sub" style="margin-top:6px">${_marcasCargadas?'Nadie disponible. El personal de la línea marca su entrada en la tablet con la posición «Línea de producción» y aparece aquí.':'Leyendo el marcaje…'}</div>`;
+  return `<div class="edit-row" style="margin-top:6px"><span class="li-sub">Puesto</span><select id="lmPuesto" style="flex:1">${opcionesPuesto(l,puestoSug)}</select></div>
+    <div class="li-sub">Marcaron para la línea (toca para agregar con el puesto elegido):</div><div class="chip-wrap">${D.map(p=>`<div class="chip" onclick="agregarMarcadoLinea('${p.id}')">${esc(p.nombre)}</div>`).join('')}</div>`;
+}
+// Estado de una persona de la línea según su marcaje: en almuerzo o con salida no se le suman pallets
+function estadoEnLinea(p){
+  if(!p.personaId) return {bloqueo:false};
+  const e=estadoMarca(p.personaId);
+  if(e.estado==='almuerzo') return {bloqueo:true,estado:'almuerzo',texto:'En almuerzo desde '+horaHM(msTs(e.ultima.ts)),corto:'Almuerzo'};
+  if(e.estado==='salio') return {bloqueo:true,estado:'salio',texto:'Marcó salida '+horaHM(msTs(e.ultima.ts)),corto:'Salió'};
+  if(e.estado==='fuera') return {bloqueo:true,estado:'fuera',texto:'Sin marcar entrada',corto:'Sin marcar'};
+  return {bloqueo:false,estado:'presente'};
+}
+// Horas de la persona en la línea: desde que se sumó hasta el cierre, sin su almuerzo ni lo que va después de su salida
+function horasEnLinea(p, l, fin){
+  fin=fin||l.fin||Date.now(); const ini=p.desde||l.inicio; if(!ini) return 0;
+  let h=Math.max(0,fin-ini);
+  if(p.personaId&&_marcasCargadas){
+    const M=marcasDe(p.personaId); let sal=null;
+    M.forEach(m=>{ const t=msTs(m.ts);
+      if(m.tipo==='salida_almuerzo') sal=t;
+      else if(m.tipo==='regreso_almuerzo'&&sal!=null){ h-=Math.max(0,Math.min(t,fin)-Math.max(sal,ini)); sal=null; }
+      else if(m.tipo==='salida'&&t<fin){ h-=Math.max(0,fin-Math.max(t,ini)); sal=null; } });
+    if(sal!=null) h-=Math.max(0,fin-Math.max(sal,ini));
+  }
+  return Math.max(0,h)/3600000;
+}
+// Para arrancar: un supervisor o responsable de línea marcado y la cuadrilla con su entrada marcada
+function faltaParaArrancar(l){
+  if(!presentes(['supervisor','responsable']).length) return 'Para arrancar, el supervisor o el responsable de línea debe marcar su entrada en la tablet.';
+  const sin=l.personas.filter(p=>estadoEnLinea(p).bloqueo||!p.personaId);
+  if(sin.length) return 'No han marcado o no están trabajando: '+sin.map(p=>esc(p.nombre)+(p.personaId?' ('+estadoEnLinea(p).corto.toLowerCase()+')':'')).join(', ')+'. Quítalos o espera su marcaje.';
+  if(!paletizadores(l).length) return 'Agrega al menos una persona que paletice.';
+  return '';
 }
 async function agregarMarcadoLinea(pid){
-  const p=_personal.find(x=>x.id===pid), inp=document.getElementById('lmNombre'); if(!p||!inp) return;
-  inp.value=p.nombre; await agregarPersonaLinea(pid);
-}
-function recordarNombre(n){ S.nombresLinea=[n,...(S.nombresLinea||[]).filter(x=>x.toLowerCase()!==n.toLowerCase())].slice(0,200); }
-async function agregarPersonaLinea(personaId){
-  const l=lineaDe(_lineaAbierta), inp=document.getElementById('lmNombre'); if(!l||!inp) return;
-  const n=inp.value.trim().replace(/\s+/g,' '); if(!n) return;
-  if(l.personas.some(p=>p.nombre.toLowerCase()===n.toLowerCase())){ showToast(n+' ya está en la línea','error'); return; }
+  const l=lineaDe(_lineaAbierta), p=_personal.find(x=>x.id===pid); if(!l||!p) return;
+  if(!disponiblesLinea().some(x=>x.id===pid)){ showToast(p.nombre+' no está disponible: no ha marcado entrada o ya está en otra línea','error'); return; }
   lineaMetaHoras();
-  l.personas.push({id:uid(),nombre:n,personaId:typeof personaId==='string'?personaId:null,puesto:document.getElementById('lmPuesto').value||PALETIZA,pallets:[],desde:l.estado==='corriendo'?Date.now():null}); recordarNombre(n);
-  renderLineaModal(true); renderLineas(); await save();
+  l.personas.push({id:uid(),nombre:p.nombre,personaId:pid,puesto:(document.getElementById('lmPuesto')||{}).value||PALETIZA,pallets:[],desde:l.estado==='corriendo'?Date.now():null});
+  renderLineaModal(); renderLineas(); await save();
 }
 async function quitarPersonaLinea(pid){ const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='pendiente') return; lineaMetaHoras(); l.personas=l.personas.filter(p=>p.id!==pid); renderLineaModal(); renderLineas(); await save(); }
 async function arrancarLinea(){
   const l=lineaDe(_lineaAbierta); if(!l) return; lineaMetaHoras();
   if(!(l.meta>0)){ showToast('Pon la meta del día','error'); return; }
-  if(!paletizadores(l).length){ showToast('Escribe al menos una persona que paletice','error'); return; }
   if(l.fecha>hoyStr()){ showToast('Esta línea está planificada para '+etiquetaDia(l.fecha).toLowerCase(),'error'); return; }
+  await cargarMarcas(); const falta=faltaParaArrancar(l);
+  if(falta){ showToast(falta.replace(/<[^>]+>/g,''),'error'); renderLineaModal(); return; }
   const t=tipoLinea(l.tipoId)||{}, mk=t.excel&&maestroRow(t.excel);
   Object.assign(l,{estado:'corriendo',fecha:hoyStr(),inicio:Date.now(),prod:t.prod||l.prod,
     excel:mk?{actividad:mk.actividad,categoria:mk.categoria,tipoActividad:mk.tipoActividad,subActividad:mk.subActividad}:null,
@@ -2188,6 +2216,8 @@ async function arrancarLinea(){
 }
 async function sumarPallet(pid, n){
   const l=lineaDe(_lineaAbierta), p=l&&l.personas.find(x=>x.id===pid); if(!p||l.estado!=='corriendo') return;
+  const e=estadoEnLinea(p);
+  if(n>0&&e.bloqueo){ showToast(p.nombre+': '+e.texto.toLowerCase()+'. No se le suman pallets hasta que marque su regreso.','error'); return; }
   if(n>0) p.pallets.push(Date.now()); else if(p.pallets.length) p.pallets.pop();
   renderLineaModal(); renderLineas(); await save();
 }
@@ -2369,7 +2399,7 @@ function buildLineasSection(){
 // Las personas marcan en una tablet en modo quiosco (sesión de administrador): entrada, salida y regreso de almuerzo y salida.
 // La cédula vive cifrada en ch_personal (Supabase) y la hora la pone el servidor. Los marcajes alimentan el tablero del turno
 // (operador, ayudante, supervisor), la cuadrilla disponible de las líneas y las horas pagadas (costo y planilla).
-const PUESTOS={operador:'Operador',ag:'Ayudante general',supervisor:'Supervisor',linea:'Línea de producción'};
+const PUESTOS={operador:'Operador',ag:'Ayudante general',supervisor:'Supervisor',linea:'Línea de producción',responsable:'Responsable de línea'};
 const TIPOS_MARCA={entrada:'Entrada',salida_almuerzo:'Salida a almuerzo',regreso_almuerzo:'Regreso de almuerzo',salida:'Salida'};
 let _personal=[], _marcas=[], _marcasCargadas=false;
 const KIOSCO_KEY='ch_kiosco_'+STATE_KEY;
@@ -2449,24 +2479,29 @@ function personasParaTurno(){
 }
 
 // El turno solo arranca con personal que marcó entrada en la tablet (operador, ayudante o supervisor)
+const MSG_SIN_SUP='No se puede iniciar el turno: ningún supervisor ha marcado entrada.\n\nEl supervisor también marca en la tablet (posición Supervisor) antes de iniciar el turno.';
+const supMarcado=()=>presentes(['supervisor']).length>0;
 const MSG_SIN_MARCAS='No se puede iniciar el turno: nadie ha marcado entrada en la tablet de marcaje.\n\nEl personal debe marcar su entrada primero. Si alguien no pudo marcar, el administrador puede registrarle la entrada en Asistencia.';
 const personasMarcadas=()=>personasParaTurno().filter(c=>c.presente);
 const equipoMarcado=ids=>personasMarcadas().filter(c=>ids.includes(c.id)).map(c=>({id:c.id,nombre:c.nombre,cargo:c.cargo,marcaje:true}));
 function pintarSinMarcas(hintId, btnId, n){
   const h=document.getElementById(hintId), b=document.getElementById(btnId);
-  h.textContent=!_marcasCargadas?'Leyendo el marcaje…':n?'Personas que marcaron entrada (vienen seleccionadas). Las que lleguen después se agregan solas al tablero.':'Nadie ha marcado entrada todavía. El turno se habilita cuando el personal marque en la tablet.';
-  h.style.color=_marcasCargadas&&!n?'var(--red)':'';
-  if(b){ b.disabled=!n; b.textContent=n?'Iniciar Turno':'Esperando marcajes'; }
+  const sup=supMarcado(), listo=n&&sup;
+  h.textContent=!_marcasCargadas?'Leyendo el marcaje…':!n?'Nadie ha marcado entrada todavía. El turno se habilita cuando el personal marque en la tablet.'
+    :!sup?'Falta que un supervisor marque su entrada en la tablet (posición Supervisor).':'Personas que marcaron entrada (vienen seleccionadas). Las que lleguen después se agregan solas al tablero.';
+  h.style.color=_marcasCargadas&&!listo?'var(--red)':'';
+  if(b){ b.disabled=!listo; b.textContent=listo?'Iniciar Turno':!n?'Esperando marcajes':'Falta el supervisor'; }
 }
 
 // ── Avisos de llegada y salida (supervisores y administradores; no en la tablet)
 function avisarMarcas(nuevas){
   if(!currentUser||enKiosco()||!['admin','supervisor'].includes(currentUser.rol)) return;
-  nuevas.filter(m=>!m.anulado&&(m.tipo==='entrada'||m.tipo==='salida')&&Date.now()-msTs(m.ts)<30*60000).forEach(m=>{
+  nuevas.filter(m=>!m.anulado&&['entrada','regreso_almuerzo','salida'].includes(m.tipo)&&Date.now()-msTs(m.ts)<30*60000).forEach(m=>{
     const key='marca|'+m.id; if(_avisados.has(key)) return; _avisados.add(key);
     let tit, cuerpo;
     if(m.tipo==='entrada'){ const d=diaAsistencia(marcasDe(m.persona_id).filter(x=>x.fecha===m.fecha),m.fecha);
       tit='Llegó '+m.nombre; cuerpo=horaHM(msTs(m.ts))+' · '+(PUESTOS[m.puesto]||'')+(d.tarde?' · '+d.tarde+' min tarde':''); }
+    else if(m.tipo==='regreso_almuerzo'){ const sa=marcasDe(m.persona_id).filter(x=>x.tipo==='salida_almuerzo'&&msTs(x.ts)<msTs(m.ts)).pop(); tit='Regresó de almuerzo: '+m.nombre; cuerpo=horaHM(msTs(m.ts))+' · '+(PUESTOS[m.puesto]||'')+(sa?' · almuerzo de '+Math.round((msTs(m.ts)-msTs(sa.ts))/60000)+' min':''); }
     else { const d=diaAsistencia(marcasDe(m.persona_id).filter(x=>x.fecha===m.fecha),m.fecha); tit='Salió '+m.nombre; cuerpo=horaHM(msTs(m.ts))+' · '+fmtH(d.horas)+' trabajadas'; }
     showToast(tit+' · '+cuerpo,'info'); notificar(tit,cuerpo,key,{accion:'marca'});
   });
@@ -2533,7 +2568,7 @@ async function confirmarMarca(){
     const nom=m.nombre.split(' ')[0], hh=horaHM(msTs(m.ts));
     const txt={entrada:['Bienvenido, '+nom,'Entrada '+hh+' · '+(PUESTOS[m.puesto]||'')],salida_almuerzo:['Buen provecho, '+nom,'Salida a almuerzo '+hh],regreso_almuerzo:['De vuelta, '+nom,'Regreso de almuerzo '+hh],salida:['Hasta luego, '+nom,'Salida '+hh]}[m.tipo];
     mostrarOkKiosco(txt[0],txt[1]);
-    if(m.tipo==='entrada') funcionPush({accion:'marca',token:SESSION.token,key:STATE_KEY,marcaId:m.id}).catch(e=>console.warn('Aviso de llegada:',e));
+    if(m.tipo==='entrada'||m.tipo==='regreso_almuerzo') funcionPush({accion:'marca',token:SESSION.token,key:STATE_KEY,marcaId:m.id}).catch(e=>console.warn('Aviso de llegada:',e));
     await cargarMarcas();
   }catch(e){
     const msg=/CEDULA/.test(e.message)?'Cédula incorrecta':/SECUENCIA/.test(e.message)?'Ese marcaje no corresponde ahora. Avisa al supervisor.':/SESION/.test(e.message)?'La sesión de la tablet venció: el administrador debe volver a entrar':'No se pudo marcar: '+e.message;
@@ -2594,6 +2629,7 @@ function resumenAsistencia(){
     return {...o,D,horas:D.reduce((a,d)=>a+d.horas,0),extra:D.reduce((a,d)=>a+d.extra,0),tardes:D.filter(d=>d.tarde).length,minTarde:D.reduce((a,d)=>a+d.tarde,0),incompletos:D.filter(d=>!d.sal&&d.fecha!==hoyStr()).length}; })
     .sort((a,b)=>a.nombre.localeCompare(b.nombre));
 }
+const totalAsistencia=R=>({horas:R.reduce((a,o)=>a+o.horas,0),extra:R.reduce((a,o)=>a+o.extra,0),dias:R.reduce((a,o)=>a+o.D.length,0),tardes:R.reduce((a,o)=>a+o.tardes,0),minTarde:R.reduce((a,o)=>a+o.minTarde,0),incompletos:R.reduce((a,o)=>a+o.incompletos,0)});
 function buildPersonalSection(){
   const sinCed=S.colaboradores.filter(c=>!_personal.some(p=>p.id===c.id&&p.tiene_cedula));
   let h=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sPers','cPers')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Personal y marcaje</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalPersona()">+ Persona</button><button class="btn btn-indigo btn-sm" onclick="event.stopPropagation();activarKiosco()">Marcaje en esta tablet</button><span class="chevron open" id="cPers">▼</span></div></div><div class="sec-body" id="sPers">
@@ -2611,8 +2647,12 @@ function buildAsistenciaSection(){
   let h=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sAsis','cAsis')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Asistencia y horas (planilla)</span></div><div class="sec-hdr-actions"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();exportarAsistencia()">Exportar</button><span class="chevron open" id="cAsis">▼</span></div></div><div class="sec-body" id="sAsis">
   <div class="chip-wrap"><div class="chip${_asist.desde===q0[0]&&_asist.hasta===q0[1]?' selected':''}" onclick="cargarAsistencia('${q0[0]}','${q0[1]}')">Esta quincena</div><div class="chip${_asist.desde===q1[0]?' selected':''}" onclick="cargarAsistencia('${q1[0]}','${q1[1]}')">Quincena anterior</div></div>
   <div class="field-row"><div class="field"><label>Desde</label><input type="date" value="${_asist.desde}" onchange="cargarAsistencia(this.value,'${_asist.hasta}')"></div><div class="field"><label>Hasta</label><input type="date" value="${_asist.hasta}" onchange="cargarAsistencia('${_asist.desde}',this.value)"></div></div>`;
-  h+=R.length?`<table class="rt-table"><tr><th>Persona</th><th>Días</th><th>Horas</th><th>Extra</th><th>Tardanzas</th><th>Sin salida</th><th></th></tr>`+R.map(o=>`<tr><td>${esc(o.nombre)}</td><td>${o.D.length}</td><td><b>${fmtN(o.horas)}</b></td><td>${o.extra>0.05?fmtN(o.extra):'—'}</td><td>${o.tardes?o.tardes+' ('+o.minTarde+' min)':'—'}</td><td>${o.incompletos?'<b style="color:var(--amber)">'+o.incompletos+'</b>':'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="verAsistencia('${o.id}')">Detalle</button></td></tr>`).join('')+`</table>
-    <div class="li-sub">Horas = de la entrada a la salida, sin el almuerzo. Extra = por encima de la jornada del día (${getConfig().horaInicio}–${getConfig().horaFin}). Tardanza = entrada después de las ${getConfig().horaInicio} + ${getConfig().toleranciaMin||5} min.</div>`
+  const T=totalAsistencia(R);
+  h+=R.length?`<div class="stat-row"><div class="stat-card"><div class="stat-label">Horas trabajadas</div><div class="stat-val">${fmtN(T.horas)}</div><div class="stat-sub">según el marcaje · ${R.length} persona(s)</div></div>
+    <div class="stat-card"><div class="stat-label">Horas extra</div><div class="stat-val">${fmtN(T.extra)}</div><div class="stat-sub">sobre la jornada</div></div>
+    <div class="stat-card"><div class="stat-label">Días-persona</div><div class="stat-val">${T.dias}</div><div class="stat-sub">${T.tardes} tardanza(s)${T.incompletos?' · <b style="color:var(--amber)">'+T.incompletos+' sin salida</b>':''}</div></div></div>
+  <table class="rt-table"><tr><th>Persona</th><th>Días</th><th>Horas</th><th>Extra</th><th>Tardanzas</th><th>Sin salida</th><th></th></tr>`+R.map(o=>`<tr><td>${esc(o.nombre)}</td><td>${o.D.length}</td><td><b>${fmtN(o.horas)}</b></td><td>${o.extra>0.05?fmtN(o.extra):'—'}</td><td>${o.tardes?o.tardes+' ('+o.minTarde+' min)':'—'}</td><td>${o.incompletos?'<b style="color:var(--amber)">'+o.incompletos+'</b>':'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="verAsistencia('${o.id}')">Detalle</button></td></tr>`).join('')+`<tr class="rt-total"><td><b>Total</b></td><td><b>${T.dias}</b></td><td><b>${fmtN(T.horas)}</b></td><td><b>${T.extra>0.05?fmtN(T.extra):'—'}</b></td><td><b>${T.tardes||'—'}</b></td><td><b>${T.incompletos||'—'}</b></td><td></td></tr></table>
+    <div class="li-sub">Horas = suma de lo marcado: de la entrada a la salida, sin el tiempo entre salida y regreso de almuerzo (un día sin salida cuenta solo los tramos cerrados; hoy cuenta hasta ahora). Extra = por encima de la jornada del día (${getConfig().horaInicio}–${getConfig().horaFin}). Tardanza = entrada después de las ${getConfig().horaInicio} + ${getConfig().toleranciaMin||5} min.</div>`
     :'<div class="empty-text">Sin marcajes en el período.</div>';
   return h+`</div></div>`;
 }
@@ -2661,6 +2701,7 @@ function exportarAsistencia(){
   R.forEach(o=>o.D.sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(d=>dia.push([d.fecha,o.nombre,PUESTOS[d.puesto]||'',hh(d.ent),hh(d.salAlm),hh(d.regAlm),hh(d.sal),r2(d.horas),d.jornada,r2(d.extra),d.tarde||'',[!d.sal&&d.fecha!==hoyStr()?'Sin salida':'',d.corregido?'Con corrección':''].filter(Boolean).join(' · ')])));
   const res=[['Persona','Días trabajados','Horas trabajadas','Horas extra','Tardanzas','Minutos de tardanza','Días sin salida']];
   R.forEach(o=>res.push([o.nombre,o.D.length,r2(o.horas),r2(o.extra),o.tardes,o.minTarde,o.incompletos]));
+  const T=totalAsistencia(R); res.push(['TOTAL',T.dias,r2(T.horas),r2(T.extra),T.tardes,T.minTarde,T.incompletos]);
   const raw=[['Fecha','Persona','Marcaje','Hora','Posición','Registrado por','Anulado','Motivo de corrección','Corregido por','Corregido el']];
   _asist.marcas.forEach(m=>raw.push([m.fecha,m.nombre,TIPOS_MARCA[m.tipo],new Date(msTs(m.ts)).toLocaleString('es-PA'),PUESTOS[m.puesto]||'',m.por||'',m.anulado?'Sí':'',m.motivo||'',m.corregido_por||'',m.corregido_en?new Date(m.corregido_en).toLocaleString('es-PA'):'']));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(res),'Resumen por persona');
@@ -5024,6 +5065,7 @@ async function iniciarTurnoPlan(){
   if(!plan) return;
   await cargarMarcas();
   if(!personasMarcadas().length){ alert(MSG_SIN_MARCAS); pintarPlanColabs(plan); return; }
+  if(!supMarcado()){ alert(MSG_SIN_SUP); pintarPlanColabs(plan); return; }
   const ids=[...document.querySelectorAll('#iniciarPlanColabs .chip.selected')].map(c=>c.dataset.id);
   if(!ids.length){alert('Selecciona al menos una persona que haya marcado entrada');return;}
   const eq=equipoMarcado(ids);

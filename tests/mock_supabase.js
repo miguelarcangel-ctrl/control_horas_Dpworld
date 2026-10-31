@@ -56,7 +56,7 @@
       const ult=SRV.marcas.filter(m=>m.key===a.p_key&&m.persona_id===a.p_persona&&!m.anulado&&Date.parse(m.ts)>now-20*3600000).sort((x,y)=>Date.parse(y.ts)-Date.parse(x.ts))[0];
       let f=fechaPA(now),pu=null;if(ult&&ult.tipo!=='salida'){f=ult.fecha;pu=ult.puesto;}
       const t=a.p_tipo;
-      if(t==='entrada'){if(ult&&ult.tipo!=='salida')return err('SECUENCIA');if(!['supervisor','operador','ag','linea'].includes(a.p_puesto))return err('PUESTO');pu=a.p_puesto;}
+      if(t==='entrada'){if(ult&&ult.tipo!=='salida')return err('SECUENCIA');if(!['supervisor','operador','ag','linea','responsable'].includes(a.p_puesto))return err('PUESTO');pu=a.p_puesto;}
       else if(t==='salida_almuerzo'){if(!ult||!['entrada','regreso_almuerzo'].includes(ult.tipo))return err('SECUENCIA');}
       else if(t==='regreso_almuerzo'){if(!ult||ult.tipo!=='salida_almuerzo')return err('SECUENCIA');}
       else if(t==='salida'){if(!ult||ult.tipo==='salida')return err('SECUENCIA');}
@@ -80,7 +80,7 @@
   const functions={invoke:async(name,{body}={})=>{SRV.push.push({name,body});await new Promise(r=>setTimeout(r,5));
     if(body.accion==='clave')return{data:{publicKey:'BKfake'},error:null};
     const u=user(body.token);if(!u)return{data:null,error:{message:'SESION'}};
-    if(body.accion==='marca'){if(u.rol!=='admin')return{data:null,error:{message:'PERMISO'}};const m=SRV.marcas.find(x=>x.id===body.marcaId);if(!m||m.push_enviado||m.tipo!=='entrada')return{data:{ok:true,enviados:0},error:null};m.push_enviado=true;return{data:{ok:true,enviados:SRV.subs.filter(x=>x.key===body.key).length},error:null};}
+    if(body.accion==='marca'){if(u.rol!=='admin')return{data:null,error:{message:'PERMISO'}};const m=SRV.marcas.find(x=>x.id===body.marcaId);if(!m||m.push_enviado||!['entrada','regreso_almuerzo'].includes(m.tipo))return{data:{ok:true,enviados:0},error:null};m.push_enviado=true;return{data:{ok:true,enviados:SRV.subs.filter(x=>x.key===body.key).length},error:null};}
     if(body.accion==='prueba')return{data:{ok:true,enviados:SRV.subs.filter(x=>x.usuario_id===u.id).length},error:null};
     return{data:null,error:{message:'ACCION'}};}};
   window.supabase={createClient:()=>({functions,rpc:async(fn,args)=>{SRV.calls.push(fn);await new Promise(r=>setTimeout(r,5));
