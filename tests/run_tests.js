@@ -227,6 +227,13 @@ async function newPage(browser, opts = {}) {
   const x2 = await page.evaluate(() => window.__xlsx.w.s.slice(-9).map(s => s[1][0]));
   ok(x2[0].includes('Tipo de tiempo') && x2[1].includes('Horas sin registrar') && x2[4].includes('% productivo'), 'Excel: columnas de tiempos y nombre en Excel');
 
+  // Marcajes de apoyo para las pruebas de líneas (personas temporales que se quitan al terminar)
+  await page.evaluate(() => {
+    window.mkTmp = (id, nombre, puesto, tipo = 'entrada', hace = 0) => { const SRV = window.__SRV;
+      if (!SRV.personal.some(x => x.id === id)) SRV.personal.push({ key: STATE_KEY, id, nombre, cedula: 'X' + id, puesto_def: puesto, activo: true });
+      SRV.marcas.push({ id: ++SRV.marcaSeq, key: STATE_KEY, persona_id: id, nombre, fecha: hoyStr(), tipo, puesto, ts: new Date(Date.now() - hace).toISOString(), por: 'admin', anulado: false }); };
+    window.limpiarTmp = async () => { const SRV = window.__SRV; SRV.personal = SRV.personal.filter(x => !x.id.startsWith('tmp_')); SRV.marcas = SRV.marcas.filter(x => !x.persona_id.startsWith('tmp_')); await cargarPersonal(); await cargarMarcas(); };
+  });
   // 9e) Líneas de producción (módulo propio): no dependen del turno; cuadrilla escrita (paletizan + apoyo); cualquier día
   const ln = await page.evaluate(async () => {
     const r = {}, hoy = hoyStr();
@@ -256,16 +263,32 @@ async function newPage(browser, opts = {}) {
     await guardarPlanLinea();
     const l = lineasHoy()[0]; r.hoy = !!l && l.estado === 'pendiente' && document.querySelectorAll('#lineasList .lb').length === 1;
     abrirLinea(l.id);
-    const add = async (n, puesto) => { document.getElementById('lmNombre').value = n; document.getElementById('lmPuesto').value = puesto; await agregarPersonaLinea(); };
-    await add('Pedro Temporal', 'pallets'); await add('María Externa', 'pallets'); await add('pedro temporal', 'pallets'); await add('Rosa Cajas', 'Armado de cajas'); await add('Tito Etiquetas', 'Etiquetado');
+    // sin marcajes: nadie disponible y no arranca
+    const lb = () => document.getElementById('lineaBody').innerHTML;
+    r.sinMarcas = /Nadie disponible/.test(lb()) && !document.getElementById('lmNombre') && /disabled="">Arrancar línea/.test(lb());
+    mkTmp('tmp_p1', 'Pedro Temporal', 'linea', 'entrada', 3 * 3600000); mkTmp('tmp_p2', 'María Externa', 'linea'); mkTmp('tmp_r', 'Rosa Cajas', 'linea'); mkTmp('tmp_t', 'Tito Etiquetas', 'linea');
+    await cargarPersonal(); await cargarMarcas(); renderLineaModal();
+    const add = async (pid, puesto) => { renderLineaModal(); document.getElementById('lmPuesto').value = puesto; await agregarMarcadoLinea(pid); };
+    await add('tmp_p1', 'pallets'); await add('tmp_p2', 'pallets'); await add('tmp_p1', 'pallets'); await add('tmp_r', 'Armado de cajas'); await add('tmp_t', 'Etiquetado');
     r.nombres = paletizadores(l).map(p => p.nombre).join('|') === 'Pedro Temporal|María Externa' && deApoyo(l).map(p => p.puesto).join('|') === 'Armado de cajas|Etiquetado' && !S.colaboradores.some(x => x.nombre === 'Pedro Temporal');
-    r.recuerda = S.nombresLinea.includes('Tito Etiquetas');
+    // falta el supervisor o responsable de línea: no arranca
+    await arrancarLinea(); r.sinJefe = l.estado === 'pendiente' && /responsable de línea debe marcar/.test(lb());
+    mkTmp('tmp_jefe', 'Raúl Responsable', 'responsable'); await cargarPersonal(); await cargarMarcas(); renderLineaModal();
+    r.recuerda = r.sinMarcas && r.sinJefe;
     await arrancarLinea();
     r.corre = l.estado === 'corriendo' && l.responsable === 'Admin Prueba' && !S.turno;
     const [p1, p2] = paletizadores(l);
     await sumarPallet(p1.id, 1); await sumarPallet(p1.id, 1); await sumarPallet(p1.id, 1); await sumarPallet(p2.id, 1); await sumarPallet(p1.id, -1);
     r.pallets = p1.pallets.length === 2 && p2.pallets.length === 1 && totalPallets(l) === 3 && !document.getElementById('lineaBody').innerHTML.includes("sumarPallet('" + deApoyo(l)[0].id);
     r.bloque = /3<\/b> \/ 20 pallets/.test(document.getElementById('lineasList').innerHTML) && /2 paletizan · 2 apoyo/.test(document.getElementById('lineasList').innerHTML);
+    // almuerzo: no se le suman pallets hasta que marque su regreso; su almuerzo no cuenta en sus horas de línea
+    l.inicio = p1.desde = Date.now() - 2 * 3600000;
+    mkTmp('tmp_p1', 'Pedro Temporal', 'linea', 'salida_almuerzo', 3600000); await cargarMarcas(); renderLineaModal();
+    await sumarPallet(p1.id, 1);
+    r.almBloq = p1.pallets.length === 2 && /En almuerzo desde/.test(lb()) && !lb().includes("sumarPallet('" + p1.id + "',1)") && /No se le suman pallets/.test(document.getElementById('toast').textContent);
+    mkTmp('tmp_p1', 'Pedro Temporal', 'linea', 'regreso_almuerzo', 1800000); await cargarMarcas(); renderLineaModal();
+    await sumarPallet(p1.id, 1); r.almOk = p1.pallets.length === 3 && Math.abs(horasEnLinea(p1, l) - 1.5) < 0.02;
+    await sumarPallet(p1.id, -1);
     hideModal('modalLinea');
     // vuelve el turno regular: la línea sigue en marcha, se ve en el resumen y los operadores pueden apoyarla
     S.turno = turnoGuardado; S.tareasActivas = []; renderAll();
@@ -284,12 +307,13 @@ async function newPage(browser, opts = {}) {
     const det = window.__xlsx.w.s.slice(-9)[0][1]; const cols = det[0];
     r.excel = lr && lr[5] === 3 && lr[7] === 4 && lr[8] === 2 && lr[9] === 2 && Math.abs(lr[14] - 2) < 0.05 && det.some(x => x[cols.indexOf('Apoyo a línea')] === 'Inserto botella');
     r.insights = /Horas operadores/.test(buildLineasSection());
-    return r; });
+    await limpiarTmp(); return r; });
   ok(ln.migra, 'línea: las líneas y planes anteriores se migran solos al módulo propio');
   ok(ln.calc && ln.calcTxt && ln.inversa, 'línea: cuadrilla = paletizan + apoyo (10 + 3 = 13); con 11 personas, 8 paletizan → 32 pallets');
   ok(ln.chips && ln.otroDia && ln.futura, 'línea: se planifica cualquier día; la futura no se arranca antes de su fecha');
   ok(ln.hoy && ln.corre, 'línea: funciona sin turno regular abierto y guarda quién está a cargo');
-  ok(ln.nombres && ln.recuerda, 'línea: nombres escritos con su puesto, sin duplicados, recordados');
+  ok(ln.nombres && ln.recuerda, 'línea: la cuadrilla sale solo de quienes marcaron (con su puesto, sin duplicados); sin marcajes ni responsable marcado no arranca');
+  ok(ln.almBloq && ln.almOk, 'línea: en almuerzo no se le suman pallets; al regresar sí; su almuerzo no cuenta en sus horas de línea');
   ok(ln.pallets && ln.bloque, 'línea: +1 / −1 pallet a quien paletiza; el apoyo no tiene contador');
   ok(ln.resumen && ln.chipLinea && ln.apoyoOp, 'línea: resumen en el turno; tarea de operador marcada como apoyo a la línea (2 h)');
   ok(ln.independiente && ln.cierre, 'línea: su ciclo es propio (se cierra con su botón, no con el turno)');
@@ -301,7 +325,8 @@ async function newPage(browser, opts = {}) {
     S.lineasTipo[0].insumos = [{ nombre: 'Cajas', unidad: 'unid', porPallet: 84 }, { nombre: 'Stretch', unidad: 'rollo', porPallet: 0.1 }];
     const l = nuevaLinea(S.lineasTipo[0], 20, 8); S.lineas.push(l);
     r.snap = l.insumos.length === 2 && l.insumos[0].porPallet === 84;
-    l.personas.push({ id: 'pp1', nombre: 'Uno', puesto: 'pallets', pallets: [], desde: null });
+    mkTmp('tmp_u1', 'Uno', 'linea'); mkTmp('tmp_j2', 'Jefa Línea', 'responsable'); await cargarPersonal(); await cargarMarcas();
+    l.personas.push({ id: 'pp1', nombre: 'Uno', personaId: 'tmp_u1', puesto: 'pallets', pallets: [], desde: null });
     abrirLinea(l.id); await arrancarLinea(); l.inicio = t0; l.personas[0].desde = t0;
     for (let k = 0; k < 4; k++) await sumarPallet('pp1', 1);
     // paro: 30 min por falta de insumo
@@ -334,7 +359,7 @@ async function newPage(browser, opts = {}) {
     const ins = buildLineasSection(); r.insights = /Falta de insumo/.test(ins) && /Consumo real/.test(ins);
     // causas configurables
     openModalCausas(); addCausa('Lluvia'); await guardarCausas(); r.causas = causasParo().includes('Lluvia');
-    window.confirm = c0; return r; });
+    await limpiarTmp(); window.confirm = c0; return r; });
   ok(pi.snap && pi.boton, 'paros/insumos: la línea copia los insumos del tipo; botón Registrar paro');
   ok(pi.enParo && pi.reanuda, 'paro: la línea queda en paro con su causa y nota hasta Reanudar');
   ok(pi.avisoParo && pi.avisoSeQuita, 'paro: aviso si pasa de 15 min (lleva a la línea) y se quita al reanudar');
@@ -389,6 +414,8 @@ async function newPage(browser, opts = {}) {
     document.getElementById('coMotivo').value = 'Olvidó marcar'; await guardarCorreccion();
     const sm = window.__SRV.marcas.find(m => m.id === sal.id); r.correccion = sm.corregido_por === 'admin' && sm.motivo === 'Olvidó marcar';
     exportarAsistencia(); r.excel = window.__xlsx.w.s.slice(-3).map(x => x[0]).join('|') === 'Resumen por persona|Asistencia diaria|Marcajes';
+    const resX = window.__xlsx.w.s.slice(-3)[0][1], tot = resX[resX.length - 1], RR = resumenAsistencia();
+    r.total = tot[0] === 'TOTAL' && Math.abs(tot[2] - Math.round(RR.reduce((x, o) => x + o.horas, 0) * 100) / 100) < 0.011 && /rt-total/.test(buildAsistenciaSection());
     // aviso de llegada para el supervisor (no en la tablet)
     const nuevo = { id: 999, persona_id: sara, nombre: 'Sara Supervisora', fecha: hoyStr(), tipo: 'entrada', puesto: 'supervisor', ts: new Date().toISOString() };
     avisarMarcas([nuevo]); r.aviso = /Llegó Sara Supervisora/.test(document.getElementById('toast').textContent);
@@ -401,6 +428,7 @@ async function newPage(browser, opts = {}) {
   ok(mk.secuencia, 'marcaje: el servidor rechaza marcajes fuera de secuencia');
   ok(mk.salirMal && mk.salirBien, 'marcaje: salir del modo quiosco pide la contraseña del administrador');
   ok(mk.pagadas && mk.tarde, 'marcaje: horas pagadas desde el marcaje (9 h = 8 + 1 extra); tardanza con tolerancia');
+  ok(mk.total, 'asistencia: total de horas trabajadas del período según el marcaje (pantalla y Excel)');
   ok(mk.planilla && mk.sinMotivo && mk.correccion && mk.excel, 'asistencia: resumen del período, corrección solo con motivo (queda quién) y Excel de 3 hojas');
   ok(mk.aviso, 'marcaje: aviso de llegada al supervisor/administrador');
 
@@ -414,6 +442,9 @@ async function newPage(browser, opts = {}) {
     r.pide = SRV.push.some(x => x.name === 'push-marcaje' && x.body.accion === 'marca' && x.body.marcaId === m.id) && m.push_enviado;
     const n = SRV.push.length; abrirMarca(ivan); _marca.tipo = 'salida_almuerzo'; document.getElementById('mmCedula').value = '8-999-0001'; await confirmarMarca(); await new Promise(res => setTimeout(res, 30));
     r.soloEntrada = SRV.push.length === n;
+    abrirMarca(ivan); _marca.tipo = 'regreso_almuerzo'; document.getElementById('mmCedula').value = '8-999-0001'; await confirmarMarca(); await new Promise(res => setTimeout(res, 30));
+    const rg = SRV.marcas.find(x => x.persona_id === ivan && x.tipo === 'regreso_almuerzo');
+    r.regreso = SRV.push.length === n + 1 && SRV.push[n].body.marcaId === rg.id && rg.push_enviado;
     r.unaVez = (await funcionPush({ accion: 'marca', token: SESSION.token, key: STATE_KEY, marcaId: m.id })).enviados === 0;
     r.tabletNoRecibe = !(await suscribirPush());
     kioscoAdmin('salir'); document.getElementById('apPass').value = 'secreto1'; await confirmarAdminPass();
@@ -424,7 +455,7 @@ async function newPage(browser, opts = {}) {
     r.permiso = (await rpc('ch_push_subscribe', { p_token: t, p_key: STATE_KEY, p_endpoint: 'https://push.example/x', p_p256dh: 'a', p_auth: 'b' }).catch(e => e.message)) === 'PERMISO';
     SRV.users.find(x => x.id === u.id).rol = 'admin'; currentUser = u;
     window.confirm = c0; return r; });
-  ok(pu.pide && pu.soloEntrada && pu.unaVez, 'push: la tablet pide el aviso en cada entrada (no en el almuerzo) y no se repite');
+  ok(pu.pide && pu.soloEntrada && pu.unaVez && pu.regreso, 'push: la tablet pide el aviso en cada entrada y en cada regreso de almuerzo (no al salir a almorzar) y no se repite');
   ok(pu.tabletNoRecibe && pu.sinPermiso, 'push: la tablet de marcaje y los equipos sin permiso no se registran');
   ok(pu.sw && pu.permiso, 'push: el service worker muestra el aviso con la app cerrada; solo admin y supervisor registran su celular');
 
@@ -436,6 +467,9 @@ async function newPage(browser, opts = {}) {
     SRV.marcas = []; await cargarMarcas(); prepModalTurno();
     r.bloqueado = document.getElementById('btnAbrirTurno').disabled && document.querySelectorAll('#colabChips .chip').length === 0 && /Nadie ha marcado/.test(document.getElementById('colabChipsHint').textContent);
     await abrirTurno(); r.noAbre = !S.turno && /nadie ha marcado/.test(alerta);
+    SRV.marcas = marcas.filter(m => m.puesto !== 'supervisor'); await cargarMarcas(); prepModalTurno();
+    r.sinSup = document.getElementById('btnAbrirTurno').disabled && /Falta que un supervisor/.test(document.getElementById('colabChipsHint').textContent);
+    await abrirTurno(); r.sinSup = r.sinSup && !S.turno && /ningún supervisor/.test(alerta);
     SRV.marcas = marcas; await cargarMarcas(); prepModalTurno();
     const chips = [...document.querySelectorAll('#colabChips .chip')];
     r.soloMarcados = chips.length === personasMarcadas().length && chips.length > 0 && chips.every(c => c.classList.contains('selected')) && !chips.some(c => c.dataset.id === 'c2');
@@ -443,6 +477,7 @@ async function newPage(browser, opts = {}) {
     await abrirTurno(); r.abre = !!S.turno && chips.every(c => S.turno.equipo.some(e => e.id === c.dataset.id)) && S.turno.equipo.every(e => e.marcaje);
     hideModal('modalAbrirTurno'); document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
     S.turno = orig.turno; S.tareasActivas = orig.act; S.historial = orig.hist; await save(); window.alert = a0; renderAll(); return r; });
+  ok(tm.sinSup, 'turno: sin un supervisor marcado no se puede iniciar');
   ok(tm.bloqueado && tm.noAbre, 'turno: sin nadie marcado no se puede iniciar (botón deshabilitado y aviso)');
   ok(tm.soloMarcados && tm.habilitado && tm.abre, 'turno: solo ofrece y arranca con quienes marcaron entrada');
 
