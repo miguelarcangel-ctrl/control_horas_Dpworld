@@ -2017,7 +2017,6 @@ function updateTurnoResumen(){
 async function abrirTurno(){
   await cargarMarcas();
   if(!personasMarcadas().length){ alert(MSG_SIN_MARCAS); prepModalTurno(); return; }
-  if(!supMarcado()){ alert(MSG_SIN_SUP); prepModalTurno(); return; }
   const ids=[...document.querySelectorAll('#colabChips .chip.selected')].map(c=>c.dataset.id);
   if(!ids.length){alert('Selecciona al menos una persona que haya marcado entrada');return;}
   const eq=equipoMarcado(ids);
@@ -2297,7 +2296,6 @@ function horasEnLinea(p, l, fin){
 }
 // Para arrancar: un supervisor o responsable de línea marcado y la cuadrilla con su entrada marcada
 function faltaParaArrancar(l){
-  if(!presentes(['supervisor','responsable']).length) return 'Para arrancar, el supervisor o el responsable de línea debe marcar su entrada en la tablet.';
   const sin=l.personas.filter(p=>estadoEnLinea(p).bloqueo||!p.personaId);
   if(sin.length) return 'No han marcado o no están trabajando: '+sin.map(p=>esc(p.nombre)+(p.personaId?' ('+estadoEnLinea(p).corto.toLowerCase()+')':'')).join(', ')+'. Quítalos o espera su marcaje.';
   if(!paletizadores(l).length) return 'Agrega al menos una persona que paletice.';
@@ -2590,18 +2588,18 @@ function personasParaTurno(){
 }
 
 // El turno solo arranca con personal que marcó entrada en la tablet (operador, ayudante o supervisor)
-const MSG_SIN_SUP='No se puede iniciar el turno: ningún supervisor ha marcado entrada.\n\nEl supervisor también marca en la tablet (posición Supervisor) antes de iniciar el turno.';
 const supMarcado=()=>presentes(['supervisor']).length>0;
 const MSG_SIN_MARCAS='No se puede iniciar el turno: nadie ha marcado entrada en la tablet de marcaje.\n\nEl personal debe marcar su entrada primero. Si alguien no pudo marcar, el administrador puede registrarle la entrada en Asistencia.';
 const personasMarcadas=()=>personasParaTurno().filter(c=>c.presente);
 const equipoMarcado=ids=>personasMarcadas().filter(c=>ids.includes(c.id)).map(c=>({id:c.id,nombre:c.nombre,cargo:c.cargo,marcaje:true}));
 function pintarSinMarcas(hintId, btnId, n){
   const h=document.getElementById(hintId), b=document.getElementById(btnId);
-  const sup=supMarcado(), listo=n&&sup;
+  const listo=n>0;
+  // El supervisor también marca, pero su ausencia no frena la operación: solo se indica
   h.textContent=!_marcasCargadas?'Leyendo el marcaje…':!n?'Nadie ha marcado entrada todavía. El turno se habilita cuando el personal marque en la tablet.'
-    :!sup?'Falta que un supervisor marque su entrada en la tablet (posición Supervisor).':'Personas que marcaron entrada (vienen seleccionadas). Las que lleguen después se agregan solas al tablero.';
+    :'Personas que marcaron entrada (vienen seleccionadas). Las que lleguen después se agregan solas al tablero.'+(supMarcado()?'':' Ningún supervisor ha marcado hoy: el turno inicia igual.');
   h.style.color=_marcasCargadas&&!listo?'var(--red)':'';
-  if(b){ b.disabled=!listo; b.textContent=listo?'Iniciar Turno':!n?'Esperando marcajes':'Falta el supervisor'; }
+  if(b){ b.disabled=!listo; b.textContent=listo?'Iniciar Turno':'Esperando marcajes'; }
 }
 
 // ── Avisos de llegada y salida (supervisores y administradores; no en la tablet)
@@ -5178,7 +5176,6 @@ async function iniciarTurnoPlan(){
   if(!plan) return;
   await cargarMarcas();
   if(!personasMarcadas().length){ alert(MSG_SIN_MARCAS); pintarPlanColabs(plan); return; }
-  if(!supMarcado()){ alert(MSG_SIN_SUP); pintarPlanColabs(plan); return; }
   const ids=[...document.querySelectorAll('#iniciarPlanColabs .chip.selected')].map(c=>c.dataset.id);
   if(!ids.length){alert('Selecciona al menos una persona que haya marcado entrada');return;}
   const eq=equipoMarcado(ids);
