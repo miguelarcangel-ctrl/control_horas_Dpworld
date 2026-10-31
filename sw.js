@@ -1,7 +1,7 @@
 // Service worker de Control de Horas: permite instalar la app, abrirla sin conexión y mostrar avisos.
 // La app se pide primero a la red (siempre la versión publicada); la copia guardada solo se usa sin conexión.
 // Supabase nunca se guarda en caché: los datos van siempre al servidor (sin conexión, la app usa su respaldo local).
-const CACHE = 'ch-v6';
+const CACHE = 'ch-v7';
 const BASE = ['./', './index.html', './manifest.webmanifest', './assets/icon-192.png', './assets/icon-512.png',
   './assets/dpworld-logo-fondo-claro.png', './assets/dpworld-logo-fondo-oscuro.png',
   './dpw/dpw-shell.css', './dpw/dpw-shell.js', './dpw/dpw-escenas.js', './dpw/assets/dpworld-logo-fondo-claro.png'];
@@ -27,6 +27,14 @@ self.addEventListener('fetch', e => {
       return hit || red;
     })));
   }
+});
+// Aviso push del servidor (llegadas del personal): se muestra aunque la app esté cerrada
+self.addEventListener('push', e => {
+  let d = {}; try { d = e.data ? e.data.json() : {}; } catch (_) { d = { title: 'Control de Horas', body: e.data && e.data.text() }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'Control de Horas', {
+    body: d.body || '', tag: d.tag || 'ch', renotify: true, data: d.data || {},
+    icon: './assets/icon-192.png', badge: './assets/icon-192.png'
+  }));
 });
 // Al tocar un aviso: pone la app al frente y le dice qué abrir; si estaba cerrada, la abre en esa acción
 self.addEventListener('notificationclick', e => {
