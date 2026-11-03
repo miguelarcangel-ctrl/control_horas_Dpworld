@@ -558,6 +558,62 @@ async function newPage(browser, opts = {}) {
   ok(sob.motor && sob.asist && sob.excel, 'sobretiempo: extra autorizado vs sin autorizar en el costo, la asistencia y el Excel');
   ok(sob.catalogo && sob.nuevoSigueRol, 'sobretiempo: avisos en el catálogo; un aviso nuevo sigue lo de su rol');
 
+  // 9l) Correcciones: reapertura, plantillas, domingo, arrancar línea, unidad caja
+  const fx = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, c0 = window.confirm, a0 = window.alert; let alerta = ''; window.confirm = () => true; window.alert = m => { alerta = m; };
+    document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
+    const orig = { turno: S.turno, act: S.tareasActivas, hist: S.historial, th: S.turnosHistorial, sol: S.solicitudes, pl: S.plantillas };
+    // reapertura: con un turno abierto no se aprueba (no se pierde el turno)
+    const cerrado = { id: 'tc1', fecha: hoyStr(), hora: '07:00', inicio: Date.now() - 9 * 3600000, fin: Date.now() - 3600000, estado: 'cerrado', equipo: [{ id: 'c1', nombre: 'Juan Pérez', cargo: 'operador' }], historial: [] };
+    S.turnosHistorial = [cerrado, ...orig.th]; S.solicitudes = [];
+    const abierto = { id: 'tab', fecha: hoyStr(), hora: '14:00', inicio: Date.now(), equipo: [], horasProd: 0 }; S.turno = abierto; S.tareasActivas = []; S.historial = [];
+    // el supervisor pide la reapertura desde su vista (lista de turnos cerrados)
+    S.turno = null; renderTurnosCerrados(); r.lista = /Pedir reapertura/.test(document.getElementById('turnosCerradosList').innerHTML);
+    SRV.push = []; prepSolReap('tc1'); document.getElementById('reapMotivo').value = 'Faltó cerrar una tarea'; await enviarSolicitud();
+    r.pide = S.solicitudes.length === 1 && cerrado.estado === 'solicitud_pendiente' && SRV.push.some(x => x.body.evento === 'tur_reap') && /Reapertura pedida/.test(document.getElementById('turnosCerradosList').innerHTML);
+    S.turno = abierto; prepAprobar(S.solicitudes[0].id); r.advierte = /Hay un turno abierto/.test(document.getElementById('aprobInfo').innerHTML);
+    await resolverSolicitud(true);
+    r.noBorra = S.turno && S.turno.id === 'tab' && S.solicitudes[0].estado === 'pendiente' && /Ciérralo antes/.test(alerta) && S.turnosHistorial.some(t => t.id === 'tc1');
+    hideModal('modalAprobarReap');
+    S.turno = null; prepAprobar(S.solicitudes[0].id); await resolverSolicitud(true);
+    r.aprueba = S.turno && S.turno.id === 'tc1' && !S.turnosHistorial.some(t => t.id === 'tc1');
+    // plantillas: el botón abre la ventana; «Usar» aplica jornada, personas (entre quienes marcaron) y tareas
+    S.turno = null; S.turnosHistorial = orig.th; S.solicitudes = orig.sol;
+    const pres = personasMarcadas(); const elegido = pres[0];
+    S.plantillas = [{ id: 'pl1', nombre: 'CNP estándar', jornada: 'media', activa: true, colabs: [{ id: elegido.id, nombre: elegido.nombre }], tareas: [{ tareaId: 't1', tarea: 'Descargue', clienteId: 'k1', cliente: 'CERNAC', cantEsperada: 40, horasEsperadas: 2, unidad: 'pallet' }] }];
+    openModalPlantilla(); r.ventana = !document.getElementById('modalPlantilla').classList.contains('hidden') && /CNP estándar/.test(document.getElementById('plantillasList').innerHTML) && document.getElementById('plantillaGuardarSec').classList.contains('hidden');
+    await iniciarDesdePlantilla('pl1'); await new Promise(res => setTimeout(res, 50));
+    const sel = [...document.querySelectorAll('#colabChips .chip.selected')].map(c => c.dataset.id);
+    r.aplica = document.querySelector('#jornadaChips .chip.selected').dataset.jornada === 'media' && sel.length === 1 && sel[0] === elegido.id && /Plantilla «CNP estándar»/.test(document.getElementById('colabChipsHint').textContent);
+    await abrirTurno(); r.tareas = S.turno && S.turno.plantillaId === 'pl1' && (S.turno.tareasDia || []).length === 1 && S.turno.tareasDia[0].tarea === 'Descargue' && S.turno.jornada === 'media';
+    // con turno abierto: guardar el turno como plantilla
+    openModalPlantilla(); r.guardarVisible = !document.getElementById('plantillaGuardarSec').classList.contains('hidden') && /Agregar sus tareas/.test(document.getElementById('plantillasList').innerHTML);
+    document.getElementById('plantillaNombre').value = 'Desde turno'; await guardarPlantilla();
+    const nueva = S.plantillas.find(x => x.nombre === 'Desde turno'); r.guarda = nueva && nueva.tareas.length === 1 && nueva.colabs.length === S.turno.equipo.length;
+    hideModal('modalPlantilla'); hideModal('modalToolbox'); document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
+    // domingo (jornada 0 h): las horas no son extra; un día pasado sin salida tampoco suma extra
+    const dom = '2026-11-01', H = 3600000, b = new Date(dom + 'T08:00:00').getTime();
+    const d1 = diaAsistencia([{ tipo: 'entrada', ts: b }, { tipo: 'salida', ts: b + 6 * H }], dom);
+    const d2 = diaAsistencia([{ tipo: 'entrada', ts: new Date('2026-10-28T08:00:00').getTime() }, { tipo: 'salida_almuerzo', ts: new Date('2026-10-28T20:00:00').getTime() }], '2026-10-28');
+    r.domingo = d1.extra === 0 && d1.descanso && Math.abs(d1.horas - 6) < 1e-9 && d1.tarde === 0 && d2.extra === 0 && d2.incompleto;
+    // arrancar línea: sin meta o sin cuadrilla el botón queda deshabilitado y con el motivo
+    const l = nuevaLinea(S.lineasTipo[0], 0, 8); S.lineas.push(l); abrirLinea(l.id);
+    const btn = [...document.querySelectorAll('#lineaBody button')].find(x => /Arrancar línea/.test(x.textContent));
+    r.arrancar = btn && btn.disabled && /meta del día/.test(document.getElementById('lmArrancar').textContent) && getComputedStyle(btn).opacity < 0.6;
+    document.getElementById('lmMeta').value = '10'; lineaMetaHoras(); r.arrancarMotivo = /paletice/.test(document.getElementById('lmArrancar').textContent);
+    hideModal('modalLinea'); S.lineas = S.lineas.filter(x => x.id !== l.id);
+    // catálogo: unidad «caja»
+    r.caja = [...document.querySelectorAll('#tcUnidad option')].some(o => o.value === 'caja');
+    S.turno = orig.turno; S.tareasActivas = orig.act; S.historial = orig.hist; S.turnosHistorial = orig.th; S.solicitudes = orig.sol; S.plantillas = orig.pl;
+    await save(); renderAll(); window.confirm = c0; window.alert = a0; return r; });
+  ok(fx.lista && fx.pide, 'reapertura: el supervisor la pide desde su vista (turnos cerrados recientes) y al admin le llega el aviso');
+  ok(fx.advierte && fx.noBorra && fx.aprueba, 'reapertura: con un turno abierto no se aprueba (avisa y no lo borra); sin turno abierto sí');
+  ok(fx.ventana && fx.aplica && fx.tareas, 'plantillas: el botón abre la ventana; «Usar» aplica jornada, personas que marcaron y tareas del día');
+  ok(fx.guardarVisible && fx.guarda, 'plantillas: con turno abierto se suman sus tareas o se guarda el turno como plantilla');
+  ok(fx.domingo, 'asistencia: domingo (jornada 0 h) y días pasados sin salida no suman extra');
+  ok(fx.arrancar && fx.arrancarMotivo, 'línea: «Arrancar línea» deshabilitado (se ve gris) mientras falte la meta o la cuadrilla, con el motivo');
+  ok(fx.caja, 'catálogo de tareas: unidad «caja»');
+
   // 9i) El turno solo se inicia con personal que marcó entrada
   const tm = await page.evaluate(async () => {
     const r = {}, SRV = window.__SRV, a0 = window.alert; let alerta = ''; window.alert = m => { alerta = m; };

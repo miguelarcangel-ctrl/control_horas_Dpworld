@@ -153,6 +153,7 @@ input::placeholder,textarea::placeholder{color:var(--t4)}
 input[type=checkbox]{accent-color:var(--green);width:auto}
 
 /* BOTONES */
+.btn:disabled,.btn[disabled]{opacity:.45;cursor:not-allowed;filter:saturate(.4);box-shadow:none;pointer-events:none}
 .btn{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:.4px;text-transform:uppercase;padding:8px 13px;border-radius:7px;border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:all .15s;white-space:nowrap;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .btn:active{transform:scale(.98)}
 .btn-green{background:var(--green);color:var(--on-green);box-shadow:0 3px 14px var(--gg)}.btn-green:hover,.btn-green:active{background:var(--gd)}
@@ -271,6 +272,9 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 .sobre-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(245,158,11,.18);border:1px solid rgba(245,158,11,.55);border-radius:8px;padding:8px 11px;font-size:.76rem;line-height:1.5}
 .sobre-bar .sb-txt{flex:1;min-width:180px}.sobre-bar b{color:#FBBF24}
 .pc-st{display:inline-block;margin-left:6px;white-space:nowrap;font-size:.6rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--amber);border:1px solid var(--amber);border-radius:4px;padding:0 4px;vertical-align:middle}
+.rt-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px}
+.rt-asis{min-width:540px}.rt-asis td:first-child{white-space:nowrap}
+@media (max-width:700px){.stat-row{flex-wrap:wrap}.stat-row .stat-card{flex:1 1 30%;min-width:96px}}
 .rt-table tr.rt-total td{border-top:2px solid var(--b1);color:var(--t1)}
 
 /* SOLICITUD */
@@ -282,6 +286,7 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 /* TOAST — píldora inferior */
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--card);color:var(--t);border:1px solid var(--b2);padding:9px 18px;border-radius:28px;font-size:12.5px;font-weight:600;z-index:999;opacity:0;transition:all .3s ease;pointer-events:none;max-width:92vw;white-space:normal;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.35)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (max-width:700px){.toast,body.con-sel .toast{top:calc(10px + env(safe-area-inset-top));bottom:auto;transform:translateX(-50%) translateY(-16px)}.toast.show{transform:translateX(-50%) translateY(0)}}
 .toast.success{background:var(--toast-ok);border-color:rgba(0,195,137,.45);color:var(--green)}
 .toast.error{background:var(--toast-err);border-color:rgba(232,0,61,.45);color:var(--red-t)}
 .toast.info{background:var(--toast-info);border-color:rgba(169,167,255,.4);color:var(--accent)}
@@ -345,6 +350,23 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 .tv-bi{background:rgba(0,153,230,.12);color:var(--blue);border-color:rgba(0,153,230,.3)}
 
 /* TV · LÍNEAS */
+.tv-hora-bar>div:first-child{flex-wrap:wrap;gap:4px 10px}
+@media (max-width:1100px){.tv-grid{grid-template-columns:1fr 1fr!important;overflow:visible!important}}
+@media (max-width:700px){
+  .tv-hdr{height:auto;flex-wrap:wrap;padding:8px 12px;gap:6px 10px}
+  .tv-hdr-logo img{height:28px}
+  .tv-hdr-center{order:3;width:100%;text-align:left}
+  .tv-hdr-title{font-size:1rem}
+  .tv-hdr-right{align-items:stretch}
+  .tv-hdr-right>div{flex-wrap:wrap;justify-content:flex-end}
+  .tv-clock{font-size:1.15rem}
+  .tv-grid{grid-template-columns:1fr!important;padding:10px 12px!important}
+  .tv-grid>div{overflow:visible!important;max-height:none!important}
+  .tv-wrap [style*="padding:10px 20px"]{padding:8px 12px 0!important}
+  .tv-wrap [style*="margin:0 20px"]{margin:0 12px!important}
+  .tvl{padding:14px 16px}
+  .tvl-grid{min-height:0}
+}
 .tvl-grid{display:grid;gap:16px;grid-template-columns:1fr;flex:1;min-height:calc(100vh - 150px)}
 @media (min-width:900px){.tvl-grid.tvl-n2{grid-template-columns:1fr 1fr}.tvl-grid.tvl-n3{grid-template-columns:repeat(3,1fr)}}
 .tvl{background:var(--card);border:1px solid var(--b1);border-radius:16px;padding:22px 26px;display:flex;flex-direction:column;gap:16px;justify-content:space-between}
@@ -392,6 +414,10 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 .qr-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
 .qr-box{width:260px;height:260px;border:3px solid var(--green);border-radius:12px;overflow:hidden;background:#000;box-shadow:0 0 20px var(--gg)}
 /* AVISOS EN LA APP */
+.avisos-app:empty{display:none}
+body[data-nav="insights"] .avisos-app{display:none}
+.avisos-app.en-flujo{position:static;max-width:none;margin:10px 12px 0;z-index:auto}
+.avisos-app.en-flujo .aviso-card{box-shadow:none}
 .avisos-app{position:fixed;right:12px;bottom:16px;z-index:260;display:flex;flex-direction:column;gap:8px;max-width:min(380px,calc(100vw - 24px))}
 body.con-sel .avisos-app{bottom:90px}
 .aviso-card{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid rgba(245,162,11,.5);border-left:4px solid var(--amber);border-radius:10px;padding:10px 10px 10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.22);animation:avIn .25s ease}
@@ -633,10 +659,11 @@ body.con-sel .toast{bottom:96px}
       <div id="turnosProgramadosList"></div>
     <div id="plantillasActivasList"></div>
       <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="btn btn-green" style="flex:1;justify-content:center" onclick="showModal('modalAbrirTurno')">Abrir Turno Ahora</button>
-        <button class="btn btn-ghost" style="justify-content:center" onclick="togglePlantillasPanel()" id="plantillasQuickBtn" title="Plantillas">Plantillas</button>
+        <button class="btn btn-green" style="flex:1;justify-content:center" onclick="S._plantillaActiva=null;showModal('modalAbrirTurno')">Abrir Turno Ahora</button>
+        <button class="btn btn-ghost" style="justify-content:center" onclick="openModalPlantilla()" id="plantillasQuickBtn" title="Plantillas">Plantillas</button>
         <button class="btn btn-indigo" style="flex:1;justify-content:center" onclick="showModal('modalDimensionador')">Planificar Turno</button>
       </div>
+      <div id="turnosCerradosList"></div>
     </div>
     <div id="turnoPanel" class="turno-panel hidden">
       <div class="turno-banner" data-theme="dark">
@@ -835,7 +862,7 @@ body.con-sel .toast{bottom:96px}
       <span class="modal-close" onclick="hideModal('modalPlantilla')">×</span>
     </div>
     <div id="plantillasList" style="display:flex;flex-direction:column;gap:7px;margin-bottom:12px;max-height:240px;overflow-y:auto"></div>
-    <div style="border-top:1px solid var(--border);padding-top:12px">
+    <div style="border-top:1px solid var(--border);padding-top:12px" id="plantillaGuardarSec">
       <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--mid);margin-bottom:7px">Guardar turno actual como plantilla</div>
       <div class="field"><label>Nombre de la plantilla</label><input type="text" id="plantillaNombre" placeholder="Ej. Turno CNP Lunes"></div>
       <button class="btn btn-green btn-full" onclick="guardarPlantilla()">Guardar Plantilla</button>
@@ -1112,6 +1139,7 @@ body.con-sel .toast{bottom:96px}
         <select id="tcUnidad">
           <option value="pallet">Pallet</option>
           <option value="bulto">Bulto</option>
+          <option value="caja">Caja</option>
           <option value="unidad">Unidad</option>
           <option value="contenedor">Contenedor</option>
         </select>
@@ -1741,10 +1769,11 @@ const AVISOS_CAT=[
     ['tur_pend','Cantidades pendientes al final de la jornada'],
     ['tur_sobre','Sobretiempo activado o ampliado','Quién, cuántas personas, hasta qué hora y el motivo'],
     ['tur_sobre_fin','Fin de jornada o del sobretiempo','15 min antes, para activar o ampliar el sobretiempo'],
+    ['tur_reap','Solicitud de reapertura de un turno','Para aprobarla o rechazarla en Insights'],
   ]},
 ];
 const AVISOS_DEF={
-  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre','tur_sobre'],
+  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre','tur_sobre','tur_reap'],
   supervisor:['ent_sup','ent_op','alm_reg','lin_riesgo','lin_paro','tur_libre','tur_larga','tur_pend','tur_sobre','tur_sobre_fin'],
   responsable:['ent_resp','ent_lin','alm_reg','lin_arranca','lin_mitad','lin_meta','lin_riesgo','lin_paro','lin_insumo'],
 };
@@ -1837,7 +1866,11 @@ function pintarAvisosApp(){
     cuerpo:libres.map(a=>(S.turno.equipo.find(c=>c.id===a.data.pid)||{nombre:''}).nombre.split(' ')[0]).join(', '),
     data:{accion:'libre',pids:libres.map(a=>a.data.pid)},keys:libres.map(a=>a.key)});
   otros.forEach(a=>_avisosVista.push({...a,keys:[a.key]}));
-  el.innerHTML=_avisosVista.slice(0,3).map((a,i)=>`<div class="aviso-card"><div class="aviso-txt"><b>${esc(a.titulo)}</b><span>${esc(a.cuerpo)}</span></div>
+  // En celular las tarjetas van dentro de la página, arriba de la vista: empujan el contenido en lugar de taparlo
+  const movil=window.matchMedia('(max-width:700px)').matches, ancla=document.getElementById('modoPruebaBar');
+  if(movil&&ancla&&el.previousElementSibling!==ancla){ ancla.after(el); el.classList.add('en-flujo'); }
+  else if(!movil&&el.classList.contains('en-flujo')){ document.body.appendChild(el); el.classList.remove('en-flujo'); }
+  el.innerHTML=_avisosVista.slice(0,movil?2:3).map((a,i)=>`<div class="aviso-card"><div class="aviso-txt"><b>${esc(a.titulo)}</b><span>${esc(a.cuerpo)}</span></div>
     ${a.data&&ACCION_AVISO[a.data.accion]?`<button class="btn btn-green btn-sm" onclick="tocarAviso(${i})">${ACCION_AVISO[a.data.accion]}</button>`:''}
     <button class="btn btn-ghost btn-sm" onclick="cerrarAviso(${i})" aria-label="Cerrar aviso">×</button></div>`).join('');
 }
@@ -1847,6 +1880,7 @@ function tocarAviso(i){ const v=quitarVista(i); if(v) manejarAviso(v.data); }
 // Lleva a la acción de cada aviso (desde la tarjeta o desde la notificación del sistema)
 function manejarAviso(data){
   if(!data||!data.accion) return;
+  if(data.accion==='reap'){ if(currentUser&&currentUser.rol==='admin') setNav('insights'); return; }
   if(data.accion!=='linea'&&!S.turno) return;
   if(data.accion!=='linea') setNav('supervisor');
   if(data.accion==='libre'){
@@ -1861,6 +1895,8 @@ function manejarAviso(data){
   } else if(data.accion==='linea'){
     if(!lineaDe(data.lid)){ showToast('Esa línea ya no está','info'); return; }
     setNav('lineas'); abrirLinea(data.lid); return;
+  } else if(data.accion==='reap'){
+    if(currentUser&&currentUser.rol==='admin') setNav('insights');
   } else if(data.accion==='sobre'){
     abrirSobre();
   } else if(data.accion==='pend'){
@@ -1952,7 +1988,7 @@ function setNav(nav){
   if(nav==='lineas') renderLineas();
   document.getElementById('viewSupervisor').classList.toggle('hidden',nav!=='supervisor');
   document.getElementById('viewInsights').classList.toggle('hidden',nav!=='insights');
-  _nav=nav; pintarMenu(); window.scrollTo(0,0);
+  _nav=nav; document.body.dataset.nav=nav; pintarMenu(); pintarAvisosApp(); window.scrollTo(0,0);
   if(nav==='insights'){ renderInsights(); if(currentUser?.rol==='admin'){ refreshUsuarios().then(renderInsights); cargarPersonal().then(renderInsights); } }
 }
 function toggleSec(b,c){
@@ -2027,6 +2063,7 @@ function prepModalTurno(){
   const w=document.getElementById('colabChips');w.innerHTML='';
   const P=personasMarcadas();
   pintarSinMarcas('colabChipsHint','btnAbrirTurno',P.length);
+  setTimeout(aplicarPlantillaModal,0);
   P.forEach(c=>{
     const el=document.createElement('div');el.className='chip'+(c.presente?' selected':'');el.dataset.id=c.id;
     el.textContent=c.nombre+' ('+({operador:'Op',ag:'AG',supervisor:'Sup'}[c.cargo]||'Op')+')'+(c.presente?' · marcó':'');
@@ -2066,6 +2103,7 @@ async function abrirTurno(){
     jornada,hpPorPersona,
     horasProd:eq.length*hpPorPersona,
   };
+  const pl=S._plantillaActiva; if(pl){ S.turno.tareasDia=tareasDiaDePlantilla(pl); S.turno.plantillaId=pl.id; S._plantillaActiva=null; }
   S.tareasActivas=[];S.historial=[];
   aplicarMarcasAlTurno();
   await save();hideModal('modalAbrirTurno');renderAll();showToast('Turno iniciado');setTimeout(showToolboxScreen,400);
@@ -2339,7 +2377,7 @@ function renderLineaModal(foco){
     <div class="field"><label>Cuadrilla · ${l.personas.length} de ${c.total}</label>${agregar}</div>
     <div class="li-sub">Paletizan: ${P.length} de ${c.pal}${puestos?' · '+puestos:''}</div>
     <div class="chip-wrap">${P.map(p=>{ const e=estadoEnLinea(p); return `<span class="chip selected${e.bloqueo?' chip-off':''}" onclick="quitarPersonaLinea('${p.id}')" title="Quitar">${esc(p.nombre)}${e.bloqueo?' · '+e.texto:''} ×</span>`; }).join('')}${chipsApoyo}</div>
-    ${l.fecha>hoyStr()?`<div class="warn-box">Planificada para ${etiquetaDia(l.fecha).toLowerCase()}: ese día la cuadrilla se arma con quienes marquen entrada en la tablet.</div>`:(()=>{ const f=faltaParaArrancar(l); return f?`<div class="warn-box">${f}</div><button class="btn btn-green btn-full" disabled>Arrancar línea</button>`:`<button class="btn btn-green btn-full" onclick="arrancarLinea()">Arrancar línea</button>`; })()}
+    ${l.fecha>hoyStr()?`<div class="warn-box">Planificada para ${etiquetaDia(l.fecha).toLowerCase()}: ese día la cuadrilla se arma con quienes marquen entrada en la tablet.</div>`:`<div id="lmArrancar">${htmlArrancar(l)}</div>`}
     <button class="btn btn-ghost btn-sm" style="align-self:center" onclick="eliminarLinea()">Quitar esta línea</button>`;
   } else {
     const pct=l.meta?Math.round(r.tot/l.meta*100):0;
@@ -2369,11 +2407,14 @@ function renderLineaModal(foco){
   }
   document.getElementById('lineaBody').innerHTML=h;
 }
+function htmlArrancar(l){ const f=faltaParaArrancar(l);
+  return f?`<div class="warn-box">${f}</div><button class="btn btn-green btn-full" disabled>Arrancar línea</button>`:`<button class="btn btn-green btn-full" onclick="arrancarLinea()">Arrancar línea</button>`; }
 function lineaMetaHoras(){
   const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='pendiente'||!document.getElementById('lmMeta')) return;
   l.meta=+document.getElementById('lmMeta').value||0; l.horas=+document.getElementById('lmHoras').value||l.horas;
   const c=cuadrilla(l.meta,l.prod,l.horas,l.apoyo);
   document.getElementById('lmCalc').innerHTML=c.texto?'Se necesitan '+c.texto+'.':'Ingresa la meta.';
+  const ar=document.getElementById('lmArrancar'); if(ar) ar.innerHTML=htmlArrancar(l);
 }
 // Cuadrilla disponible: quienes marcaron entrada como «Línea de producción» y aún no están en una línea de hoy
 function disponiblesLinea(){
@@ -2412,6 +2453,7 @@ function horasEnLinea(p, l, fin){
 }
 // Para arrancar: un supervisor o responsable de línea marcado y la cuadrilla con su entrada marcada
 function faltaParaArrancar(l){
+  if(!(l.meta>0)) return 'Pon la meta del día para arrancar.';
   const sin=l.personas.filter(p=>estadoEnLinea(p).bloqueo||!p.personaId);
   if(sin.length) return 'No han marcado o no están trabajando: '+sin.map(p=>esc(p.nombre)+(p.personaId?' ('+estadoEnLinea(p).corto.toLowerCase()+')':'')).join(', ')+'. Quítalos o espera su marcaje.';
   if(!paletizadores(l).length) return 'Agrega al menos una persona que paletice.';
@@ -2668,9 +2710,12 @@ function diaAsistencia(M, fecha){
   const cfg=getConfig(), get=t=>M.filter(m=>m.tipo===t&&!m.anulado);
   const ent=get('entrada')[0], sal=get('salida').slice(-1)[0];
   const r=horasMarcas(M, fecha===hoyStr()?Date.now():null);
-  const jornada=horasProductivas(fecha)||0, extra=Math.max(0,r.h-jornada);
-  let tarde=0; if(ent){ const lim=new Date(fecha+'T'+(cfg.horaInicio||'08:00')+':00').getTime()+(cfg.toleranciaMin||5)*60000; tarde=Math.max(0,Math.round((msTs(ent.ts)-lim)/60000)); }
-  return {ent,sal,salAlm:get('salida_almuerzo')[0],regAlm:get('regreso_almuerzo').slice(-1)[0],horas:r.h,abierta:r.abierta,extra,jornada,tarde,puesto:ent&&ent.puesto,corregido:M.some(m=>m.corregido_por)};
+  // Día sin jornada (domingo con 0 h): es día de descanso y sus horas se pagan con el recargo del día, no como extra.
+  // Un día ya pasado sin salida está incompleto: no suma extra hasta que se corrija.
+  const jornada=horasProductivas(fecha)||0, descanso=jornada<=0, incompleto=!sal&&fecha!==hoyStr();
+  const extra=descanso||incompleto?0:Math.max(0,r.h-jornada);
+  let tarde=0; if(ent&&!descanso){ const lim=new Date(fecha+'T'+(cfg.horaInicio||'08:00')+':00').getTime()+(cfg.toleranciaMin||5)*60000; tarde=Math.max(0,Math.round((msTs(ent.ts)-lim)/60000)); }
+  return {ent,sal,salAlm:get('salida_almuerzo')[0],regAlm:get('regreso_almuerzo').slice(-1)[0],horas:r.h,abierta:r.abierta,extra,jornada,descanso,incompleto,tarde,puesto:ent&&ent.puesto,corregido:M.some(m=>m.corregido_por)};
 }
 
 // ── Turno: el equipo se arma con quienes marcan (operador, ayudante, supervisor); la línea va aparte
@@ -2879,7 +2924,7 @@ function buildAsistenciaSection(){
   h+=R.length?`<div class="stat-row"><div class="stat-card"><div class="stat-label">Horas trabajadas</div><div class="stat-val">${fmtN(T.horas)}</div><div class="stat-sub">según el marcaje · ${R.length} persona(s)</div></div>
     <div class="stat-card"><div class="stat-label">Horas extra</div><div class="stat-val">${fmtN(T.extra)}</div><div class="stat-sub">${T.extraSin>0.05?'<b style="color:var(--amber)">'+fmtN(T.extraSin)+' sin autorizar</b>':'todas autorizadas'}</div></div>
     <div class="stat-card"><div class="stat-label">Días-persona</div><div class="stat-val">${T.dias}</div><div class="stat-sub">${T.tardes} tardanza(s)${T.incompletos?' · <b style="color:var(--amber)">'+T.incompletos+' sin salida</b>':''}</div></div></div>
-  <table class="rt-table"><tr><th>Persona</th><th>Días</th><th>Horas</th><th>Extra</th><th>Tardanzas</th><th>Sin salida</th><th></th></tr>`+R.map(o=>`<tr><td>${esc(o.nombre)}</td><td>${o.D.length}</td><td><b>${fmtN(o.horas)}</b></td><td>${o.extra>0.05?fmtN(o.extra)+(o.extraSin>0.05?' <small style="color:var(--amber);font-weight:700">('+fmtN(o.extraSin)+' sin aut.)</small>':''):'—'}</td><td>${o.tardes?o.tardes+' ('+o.minTarde+' min)':'—'}</td><td>${o.incompletos?'<b style="color:var(--amber)">'+o.incompletos+'</b>':'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="verAsistencia('${o.id}')">Detalle</button></td></tr>`).join('')+`<tr class="rt-total"><td><b>Total</b></td><td><b>${T.dias}</b></td><td><b>${fmtN(T.horas)}</b></td><td><b>${T.extra>0.05?fmtN(T.extra):'—'}</b>${T.extraSin>0.05?' <small style="color:var(--amber);font-weight:700">('+fmtN(T.extraSin)+' sin aut.)</small>':''}</td><td><b>${T.tardes||'—'}</b></td><td><b>${T.incompletos||'—'}</b></td><td></td></tr></table>
+  <div class="rt-scroll"><table class="rt-table rt-asis"><tr><th>Persona</th><th>Días</th><th>Horas</th><th>Extra</th><th>Tardanzas</th><th>Sin salida</th><th></th></tr>`+R.map(o=>`<tr><td>${esc(o.nombre)}</td><td>${o.D.length}</td><td><b>${fmtN(o.horas)}</b></td><td>${o.extra>0.05?fmtN(o.extra)+(o.extraSin>0.05?' <small style="color:var(--amber);font-weight:700">('+fmtN(o.extraSin)+' sin aut.)</small>':''):'—'}</td><td>${o.tardes?o.tardes+' ('+o.minTarde+' min)':'—'}</td><td>${o.incompletos?'<b style="color:var(--amber)">'+o.incompletos+'</b>':'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="verAsistencia('${o.id}')">Detalle</button></td></tr>`).join('')+`<tr class="rt-total"><td><b>Total</b></td><td><b>${T.dias}</b></td><td><b>${fmtN(T.horas)}</b></td><td><b>${T.extra>0.05?fmtN(T.extra):'—'}</b>${T.extraSin>0.05?' <small style="color:var(--amber);font-weight:700">('+fmtN(T.extraSin)+' sin aut.)</small>':''}</td><td><b>${T.tardes||'—'}</b></td><td><b>${T.incompletos||'—'}</b></td><td></td></tr></table></div>
     <div class="li-sub">Horas = suma de lo marcado: de la entrada a la salida, sin el tiempo entre salida y regreso de almuerzo (un día sin salida cuenta solo los tramos cerrados; hoy cuenta hasta ahora). Extra = por encima de la jornada del día (${getConfig().horaInicio}–${getConfig().horaFin}); «sin autorizar» = extra fuera de un sobretiempo activado en el turno. Tardanza = entrada después de las ${getConfig().horaInicio} + ${getConfig().toleranciaMin||5} min.</div>`
     :'<div class="empty-text">Sin marcajes en el período.</div>';
   return h+`</div></div>`;
@@ -2891,7 +2936,7 @@ function verAsistencia(pid){
   document.getElementById('asTitulo').textContent=o.nombre+' · '+_asist.desde+' a '+_asist.hasta;
   let h=`<div class="li-sub"><b>${fmtN(o.horas)} h</b> en ${o.D.length} día(s) · extra ${fmtN(o.extra)} h · ${o.tardes} tardanza(s)</div>`;
   h+=o.D.sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(d=>{ const M=marcasDe(pid,_asist.marcas).filter(m=>m.fecha===d.fecha);
-    return `<div class="ins-row"><div class="ins-name">${etiquetaDia(d.fecha)} · ${d.fecha}<small>${PUESTOS[d.puesto]||''}${d.tarde?' · '+d.tarde+' min tarde':''}${d.corregido?' · con corrección':''}</small></div>
+    return `<div class="ins-row"><div class="ins-name">${etiquetaDia(d.fecha)} · ${d.fecha}<small>${PUESTOS[d.puesto]||''}${d.descanso?' · día de descanso':''}${d.tarde?' · '+d.tarde+' min tarde':''}${d.corregido?' · con corrección':''}</small></div>
       <div class="ins-nums">${M.map(m=>`<span>${TIPOS_MARCA[m.tipo]} <b>${horaHM(msTs(m.ts))}</b>${esAdmin?` <a href="#" onclick="event.preventDefault();abrirCorreccion(${m.id})">corregir</a>`:''}</span>`).join('')}</div>
       <div class="ins-nums"><span>Horas <b>${fmtN(d.horas)}</b></span>${d.extra>0.05?`<span>Extra <b>${fmtN(d.extra)}</b>${d.extraSin>0.05?` <b style="color:var(--amber)">(${fmtN(d.extraSin)} sin autorizar)</b>`:''}</span>`:''}${!d.sal&&d.fecha!==hoyStr()?'<span><b style="color:var(--amber)">Sin salida</b></span>':''}
       ${esAdmin?`<a href="#" onclick="event.preventDefault();abrirCorreccion(null,'${d.fecha}')">+ agregar marcaje</a>`:''}</div></div>`; }).join('');
@@ -2926,7 +2971,7 @@ async function guardarCorreccion(){
 function exportarAsistencia(){
   const R=resumenAsistencia(), wb=XLSX.utils.book_new(), r2=n=>Math.round((n||0)*100)/100, hh=m=>m?horaHM(msTs(m.ts)):'';
   const dia=[['Fecha','Persona','Posición','Entrada','Salida a almuerzo','Regreso de almuerzo','Salida','Horas trabajadas','Jornada (h)','Horas extra','Extra autorizado','Extra sin autorizar','Tardanza (min)','Observaciones']];
-  R.forEach(o=>o.D.sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(d=>dia.push([d.fecha,o.nombre,PUESTOS[d.puesto]||'',hh(d.ent),hh(d.salAlm),hh(d.regAlm),hh(d.sal),r2(d.horas),d.jornada,r2(d.extra),r2(d.extraAut),r2(d.extraSin),d.tarde||'',[!d.sal&&d.fecha!==hoyStr()?'Sin salida':'',d.corregido?'Con corrección':''].filter(Boolean).join(' · ')])));
+  R.forEach(o=>o.D.sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(d=>dia.push([d.fecha,o.nombre,PUESTOS[d.puesto]||'',hh(d.ent),hh(d.salAlm),hh(d.regAlm),hh(d.sal),r2(d.horas),d.jornada,r2(d.extra),r2(d.extraAut),r2(d.extraSin),d.tarde||'',[!d.sal&&d.fecha!==hoyStr()?'Sin salida (no suma extra)':'',d.descanso?'Día de descanso (recargo del día)':'',d.corregido?'Con corrección':''].filter(Boolean).join(' · ')])));
   const res=[['Persona','Días trabajados','Horas trabajadas','Horas extra','Extra sin autorizar','Tardanzas','Minutos de tardanza','Días sin salida']];
   R.forEach(o=>res.push([o.nombre,o.D.length,r2(o.horas),r2(o.extra),r2(o.extraSin),o.tardes,o.minTarde,o.incompletos]));
   const T=totalAsistencia(R); res.push(['TOTAL',T.dias,r2(T.horas),r2(T.extra),r2(T.extraSin),T.tardes,T.minTarde,T.incompletos]);
@@ -3384,22 +3429,40 @@ function prepSolReap(turnoId){
   document.getElementById('reapInfo').innerHTML=`Turno: <b>${t.fecha} ${t.hora}</b><br>Equipo: ${t.equipo.map(c=>c.nombre).join(', ')}`;
   document.getElementById('reapMotivo').value='';showModal('modalSolReap');
 }
+// Turnos cerrados de los últimos 7 días: el supervisor pide la reapertura desde aquí (sin costos)
+function renderTurnosCerrados(){
+  const el=document.getElementById('turnosCerradosList'); if(!el) return;
+  if(S.turno){ el.innerHTML=''; return; }
+  const desde=fechaMenos(hoyStr(),7), L=(S.turnosHistorial||[]).filter(t=>t.fecha>=desde).sort((a,b)=>(b.fin||0)-(a.fin||0)).slice(0,6);
+  if(!L.length){ el.innerHTML=''; return; }
+  el.innerHTML=`<div class="asig-ttl" style="margin-top:14px">Turnos cerrados recientes</div>`+L.map(t=>{
+    const sol=[...(S.solicitudes||[])].reverse().find(x=>x.turnoId===t.id);
+    const est=t.estado==='solicitud_pendiente'?'<span class="badge ba">Reapertura pedida</span>'
+      :sol&&sol.estado==='rechazado'?`<span class="badge br" title="${esc(sol.comentario||'')}">Reapertura rechazada</span>`:'';
+    return `<div class="list-item"><div class="li-info"><div class="li-name">${etiquetaDia(t.fecha)} · ${t.fecha} ${esc(t.hora||'')}</div>
+      <div class="li-sub">${(t.equipo||[]).length} personas · ${(t.historial||[]).length} tareas${t.fin?' · cerrado '+horaHM(t.fin):''}${sol&&sol.estado==='rechazado'&&sol.comentario?' · '+esc(sol.comentario):''}</div></div>
+      <div class="li-actions">${est}${t.estado==='cerrado'||!t.estado?`<button class="btn btn-amber btn-sm" onclick="prepSolReap('${t.id}')">Pedir reapertura</button>`:''}</div></div>`; }).join('');
+}
 async function enviarSolicitud(){
   const motivo=document.getElementById('reapMotivo').value.trim();if(!motivo){alert('Ingresa el motivo');return;}
   if(!S.solicitudes)S.solicitudes=[];
   if(!S.turnosProgramados)S.turnosProgramados=[];
   S.solicitudes.push({id:uid(),turnoId:S.reabriendoId,motivo,ts:Date.now(),estado:'pendiente',comentario:''});
   const t=S.turnosHistorial.find(x=>x.id===S.reabriendoId);if(t)t.estado='solicitud_pendiente';
-  await save();hideModal('modalSolReap');updateNotifBadge();alert('Solicitud enviada al administrador.');
+  await save();hideModal('modalSolReap');updateNotifBadge();renderTurnosCerrados();showToast('Solicitud enviada al administrador','success');
+  emitirAviso('tur_reap','reap|'+S.solicitudes[S.solicitudes.length-1].id,'Solicitud de reapertura',(currentUser?currentUser.nombre:'')+' pide reabrir el turno del '+(t?t.fecha+' '+(t.hora||''):'')+' · '+motivo,{accion:'reap'});
 }
 function prepAprobar(solId){
   const sol=S.solicitudes.find(x=>x.id===solId);if(!sol)return;S.reabriendoId=solId;
   const t=S.turnosHistorial.find(x=>x.id===sol.turnoId);
   document.getElementById('aprobInfo').innerHTML=`Turno: <b>${t?t.fecha+' '+t.hora:'N/A'}</b><br>Motivo: ${sol.motivo}`;
-  document.getElementById('aprobComentario').value='';showModal('modalAprobarReap');
+  document.getElementById('aprobComentario').value='';
+  if(S.turno) document.getElementById('aprobInfo').innerHTML+=`<div class="warn-box" style="margin-top:8px">Hay un turno abierto (${S.turno.fecha} ${S.turno.hora||''}). Para aprobar, primero ciérralo: aprobar no puede reemplazarlo.</div>`;
+  showModal('modalAprobarReap');
 }
 async function resolverSolicitud(aprobado){
   const sol=S.solicitudes.find(x=>x.id===S.reabriendoId);if(!sol)return;
+  if(aprobado&&S.turno){ alert('Hay un turno abierto ('+S.turno.fecha+' '+(S.turno.hora||'')+').\n\nCiérralo antes de aprobar la reapertura: aprobarla ahora lo reemplazaría y se perdería. La solicitud sigue pendiente.'); return; }
   sol.estado=aprobado?'aprobado':'rechazado';sol.comentario=document.getElementById('aprobComentario').value;sol.tsResolucion=Date.now();
   if(aprobado){const t=S.turnosHistorial.find(x=>x.id===sol.turnoId);if(t){t.estado='reabierto';S.turno={...t};S.historial=[...(t.historial||[])];S.tareasActivas=[];S.turnosHistorial=S.turnosHistorial.filter(x=>x.id!==sol.turnoId);}}
   else{const t=S.turnosHistorial.find(x=>x.id===sol.turnoId);if(t)t.estado='cerrado';}
@@ -3467,7 +3530,7 @@ function openModalTareaCat(id){
     document.getElementById('tcNombre').value=t.nombre;
     document.getElementById('tcDesc').value=t.desc||'';
     document.getElementById('tcProd').value=t.prod||0;
-    document.getElementById('tcUnidad').value=t.unidad||'pallet';
+    { const sel=document.getElementById('tcUnidad'), u=t.unidad||'pallet'; if(![...sel.options].some(o=>o.value===u)) sel.add(new Option(u.charAt(0).toUpperCase()+u.slice(1),u)); sel.value=u; }
     document.getElementById('tcEfic').value=t.efic||85;
     document.getElementById('tcSinProd').checked=t.sinProd||false;
   } else {
@@ -4402,7 +4465,7 @@ function renderDashboard(){
   }
 
   // 3-COLUMN GRID
-  h+=`<div style="padding:12px 20px;display:grid;grid-template-columns:200px 1fr 1fr 200px;gap:12px;flex:1;overflow:hidden">`;
+  h+=`<div class="tv-grid" style="padding:12px 20px;display:grid;grid-template-columns:200px 1fr 1fr 200px;gap:12px;flex:1;overflow:hidden">`;
 
   // ── COL 1: Stats + Donut ──
   h+=`<div style="display:flex;flex-direction:column;gap:8px;overflow-y:auto">`;
@@ -4681,33 +4744,50 @@ async function eliminarPlantilla(id){
   S.plantillas=(S.plantillas||[]).filter(p=>p.id!==id);
   await save();renderInsights();showToast('Eliminada','error');
 }
-function iniciarDesdePlantilla(id){
-  const p=(S.plantillas||[]).find(x=>x.id===id);if(!p)return;
-  S._plantillaActiva=p;showModal('modalAbrirTurno');
-  document.querySelectorAll('#jornadaChips .chip').forEach(c=>c.classList.toggle('selected',c.dataset.jornada===p.jornada));
-  setTimeout(()=>document.querySelectorAll('#equipoChips .chip').forEach(ch=>ch.classList.toggle('selected',(p.colabs||[]).some(c=>c.id===ch.dataset.id))),200);
+// Usar una plantilla: abre el turno con su jornada, propone a sus personas (entre quienes marcaron) y carga sus tareas del día
+async function iniciarDesdePlantilla(id){
+  const p=(S.plantillas||[]).find(x=>x.id===id); if(!p) return;
+  if(S.turno){ showToast('Ya hay un turno abierto','error'); return; }
+  hideModal('modalPlantilla'); S._plantillaActiva=p; await showModal('modalAbrirTurno');
 }
-function usarPlantillaQuick(pid){iniciarDesdePlantilla(pid);const p=document.getElementById('plantillasQuickPanel');if(p)p.style.display='none';}
-function togglePlantillasPanel(){
-  const panel=document.getElementById('plantillasQuickPanel');
-  if(!panel) return;
-  if(panel.style.display!=='none'){panel.style.display='none';return;}
+function aplicarPlantillaModal(){
+  const p=S._plantillaActiva; if(!p) return;
+  document.querySelectorAll('#jornadaChips .chip').forEach(c=>c.classList.toggle('selected',c.dataset.jornada===(p.jornada||'completa')));
+  const ids=new Set((p.colabs||[]).map(c=>c.id)), chips=[...document.querySelectorAll('#colabChips .chip')];
+  if(chips.some(ch=>ids.has(ch.dataset.id))) chips.forEach(ch=>ch.classList.toggle('selected',ids.has(ch.dataset.id)));
+  const h=document.getElementById('colabChipsHint');
+  h.textContent='Plantilla «'+p.nombre+'»: '+(p.tareas||[]).length+' tarea(s) del día. '+(chips.some(ch=>ids.has(ch.dataset.id))?'Vienen marcadas sus personas que ya marcaron entrada.':'Ninguna de sus personas ha marcado: vienen todas las que marcaron.')+' '+h.textContent;
+  updateTurnoResumen();
+}
+const tareasDiaDePlantilla=p=>(p.tareas||[]).map(t=>({id:uid(),tareaId:t.tareaId,tarea:t.tarea,clienteId:t.clienteId,cantEsperada:t.cantEsperada||0,
+  horasEsperadas:t.horasEsperadas||0,unidad:t.unidad||'',estado:'pendiente',tareaActivaId:null}));
+// Ventana Plantillas: sin turno, elegir una para iniciar; con turno, sumar sus tareas o guardar el turno como plantilla
+function openModalPlantilla(){
   const activas=(S.plantillas||[]).filter(p=>p.activa);
-  const parts=[];
-  if(!activas.length){
-    parts.push('<div style="padding:12px;font-size:.8rem;color:var(--mid);text-align:center">Sin plantillas activas</div>');
-  } else {
-    parts.push('<div style="background:var(--purple);padding:8px 12px;font-weight:800;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:#fff">Plantillas</div>');
-    activas.forEach(p=>{
-      parts.push('<div style="padding:9px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:rgba(143,111,214,.08)">');
-      parts.push('<div><div style="font-weight:700;font-size:.82rem">'+p.nombre+'</div><div style="font-size:.68rem;color:var(--mid)">'+(p.jornada||'completa')+' · '+(p.tareas||[]).length+' tareas</div></div>');
-      parts.push('<button data-pid="'+p.id+'" onclick="usarPlantillaQuick(this.dataset.pid)" style="background:var(--purple);color:#fff;border:none;border-radius:6px;padding:5px 11px;font-weight:800;font-size:.7rem;cursor:pointer">Usar</button>');
-      parts.push('</div>');
-    });
-  }
-  panel.innerHTML=parts.join('');
-  panel.style.display='block';
+  document.getElementById('plantillasList').innerHTML=activas.length?activas.map(p=>`<div class="list-item"><div class="li-info"><div class="li-name">${esc(p.nombre)}</div>
+      <div class="li-sub">${p.jornada==='media'?'Media':'Completa'} · ${(p.colabs||[]).length} pers · ${(p.tareas||[]).length} tareas</div></div>
+      <div class="li-actions">${S.turno?`<button class="btn btn-ghost btn-sm" onclick="sumarTareasPlantilla('${p.id}')">Agregar sus tareas</button>`:`<button class="btn btn-green btn-sm" onclick="iniciarDesdePlantilla('${p.id}')">Usar</button>`}</div></div>`).join('')
+    :'<div class="empty-text">Sin plantillas activas.'+(currentUser&&currentUser.rol==='admin'?' Créalas en Insights → Plantillas.':'')+'</div>';
+  document.getElementById('plantillaGuardarSec').classList.toggle('hidden',!S.turno);
+  document.getElementById('plantillaNombre').value='';
+  showModal('modalPlantilla');
 }
+async function sumarTareasPlantilla(id){
+  const p=(S.plantillas||[]).find(x=>x.id===id); if(!p||!S.turno) return;
+  S.turno.tareasDia=[...(S.turno.tareasDia||[]),...tareasDiaDePlantilla(p)];
+  await save(); hideModal('modalPlantilla'); renderAll(); showToast((p.tareas||[]).length+' tarea(s) agregadas al día','success');
+}
+async function guardarPlantilla(){
+  const nombre=document.getElementById('plantillaNombre').value.trim(); if(!nombre){ showToast('Ponle un nombre','error'); return; }
+  const T=S.turno; if(!T) return;
+  let tareas=(T.tareasDia||[]).map(t=>({tareaId:t.tareaId,tarea:t.tarea,clienteId:t.clienteId,cliente:(S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||'',cantEsperada:t.cantEsperada||0,horasEsperadas:t.horasEsperadas||0,unidad:t.unidad||''}));
+  if(!tareas.length){ const vistas=new Set(); [...S.historial,...S.tareasActivas].filter(t=>!t.isEspecial&&t.tareaId&&!esAlmuerzo(t)).forEach(t=>{ const k=t.tareaId+'|'+(t.clienteId||''); if(vistas.has(k)) return; vistas.add(k);
+    tareas.push({tareaId:t.tareaId,tarea:t.tarea,clienteId:t.clienteId,cliente:t.cliente||'',cantEsperada:0,horasEsperadas:0,unidad:t.unidad||''}); }); }
+  (S.plantillas=S.plantillas||[]).push({id:uid(),nombre,jornada:T.jornada||'completa',colabs:T.equipo.map(c=>({id:c.id,nombre:c.nombre,cargo:c.cargo})),tareas,activa:true});
+  await save(); hideModal('modalPlantilla'); showToast('Plantilla «'+nombre+'» guardada','success');
+}
+function usarPlantillaQuick(pid){ iniciarDesdePlantilla(pid); }
+function togglePlantillasPanel(){ openModalPlantilla(); }
 function renderPlantillasActivas(){
   const el=document.getElementById('plantillasActivasList');if(!el)return;
   const activas=(S.plantillas||[]).filter(p=>p.activa);
@@ -5327,6 +5407,7 @@ async function iniciarTurnoPlan(){
 }
 
 function renderTurnosProgramados(){
+  renderTurnosCerrados();
   const el=document.getElementById('turnosProgramadosList');
   if(!el) return;
   const planes=(S.turnosProgramados||[]).filter(p=>p.estado==='programado').sort((a,b)=>a.fecha.localeCompare(b.fecha));
