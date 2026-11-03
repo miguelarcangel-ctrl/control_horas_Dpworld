@@ -17,11 +17,11 @@ const KEYS = ['ctrl_horas', 'ctrl_horas_test'];
 const ROLES = ['admin', 'supervisor', 'responsable'];
 // Avisos por omisión de cada rol (los mismos que muestra la app en la pantalla Avisos)
 const DEF: Record<string, string[]> = {
-  admin: ['ent_sup', 'ent_resp', 'ent_op', 'ent_lin', 'alm_reg', 'lin_meta', 'lin_riesgo', 'lin_paro', 'lin_cierre'],
-  supervisor: ['ent_sup', 'ent_op', 'alm_reg', 'lin_riesgo', 'lin_paro', 'tur_libre', 'tur_larga', 'tur_pend'],
+  admin: ['ent_sup', 'ent_resp', 'ent_op', 'ent_lin', 'alm_reg', 'lin_meta', 'lin_riesgo', 'lin_paro', 'lin_cierre', 'tur_sobre'],
+  supervisor: ['ent_sup', 'ent_op', 'alm_reg', 'lin_riesgo', 'lin_paro', 'tur_libre', 'tur_larga', 'tur_pend', 'tur_sobre', 'tur_sobre_fin'],
   responsable: ['ent_resp', 'ent_lin', 'alm_reg', 'lin_arranca', 'lin_mitad', 'lin_meta', 'lin_riesgo', 'lin_paro', 'lin_insumo'],
 };
-const RELAY = new Set(['lin_arranca', 'lin_mitad', 'lin_meta', 'lin_riesgo', 'lin_paro', 'lin_insumo', 'lin_cierre', 'tur_libre', 'tur_larga', 'tur_pend']);
+const RELAY = new Set(['lin_arranca', 'lin_mitad', 'lin_meta', 'lin_riesgo', 'lin_paro', 'lin_insumo', 'lin_cierre', 'tur_libre', 'tur_larga', 'tur_pend', 'tur_sobre', 'tur_sobre_fin']);
 const eventoMarca = (m: any) => m.tipo === 'entrada'
   ? (({ supervisor: 'ent_sup', responsable: 'ent_resp', linea: 'ent_lin' } as Record<string, string>)[m.puesto] || 'ent_op')
   : ({ salida_almuerzo: 'alm_sal', regreso_almuerzo: 'alm_reg', salida: 'salida' } as Record<string, string>)[m.tipo];
@@ -72,7 +72,8 @@ Deno.serve(async (req) => {
     const { data: pr } = await sb.from('ch_push_prefs').select('usuario_id, prefs').eq('key', body.key);
     const P: Record<string, any> = {}; (pr || []).forEach((p: any) => { P[p.usuario_id] = p.prefs || {}; });
     const ids = (us || []).filter((u: any) => {
-      const p = P[u.id], on = p ? !!p[evento] : (DEF[u.rol] || []).includes(evento);
+      // Un aviso que no está en la elección guardada (por ejemplo, uno nuevo) sigue lo de su rol
+      const p = P[u.id], on = p && p[evento] !== undefined ? !!p[evento] : (DEF[u.rol] || []).includes(evento);
       if (!on) return false;
       if (evento.startsWith('ent_') && p && p.solo_tarde && !tarde) return false;
       return true;

@@ -504,6 +504,60 @@ async function newPage(browser, opts = {}) {
   ok(avs.otro && avs.otroGuarda && avs.botonUsuarios, 'avisos: el administrador elige los avisos de cada usuario desde Usuarios');
   ok(avs.riesgo && avs.mitad && avs.meta && avs.texto && avs.cierre && avs.unaVezServidor, 'avisos de producción: riesgo de no llegar, mitad, meta cumplida y cierre; una sola vez');
 
+  // 9k) Sobretiempo dentro del turno
+  const sob = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, c0 = window.confirm, fj0 = window.finJornada; window.confirm = () => true;
+    document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
+    const orig = { turno: S.turno, act: S.tareasActivas, hist: S.historial, th: S.turnosHistorial }, H = 3600000;
+    S.turno = { id: 'tst', fecha: hoyStr(), hora: '08:00', inicio: Date.now() - 8 * H, jornada: 'completa', hpPorPersona: 8, horasProd: 16,
+      equipo: [{ id: 's1', nombre: 'Uno Sobre', cargo: 'operador' }, { id: 's2', nombre: 'Dos Sobre', cargo: 'operador' }] };
+    S.tareasActivas = []; S.historial = []; setNav('supervisor'); renderAll();
+    window.finJornada = () => Date.now() + 10 * 60000;   // la jornada termina en 10 min
+    SRV.push = []; _avisados.clear(); _avisosApp = [];
+    revisarAlertas();
+    const card = _avisosApp.find(a => a.data && a.data.accion === 'sobre');
+    r.avisoFin = !!card && /La jornada termina/.test(card.titulo) && SRV.push.some(x => x.body.evento === 'tur_sobre_fin') && /Sobretiempo/.test(document.getElementById('avisosApp').innerHTML);
+    // activar: todos vienen marcados; sin motivo no deja
+    abrirSobre(); r.preSel = _so.sel.size === 2 && !document.getElementById('modalSobre').classList.contains('hidden');
+    _so.sel.delete('s2'); _so.horas = 2; pintarSobre(); await confirmarSobre();
+    r.sinMotivo = !(S.turno.sobre || []).length && /motivo/.test(document.getElementById('soErr').textContent);
+    document.getElementById('soMotivo').value = 'Carga pendiente'; await confirmarSobre();
+    const so = S.turno.sobre[0];
+    r.activa = so && so.personas.join() === 's1' && Math.abs(so.hasta - so.inicio - 2 * H) < 1000 && so.inicio > Date.now() && so.motivo === 'Carga pendiente';
+    r.barra = !document.getElementById('sobreBar').classList.contains('hidden') && /hasta las/.test(document.getElementById('sobreBar').textContent) && /Sobretiempo/.test(document.querySelector('.pc[data-pid="s1"]').innerHTML) && !/pc-st/.test(document.querySelector('.pc[data-pid="s2"]').innerHTML);
+    r.aviso = SRV.push.some(x => x.body.evento === 'tur_sobre' && /Sobretiempo activado/.test(x.body.titulo));
+    revisarAlertas(); r.cardSale = !_avisosApp.some(a => a.data && a.data.accion === 'sobre');
+    // ampliar 1 h
+    const h0 = so.hasta; abrirSobre(); r.modoAmp = _so.modo === 'ampliar'; _so.horas = 1; await confirmarSobre();
+    r.amplia = so.hasta === h0 + H && so.amp.length === 1 && SRV.push.some(x => x.body.evento === 'tur_sobre' && /ampliado/.test(x.body.titulo));
+    // 15 min antes de que termine: aviso para ampliar
+    window.finJornada = () => Date.now() - 3 * H; so.inicio = Date.now() - 3 * H; so.hasta = Date.now() + 10 * 60000; revisarAlertas();
+    r.avisoAmp = _avisosApp.some(a => a.data && a.data.accion === 'sobre' && /El sobretiempo termina/.test(a.titulo));
+    await terminarSobre(); r.termina = !sobreActivo() && so.terminado > 0;
+    // motor: 08:00–20:00 sin almuerzo = 12 h; jornada 8 → 4 h extra; sobretiempo autorizado 17:00–19:00 → 2 h autorizadas, 2 sin autorizar
+    const b = new Date('2026-10-20T08:00:00').getTime(), c = { id: 'zz', nombre: 'Test', cargo: 'operador', marcas: [{ tipo: 'entrada', ts: b }, { tipo: 'salida', ts: b + 12 * H }] };
+    const T2 = { id: 't2', fecha: '2026-10-20', inicio: b, fin: b + 12 * H, equipo: [c], hpPorPersona: 8, sobre: [{ id: 'x', inicio: b + 9 * H, hasta: b + 11 * H, personas: ['zz'], horas: 2, motivo: 'm' }] };
+    const k = calcTurno(T2, [], [], b + 12 * H);
+    r.motor = Math.abs(k.per.zz.extra - 4) < 1e-9 && Math.abs(k.extraAut - 2) < 1e-9 && Math.abs(k.extraSinAut - 2) < 1e-9;
+    // asistencia: el mismo día queda con 2 h sin autorizar (pantalla y Excel)
+    S.turnosHistorial = [T2, ...orig.th]; _asist.desde = '2026-10-20'; _asist.hasta = '2026-10-20';
+    _asist.marcas = [{ id: 1, persona_id: 'zz', nombre: 'Test', fecha: '2026-10-20', tipo: 'entrada', puesto: 'operador', ts: new Date(b).toISOString() }, { id: 2, persona_id: 'zz', nombre: 'Test', fecha: '2026-10-20', tipo: 'salida', puesto: 'operador', ts: new Date(b + 12 * H).toISOString() }];
+    const R = resumenAsistencia(); r.asist = Math.abs(R[0].extraSin - 2) < 1e-6 && /sin aut/.test(buildAsistenciaSection());
+    exportarAsistencia(); const dia = window.__xlsx.w.s.slice(-2)[0][1]; r.excel = dia[0].includes('Extra sin autorizar') && dia[1][dia[0].indexOf('Extra sin autorizar')] === 2 && dia[1][dia[0].indexOf('Extra autorizado')] === 2;
+    // catálogo de avisos
+    r.catalogo = AVISOS_CAT.some(g => g.items.some(i => i[0] === 'tur_sobre')) && avisosDeRol('admin').tur_sobre && avisosDeRol('supervisor').tur_sobre_fin;
+    _misAvisos = { ent_op: true }; r.nuevoSigueRol = avisoOn('tur_sobre') === avisosDeRol(currentUser.rol).tur_sobre;
+    _misAvisos = null; _asist.marcas = []; _asist.desde = null;
+    S.turno = orig.turno; S.tareasActivas = orig.act; S.historial = orig.hist; S.turnosHistorial = orig.th; window.finJornada = fj0; _avisosApp = []; pintarAvisosApp();
+    document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
+    await save(); renderAll(); window.confirm = c0; return r; });
+  ok(sob.avisoFin, 'sobretiempo: 15 min antes del fin de jornada avisa para activarlo (tarjeta y aviso)');
+  ok(sob.preSel && sob.sinMotivo && sob.activa && sob.aviso && sob.cardSale, 'sobretiempo: se eligen personas y horas, motivo obligatorio; empieza al fin de la jornada y avisa');
+  ok(sob.barra, 'sobretiempo: franja en el turno y marca en la tarjeta de quienes se quedan');
+  ok(sob.modoAmp && sob.amplia && sob.avisoAmp && sob.termina, 'sobretiempo: se amplía (con aviso), avisa antes de terminar y se puede terminar');
+  ok(sob.motor && sob.asist && sob.excel, 'sobretiempo: extra autorizado vs sin autorizar en el costo, la asistencia y el Excel');
+  ok(sob.catalogo && sob.nuevoSigueRol, 'sobretiempo: avisos en el catálogo; un aviso nuevo sigue lo de su rol');
+
   // 9i) El turno solo se inicia con personal que marcó entrada
   const tm = await page.evaluate(async () => {
     const r = {}, SRV = window.__SRV, a0 = window.alert; let alerta = ''; window.alert = m => { alerta = m; };
