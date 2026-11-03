@@ -603,6 +603,9 @@ async function newPage(browser, opts = {}) {
   ok(await tv.page.isVisible('#dashboardOverlay'), 'TV abre dashboard sin login');
   ok(await tv.page.isHidden('#loginScreen'), 'TV no muestra login');
   ok(await tv.page.evaluate(() => !S.usuarios), 'TV no recibe usuarios');
+  const tvc = await tv.page.evaluate(async () => { const srv = await rpc('ch_tv_state', { p_key: STATE_KEY }); setTvMode('analytics'); const html = document.getElementById('dashboardContent').innerHTML;
+    return { sinTab: !document.getElementById('tvTabAnalytics'), sigueVivo: _tvMode === 'live' && !/Costo/.test(html), sinTarifas: srv.config.tarifaOperador === undefined && srv.config.factorCarga === undefined && !srv.turnosHistorial.length && !(S.turnosHistorial || []).length }; });
+  ok(tvc.sinTab && tvc.sigueVivo && tvc.sinTarifas, 'TV sin usuario: sin Analytics ni costos; el servidor no le manda tarifas ni histórico');
   await tv.page.screenshot({ path: SHOTS + '/04_tv.png' });
   const tvl = await tv.page.evaluate(async () => {
     const v = window.__SRV.rows.ctrl_horas_test.value, hoy = fechaLocal(new Date()), t0 = Date.now() - 2 * 3600000;
