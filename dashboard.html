@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Operativo — DP World</title>
-<!-- El dashboard TV vive dentro de la app (index.html?tv=1): una sola lógica de cálculo y acceso de solo lectura. -->
+<!-- El dashboard TV vive dentro de la app (index.html?tv=1): una sola lógica de cálculo. Solo entra el administrador con su usuario. -->
 <script>
   var q = new URLSearchParams(location.search); q.set('tv', '1');
   location.replace('index.html?' + q.toString());
