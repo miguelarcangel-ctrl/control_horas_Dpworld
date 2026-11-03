@@ -4146,7 +4146,9 @@ function openDashboard(){
 let _tvMode=QS.get('vista')==='lineas'?'lineas':'live';
 let _tvFilters={desde:'',hasta:'',colId:''};
 const tvTab=m=>`border:none;border-radius:6px;padding:5px 12px;font-weight:800;font-size:.68rem;cursor:pointer;background:${_tvMode===m?'rgba(var(--fg),.25)':'rgba(var(--fg),.1)'};color:${_tvMode===m?'#fff':'rgba(255,255,255,.6)'}`;
-function setTvMode(m){ _tvMode=m; renderDashboard(); }
+// Analytics tiene costos: nunca en la pantalla TV (?tv=1, sin usuario); solo para el administrador desde la app
+const tvAnalyticsOk=()=>!IS_TV&&!!currentUser&&currentUser.rol==='admin';
+function setTvMode(m){ _tvMode=m==='analytics'&&!tvAnalyticsOk()?'live':m; renderDashboard(); }
 function resetTvFilters(){_tvFilters={desde:'',hasta:'',colId:''};renderDashboardAnalytics();}
 function setTvFiltroDesde(v){_tvFilters.desde=v;renderDashboardAnalytics();}
 function setTvFiltroHasta(v){_tvFilters.hasta=v;renderDashboardAnalytics();}
@@ -4188,6 +4190,7 @@ function tvLineasBody(){
     <div class="tv-bar-legend" style="justify-content:center;gap:18px"><span>La marca blanca en la barra indica dónde debería ir la línea a esta hora</span><span>Actualización automática cada 15 segundos</span></div></div>`;
 }
 function renderDashboardAnalytics(){
+  if(!tvAnalyticsOk()){ _tvMode='live'; renderDashboard(); return; }
   const el=document.getElementById('dashboardContent');
   if(!el) return;
   const allT=S.turnosHistorial||[];
@@ -4329,6 +4332,7 @@ function renderDashboard(){
   const tareasConEfic=hist.filter(t=>t.efic!=null);
   const avgEfic=tareasConEfic.length>0?tareasConEfic.reduce((s,t)=>s+t.efic,0)/tareasConEfic.length:null;
 
+  if(_tvMode==='analytics'&&!tvAnalyticsOk()) _tvMode='live';
   if(_tvMode==='analytics'){renderDashboardAnalytics();return;}
   let h=`<div class="tv-wrap">
   <!-- HEADER -->
@@ -4347,7 +4351,7 @@ function renderDashboard(){
         <div style="display:flex;align-items:center;gap:5px">
               <button id="tvTabLive" data-m="live" onclick="setTvMode(this.dataset.m)" style="${tvTab('live')}">En Vivo</button>
               <button id="tvTabLineas" data-m="lineas" onclick="setTvMode(this.dataset.m)" style="${tvTab('lineas')}">Líneas</button>
-              <button id="tvTabAnalytics" data-m="analytics" onclick="setTvMode(this.dataset.m)" style="${tvTab('analytics')}">Analytics</button>
+              ${tvAnalyticsOk()?`<button id="tvTabAnalytics" data-m="analytics" onclick="setTvMode(this.dataset.m)" style="${tvTab('analytics')}">Analytics</button>`:''}
               <button class="tv-close" onclick="closeDashboard()">Cerrar</button>
             </div>
       </div>
