@@ -9,8 +9,11 @@ App de una sola página (`index.html`) para turnos, tareas, costos y productivid
 - **Sin conexión**: guarda en el equipo y sincroniza al volver.
 
 ## Pantallas
-- `index.html` — app (supervisor / admin).
-- `index.html?tv=1` o `dashboard.html` — Dashboard TV de solo lectura, sin login.
+- `index.html` — app (administrador, supervisor y responsable de línea).
+- `index.html?tv=1` o `dashboard.html` — Vista TV **solo para el administrador**: pide usuario y únicamente entra el perfil admin
+  (la sesión queda guardada 30 días en esa pantalla). Otro perfil vuelve a la app normal. La pantalla de la bodega no muestra
+  Analytics ni costos; Analytics solo lo ve el administrador desde la app (menú → Vista TV). No hay lectura de datos sin sesión.
+- Tablet de marcaje: la activa el administrador (menú → Marcaje en esta tablet).
 - Agrega `?datos=prueba` a cualquier URL para trabajar sobre una copia de ensayo (sale el aviso **MODO PRUEBA**).
 
 ## Cálculo de costos (motor único `calcTurno`)

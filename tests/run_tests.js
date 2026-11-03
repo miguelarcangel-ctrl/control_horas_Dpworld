@@ -653,31 +653,41 @@ async function newPage(browser, opts = {}) {
   ok(await page.evaluate(() => ![...document.querySelectorAll('.dpw-item')].some(b => b.textContent.includes('Insights'))), 'supervisor no ve Insights en el menú');
   ok(await page.evaluate(() => document.getElementById('adminKPI').style.display !== 'flex'), 'supervisor no ve costos');
 
-  // 12) TV
+  // 12) TV: solo con sesión de administrador
   const tv = await newPage(browser, { viewport: { width: 1600, height: 900 } });
   await tv.page.goto(BASE + '?tv=1'); await tv.page.waitForTimeout(800);
-  ok(await tv.page.isVisible('#dashboardOverlay'), 'TV abre dashboard sin login');
-  ok(await tv.page.isHidden('#loginScreen'), 'TV no muestra login');
-  ok(await tv.page.evaluate(() => !S.usuarios), 'TV no recibe usuarios');
-  const tvc = await tv.page.evaluate(async () => { const srv = await rpc('ch_tv_state', { p_key: STATE_KEY }); setTvMode('analytics'); const html = document.getElementById('dashboardContent').innerHTML;
-    return { sinTab: !document.getElementById('tvTabAnalytics'), sigueVivo: _tvMode === 'live' && !/Costo/.test(html), sinTarifas: srv.config.tarifaOperador === undefined && srv.config.factorCarga === undefined && !srv.turnosHistorial.length && !(S.turnosHistorial || []).length }; });
-  ok(tvc.sinTab && tvc.sigueVivo && tvc.sinTarifas, 'TV sin usuario: sin Analytics ni costos; el servidor no le manda tarifas ni histórico');
+  ok(await tv.page.isVisible('#loginScreen') && await tv.page.isHidden('#dashboardOverlay') && await tv.page.isVisible('#tvLoginAviso'), 'TV sin sesión: pide usuario y no muestra datos');
+  ok(await tv.page.evaluate(() => !S.turno && !(S.colaboradores || []).length && typeof window.__SRV.calls === 'object' && !window.__SRV.calls.includes('ch_tv_state')), 'TV sin sesión: no pide datos al servidor');
+  // un supervisor no entra a la TV: vuelve a la app normal
+  const tvs = await newPage(browser, { viewport: { width: 1200, height: 800 } });
+  await tvs.page.goto(BASE + '?tv=1&datos=prueba'); await tvs.page.waitForTimeout(500);
+  tvs.page.on('dialog', d => d.accept());
+  await tvs.page.fill('#loginUser', 'super'); await tvs.page.fill('#loginPass', 'secreto2'); await tvs.page.click('#loginBtn'); await tvs.page.waitForTimeout(1200);
+  const supTv = await tvs.page.evaluate(() => { pintarMenu(); return { menu: [...document.querySelectorAll('#dpwItems *')].some(x => /Vista TV/.test(x.textContent)), app: !document.getElementById('appScreen').classList.contains('hidden') }; });
+  ok(!/tv=1/.test(tvs.page.url()) && supTv.app && !supTv.menu, 'TV: un supervisor no entra; vuelve a la app normal y no ve «Vista TV» en el menú');
+  await tvs.ctx.close();
+  await tv.page.fill('#loginUser', 'admin'); await tv.page.fill('#loginPass', 'secreto1'); await tv.page.click('#loginBtn'); await tv.page.waitForTimeout(1200);
+  ok(await tv.page.isVisible('#dashboardOverlay'), 'TV con sesión de administrador: abre el dashboard');
+  const tvc = await tv.page.evaluate(async () => { setTvMode('analytics'); const html = document.getElementById('dashboardContent').innerHTML;
+    return { sinTab: !document.getElementById('tvTabAnalytics'), sigueVivo: _tvMode === 'live' && !/Costo/.test(html) }; });
+  ok(tvc.sinTab && tvc.sigueVivo, 'TV: en la pantalla de la bodega no aparece Analytics ni costos');
   await tv.page.screenshot({ path: SHOTS + '/04_tv.png' });
   const tvl = await tv.page.evaluate(async () => {
     const v = window.__SRV.rows.ctrl_horas_test.value, hoy = fechaLocal(new Date()), t0 = Date.now() - 2 * 3600000;
     v.lineas = [{ id: 'tvl1', fecha: hoy, tipoId: 'x', nombre: 'Inserto botella', cliente: 'CERNAC', meta: 40, horas: 8, prod: 0.5, apoyo: [], estado: 'corriendo', inicio: t0, responsable: 'Super Visor',
       personas: [{ id: 'a', nombre: 'Pedro Gil', puesto: 'pallets', pallets: [t0 + 1, t0 + 2, t0 + 3, t0 + 4, t0 + 5], desde: t0 }, { id: 'b', nombre: 'Rosa Cajas', puesto: 'Armado de cajas', pallets: [], desde: t0 }] },
       { id: 'tvl2', fecha: '2001-01-01', nombre: 'Vieja', estado: 'cerrada', meta: 1, horas: 8, personas: [] }];
-    await reload(); setTvMode('lineas');
+    window.__SRV.rows.ctrl_horas_test.version++; await reload(); setTvMode('lineas');
     const html = document.getElementById('dashboardContent').innerHTML;
-    const r = { llega: S.lineas.length === 1, total: /<b>5<\/b><span>\/ 40 pallets/.test(html), marca: /tvl-mark/.test(html), rank: /Pedro/.test(html) && !/Rosa/.test(document.querySelector('.tvl-rank')?.innerHTML || ''), necesario: /Ritmo necesario/.test(html) };
+    const r = { llega: lineasHoy().length === 1, total: /<b>5<\/b><span>\/ 40 pallets/.test(html), marca: /tvl-mark/.test(html), rank: /Pedro/.test(html) && !/Rosa/.test(document.querySelector('.tvl-rank')?.innerHTML || ''), necesario: /Ritmo necesario/.test(html) };
     // sin turno regular: la TV muestra las líneas sola
-    v.turno = null; await reload(); setTvMode('live'); r.solo = /tvl-big/.test(document.getElementById('dashboardContent').innerHTML);
+    v.turno = null; window.__SRV.rows.ctrl_horas_test.version++; await reload(); setTvMode('live'); r.solo = /tvl-big/.test(document.getElementById('dashboardContent').innerHTML);
     return r; });
   ok(tvl.llega && tvl.total && tvl.marca && tvl.rank && tvl.necesario, 'TV · Líneas: total contra la meta, marca de dónde debería ir, ritmo necesario y ranking de quienes paletizan');
   ok(tvl.solo, 'TV · Líneas: sin turno regular, muestra las líneas en marcha');
   const tv2 = await newPage(browser, { viewport: { width: 1600, height: 900 } });
-  await tv2.page.goto(BASE + '?tv=1&vista=lineas'); await tv2.page.waitForTimeout(800);
+  await tv2.page.goto(BASE + '?tv=1&vista=lineas'); await tv2.page.waitForTimeout(500);
+  await tv2.page.fill('#loginUser', 'admin'); await tv2.page.fill('#loginPass', 'secreto1'); await tv2.page.click('#loginBtn'); await tv2.page.waitForTimeout(1000);
   ok(await tv2.page.evaluate(() => _tvMode === 'lineas' && /Sin líneas de producción hoy|tvl-big/.test(document.getElementById('dashboardContent').innerHTML)), 'TV · Líneas: se abre directo con ?vista=lineas');
   await tv2.ctx.close();
   ok(tv.errors.length === 0, 'TV sin errores JS (' + tv.errors.join(' | ') + ')');

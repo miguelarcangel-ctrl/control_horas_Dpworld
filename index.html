@@ -275,6 +275,7 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 .rt-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px}
 .rt-asis{min-width:540px}.rt-asis td:first-child{white-space:nowrap}
 @media (max-width:700px){.stat-row{flex-wrap:wrap}.stat-row .stat-card{flex:1 1 30%;min-width:96px}}
+.tv-login-aviso{margin-bottom:14px;padding:10px 12px;border-radius:8px;background:#EEF0FF;border:1px solid #C9CCF5;color:#1a1760;font-size:.78rem;font-weight:600;text-align:left}
 .rt-table tr.rt-total td{border-top:2px solid var(--b1);color:var(--t1)}
 
 /* SOLICITUD */
@@ -608,6 +609,7 @@ body.con-sel .toast{bottom:96px}
       <div class="dpw-lg-ref">DAL · Colón Logistics Park · Panamá</div>
       <span class="modo-prueba hidden" id="modoPrueba">MODO PRUEBA</span>
     </div>
+    <div class="tv-login-aviso hidden" id="tvLoginAviso">Vista TV: entra con el usuario administrador. La sesión queda guardada en esta pantalla.</div>
     <div class="dpw-lg-err" id="loginErr">Usuario o contraseña incorrectos</div>
     <div class="dpw-lg-fg"><label class="dpw-lg-lbl" for="loginUser">Usuario</label><input type="text" class="dpw-lg-in" id="loginUser" placeholder="Ingresa tu usuario" autocomplete="username"></div>
     <div class="dpw-lg-fg"><label class="dpw-lg-lbl" for="loginPass">Contraseña</label><input type="password" class="dpw-lg-in" id="loginPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
@@ -751,7 +753,7 @@ body.con-sel .toast{bottom:96px}
       <div class="sec-hdr">
         <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title" id="lineasHoyTitulo">Líneas de producción · hoy</span></div>
         <div class="sec-hdr-actions">
-          <button class="btn btn-ghost btn-sm" onclick="abrirTvLineas()" title="Abre la pantalla TV en la pestaña de líneas, para dejarla fija en el piso">Pantalla TV</button>
+          <button class="btn btn-ghost btn-sm" id="btnTvLineas" onclick="abrirTvLineas()" title="Abre la pantalla TV en la pestaña de líneas, para dejarla fija en el piso">Pantalla TV</button>
           <button class="btn btn-ghost btn-sm" onclick="abrirPlanLinea(fechaManana())">Planificar</button>
           <button class="btn btn-green btn-sm" onclick="abrirPlanLinea(fechaLocal(new Date()))">+ Línea hoy</button>
         </div>
@@ -1598,7 +1600,6 @@ async function save(){
 }
 // Sincroniza con el servidor. Solo descarga si cambió la versión. Devuelve true si hubo cambios.
 async function reload(){
-  if(IS_TV){ const v=await rpc('ch_tv_state',{p_key:STATE_KEY}); applyRemote(v||{}); return true; }
   if(!SESSION) return false;
   await _saving.catch(()=>{});
   const pend=localStorage.getItem(BK_KEY);
@@ -1667,13 +1668,20 @@ async function startApp(){
   updateColabCosto();
   renderAll();
   avisoDesdeUrl(); setTimeout(revisarAlertas,1500);
+  if(IS_TV) entrarTv();
+}
+// Vista TV (?tv=1): solo con sesión de administrador. Cualquier otro perfil vuelve a la app normal.
+function urlSinTv(){ const q=new URLSearchParams(); if(QS.get('datos')) q.set('datos',QS.get('datos')); return location.pathname+(q.toString()?'?'+q:''); }
+function entrarTv(){
+  if(!currentUser||currentUser.rol!=='admin'){ alert('La Vista TV es solo para el administrador.'); location.replace(urlSinTv()); return; }
+  openDashboard();
 }
 const fechaLocal=d=>new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().split('T')[0];
 
 // ═══ INIT ═══
 async function init(){
   if(STATE_KEY!=='ctrl_horas') ['modoPrueba','modoPruebaBar'].forEach(id=>{const b=document.getElementById(id); if(b) b.classList.remove('hidden');});
-  if(IS_TV) return;
+  if(IS_TV) document.getElementById('tvLoginAviso').classList.remove('hidden');
   DPW.escena('bodega',document.getElementById('loginScreen'));
   pintarMenu();
   const saved=localStorage.getItem(SESS_KEY);
@@ -1976,7 +1984,7 @@ function pintarMenu(){
     {id:'supervisor',label:'Turno',hidden:esResponsable(),on:()=>setNav('supervisor')},
     {id:'lineas',label:'Líneas de producción',hidden:!currentUser||(!esResponsable()&&!(S.lineasTipo||[]).length&&currentUser.rol!=='admin'),on:()=>setNav('lineas')},
     {id:'insights',label:'Insights',badge:pend||0,hidden:!currentUser||currentUser.rol!=='admin',on:()=>setNav('insights')},
-    {id:'tv',label:'Vista TV',hint:'pantalla completa',on:openDashboard},
+    {id:'tv',label:'Vista TV',hint:'pantalla completa',hidden:!currentUser||currentUser.rol!=='admin',on:openDashboard},
     {id:'marcaje',label:'Marcaje en esta tablet',group:'Ajustes',hint:'modo quiosco',hidden:!currentUser||currentUser.rol!=='admin'||IS_TV,on:activarKiosco},
     {id:'avisos',label:'Avisos',group:'Ajustes',hint:st==='denied'?'Bloqueados en este equipo':st==='granted'?'Elegir qué avisa':'Activar y elegir',hidden:IS_TV||!currentUser,on:()=>abrirAvisos()}
   ],_nav);
@@ -2332,6 +2340,7 @@ function htmlBloques(L, vacio){
 }
 function renderLineas(){
   const hayTipos=(S.lineasTipo||[]).length>0, L=lineasHoy();
+  const btv=document.getElementById('btnTvLineas'); if(btv) btv.classList.toggle('hidden',!currentUser||currentUser.rol!=='admin');
   const v=document.getElementById('lineasList');
   if(v){
     document.getElementById('lineasHoyTitulo').textContent='Líneas de producción · '+new Date().toLocaleDateString('es-PA',{weekday:'long',day:'numeric',month:'long'});
@@ -2342,7 +2351,7 @@ function renderLineas(){
   if(sec){ sec.classList.toggle('hidden',!L.length); document.getElementById('lineasTurno').innerHTML=htmlBloques(L,''); }
 }
 // Pantalla TV de líneas en otra pestaña (para dejarla fija en una pantalla junto a la línea)
-function abrirTvLineas(){ const q=new URLSearchParams({tv:'1',vista:'lineas'}); if(QS.get('datos')) q.set('datos',QS.get('datos')); window.open(location.pathname+'?'+q,'_blank'); }
+function abrirTvLineas(){ if(!currentUser||currentUser.rol!=='admin') return; const q=new URLSearchParams({tv:'1',vista:'lineas'}); if(QS.get('datos')) q.set('datos',QS.get('datos')); window.open(location.pathname+'?'+q,'_blank'); }
 function renderPlanesLinea(){
   const el=document.getElementById('lineasPlanList'); if(!el) return;
   const P=(S.lineas||[]).filter(l=>l.estado==='pendiente'&&l.fecha>hoyStr()).sort((a,b)=>a.fecha.localeCompare(b.fecha));
@@ -4351,7 +4360,7 @@ function renderDashboardAnalytics(){
 }
 
 function closeDashboard(){
-  if(IS_TV){ location.href=location.pathname; return; }
+  if(IS_TV){ location.href=urlSinTv(); return; }
   document.getElementById('dashboardOverlay').style.display='none';
   if(tvClockInterval){clearInterval(tvClockInterval);tvClockInterval=null;}
   if(window._tvRefresh){clearInterval(window._tvRefresh);window._tvRefresh=null;}
@@ -5987,14 +5996,7 @@ function checkTamañoS() {
 
 init().catch(e=>console.error('init',e)).finally(async()=>{
   startClock();
-  if(IS_TV){
-    // Pantalla TV: solo lectura, sin login (no expone usuarios ni permite escribir)
-    document.getElementById('loginScreen').style.display='none';
-    currentUser={nombre:'TV',rol:'supervisor'};
-    try{ await reload(); }catch(e){ console.error(e); }
-    openDashboard();
-    return;
-  }
+  if(IS_TV) return;   // Vista TV: solo lectura con sesión de administrador; se refresca sola (openDashboard)
   // Sincroniza cada 20 s: solo descarga y redibuja si otro usuario guardó algo
   setInterval(async()=>{ try{ if(await reload()) renderAll(); }catch(e){} cargarMarcas(); }, 20000);
   document.addEventListener('visibilitychange',async()=>{ if(!document.hidden){ try{ if(await reload()) renderAll(); }catch(e){} } });
