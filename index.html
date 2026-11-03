@@ -268,6 +268,9 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 .sw input:checked+span{background:var(--green)}
 .sw input:checked+span::after{transform:translateX(20px)}
 .sw input:focus-visible+span{outline:2px solid var(--green);outline-offset:2px}
+.sobre-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(245,158,11,.18);border:1px solid rgba(245,158,11,.55);border-radius:8px;padding:8px 11px;font-size:.76rem;line-height:1.5}
+.sobre-bar .sb-txt{flex:1;min-width:180px}.sobre-bar b{color:#FBBF24}
+.pc-st{display:inline-block;margin-left:6px;white-space:nowrap;font-size:.6rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--amber);border:1px solid var(--amber);border-radius:4px;padding:0 4px;vertical-align:middle}
 .rt-table tr.rt-total td{border-top:2px solid var(--b1);color:var(--t1)}
 
 /* SOLICITUD */
@@ -654,11 +657,13 @@ body.con-sel .toast{bottom:96px}
           <div class="hora-legend"><span id="tEquipoLbl">—</span><span id="tPct">0%</span></div>
           <div class="hora-bar-wrap"><div class="hora-bar-fill" id="horaBar" style="width:0%"></div></div>
         </div>
+        <div id="sobreBar" class="sobre-bar hidden"></div>
         <div id="adminKPI" style="display:none;background:rgba(0,0,0,.2);border-radius:8px;padding:8px 11px;font-size:.7rem;line-height:1.7"></div>
         <div class="turno-actions">
           <button id="toolboxBtn" class="btn btn-sm" style="display:none;background:#F59E0B;color:#fff;border:none;border-radius:6px;padding:6px 11px;font-weight:700;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer" onclick="showToolboxScreen()">Toolbox</button>
           <button class="btn btn-sm" style="background:var(--purple);color:#fff;border:none;border-radius:6px;padding:6px 11px;font-weight:700;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer" onclick="openModalPlanTarea()">Plan</button>
           <button class="btn btn-sm" style="background:#6B7280;color:#fff;border:none;border-radius:6px;padding:6px 11px;font-weight:700;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer" onclick="openModalPlantilla()">Plantillas</button>
+          <button id="sobreBtn" class="btn btn-amber btn-sm" onclick="abrirSobre()">Sobretiempo</button>
           <button class="btn btn-green btn-sm" onclick="asignarDesdeBanner()">+ Tarea</button>
           <button class="btn btn-ghost-w btn-sm" onclick="prepCerrarTurno()">Cerrar Turno</button>
         </div>
@@ -742,6 +747,18 @@ body.con-sel .toast{bottom:96px}
 </div>
 
 <!-- MODALES -->
+<div class="overlay hidden" id="modalSobre">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title" id="soTitulo">Activar sobretiempo</span><span class="modal-close" onclick="hideModal('modalSobre')">×</span></div>
+    <div class="info-box" id="soInfo"></div>
+    <div class="field"><label>¿Cuánto tiempo más se necesita?</label><div class="chip-wrap" id="soHoras"></div></div>
+    <div class="field" id="soMotivoField"><label>Motivo</label><div class="chip-wrap" id="soMotivos"></div><input type="text" id="soMotivo" placeholder="Escribe el motivo" maxlength="120"></div>
+    <div class="field" id="soPersonasField"><label>Personas que se quedan</label><div class="li-sub">Vienen marcadas todas las que siguen trabajando. Desmarca a quien se va a su hora.</div><div class="chip-wrap" id="soPersonas"></div></div>
+    <div class="info-box" id="soResumen"></div>
+    <div class="err-box hidden" id="soErr"></div>
+    <button class="btn btn-amber btn-full" id="soConfirmar" onclick="confirmarSobre()">Activar sobretiempo</button>
+  </div>
+</div>
 <div class="overlay hidden" id="modalAbrirTurno">
   <div class="modal">
     <div class="modal-hdr"><span class="modal-title">Abrir Turno</span><span class="modal-close" onclick="hideModal('modalAbrirTurno')">×</span></div>
@@ -1409,7 +1426,7 @@ function calcTurno(turno, hist, activas, now){
       if(esAlmuerzo(t)){ p.alm+=d; return; }
       p.h+=d; const k=claseDe(t); p[k==='productiva'?'prod':k]+=d; if(k==='noprod'){ const ca=causaDe(t); p.causas[ca]=(p.causas[ca]||0)+d; } });
   });
-  let pagado=0,productivo=0,usadas=0,libres=0,extra=0,prodH=0,apoyoH=0,noprodH=0,perdNP=0,baseTot=0,regTot=0; const causas={};
+  let extraAut=0,extraSinAut=0,pagado=0,productivo=0,usadas=0,libres=0,extra=0,prodH=0,apoyoH=0,noprodH=0,perdNP=0,baseTot=0,regTot=0; const causas={};
   Object.values(per).forEach(p=>{
     const co=(S.colaboradores||[]).find(x=>x.id===p.c.id)||p.c;
     p.rate=costoCargo(co.cargo||'operador',turno.fecha).hora;
@@ -1428,6 +1445,8 @@ function calcTurno(turno, hist, activas, now){
     }
     p.perdidoNP=p.rate*Math.min(p.noprod,Math.max(0,p.base-Math.min(trab,p.base)));
     p.blend=trab>0?p.productivo/trab:p.rate;
+    p.extraAut=Math.min(p.extra,horasAutorizadas(turno,p.c.id,now)); p.extraSinAut=Math.max(0,p.extra-p.extraAut);
+    extraAut+=p.extraAut; extraSinAut+=p.extraSinAut;
     pagado+=p.pagado; productivo+=p.productivo; usadas+=trab; libres+=p.libre; extra+=p.extra;
     prodH+=p.prod; apoyoH+=p.apoyo; noprodH+=p.noprod; perdNP+=p.perdidoNP; baseTot+=p.base; regTot+=Math.min(p.h,p.base);
     Object.entries(p.causas).forEach(([k,v])=>causas[k]=(causas[k]||0)+v);
@@ -1435,7 +1454,7 @@ function calcTurno(turno, hist, activas, now){
   const disp=turno.horasProd!=null?turno.horasProd:(turno.equipo||[]).length*hp;
   const perdido=Math.max(0,pagado-productivo);
   return {per,hp,pagado,productivo,perdido,perdidoNP:Math.min(perdNP,perdido),perdidoSinReg:Math.max(0,perdido-perdNP),
-    efic:pagado>0?Math.round(productivo/pagado*100):0,usadas,disp,libres,extra,prodH,apoyoH,noprodH,causas,baseH:baseTot,
+    efic:pagado>0?Math.round(productivo/pagado*100):0,usadas,disp,libres,extra,extraAut,extraSinAut,prodH,apoyoH,noprodH,causas,baseH:baseTot,
     pct:baseTot>0?Math.min(100,regTot/baseTot*100):0,
     costoTarea(t){ if(esAlmuerzo(t)||claseDe(t)==='noprod') return 0; const d=horasTarea(t,now);
       return (t.colaboradores||[]).reduce((s,c)=>s+d*((per[c.id]&&per[c.id].blend)||costoCargo(c.cargo||'operador',turno.fecha).hora),0); },
@@ -1720,17 +1739,19 @@ const AVISOS_CAT=[
     ['tur_libre','Personas sin tarea asignada',()=>'Más de '+(getConfig().alertaLibreMin||15)+' min sin tarea'],
     ['tur_larga','Tarea o pausa demasiado larga'],
     ['tur_pend','Cantidades pendientes al final de la jornada'],
+    ['tur_sobre','Sobretiempo activado o ampliado','Quién, cuántas personas, hasta qué hora y el motivo'],
+    ['tur_sobre_fin','Fin de jornada o del sobretiempo','15 min antes, para activar o ampliar el sobretiempo'],
   ]},
 ];
 const AVISOS_DEF={
-  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre'],
-  supervisor:['ent_sup','ent_op','alm_reg','lin_riesgo','lin_paro','tur_libre','tur_larga','tur_pend'],
+  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre','tur_sobre'],
+  supervisor:['ent_sup','ent_op','alm_reg','lin_riesgo','lin_paro','tur_libre','tur_larga','tur_pend','tur_sobre','tur_sobre_fin'],
   responsable:['ent_resp','ent_lin','alm_reg','lin_arranca','lin_mitad','lin_meta','lin_riesgo','lin_paro','lin_insumo'],
 };
 const avisosDeRol=rol=>{ const o={}; AVISOS_CAT.forEach(g=>g.items.forEach(([id])=>o[id]=(AVISOS_DEF[rol]||[]).includes(id))); return o; };
 let _misAvisos=null, _pushOk=false;
 async function cargarMisAvisos(){ if(!SESSION||IS_TV) return; try{ _misAvisos=await rpc('ch_avisos_get',{p_token:SESSION.token,p_key:STATE_KEY}); }catch(e){ console.warn('Avisos:',e.message); } }
-const avisoOn=ev=>{ const p=_misAvisos||avisosDeRol(currentUser&&currentUser.rol); return !!p[ev]; };
+const avisoOn=ev=>{ const p=_misAvisos||{}; return p[ev]===undefined?!!avisosDeRol(currentUser&&currentUser.rol)[ev]:!!p[ev]; };
 const EVENTO_MARCA=m=>m.tipo==='entrada'?({supervisor:'ent_sup',responsable:'ent_resp',linea:'ent_lin'}[m.puesto]||'ent_op'):{salida_almuerzo:'alm_sal',regreso_almuerzo:'alm_reg',salida:'salida'}[m.tipo];
 // Pantalla Avisos: la del propio usuario (con el estado de este equipo) o, para el administrador, la de otro usuario
 let _avEdit={uid:null,prefs:null,rol:null,nombre:''};
@@ -1738,7 +1759,7 @@ async function abrirAvisos(uid){
   const propio=!uid||uid===currentUser.id, u=propio?currentUser:(_usuarios.find(x=>x.id===uid)||{});
   if(!propio&&currentUser.rol!=='admin') return;
   let prefs=null; try{ prefs=await rpc('ch_avisos_get',{p_token:SESSION.token,p_key:STATE_KEY,p_usuario:propio?null:uid}); }catch(e){ showToast('No se pudieron leer los avisos: '+e.message,'error'); return; }
-  _avEdit={uid:propio?null:uid,prefs:prefs||avisosDeRol(u.rol),propios:!!prefs,rol:u.rol,nombre:u.nombre||''};
+  _avEdit={uid:propio?null:uid,prefs:{...avisosDeRol(u.rol),...(prefs||{})},propios:!!prefs,rol:u.rol,nombre:u.nombre||''};
   renderAvisos(); showModal('modalAvisos');
 }
 function renderAvisos(){
@@ -1804,7 +1825,7 @@ function avisarUnaVez(key, titulo, cuerpo, data, evento){
   if(!_avisosApp.some(a=>a.key===key)){ _avisosApp.push({key,titulo,cuerpo,data}); pintarAvisosApp(); }
   emitirAviso(evento,key,titulo,cuerpo,data);
 }
-const ACCION_AVISO={libre:'Asignar tarea',larga:'Ver tarea',pend:'Poner cantidad',linea:'Ver línea'};
+const ACCION_AVISO={libre:'Asignar tarea',larga:'Ver tarea',pend:'Poner cantidad',linea:'Ver línea',sobre:'Sobretiempo'};
 // Las personas sin tarea se agrupan en una sola tarjeta; como máximo 3 tarjetas a la vez
 let _avisosVista=[];
 function pintarAvisosApp(){
@@ -1840,6 +1861,8 @@ function manejarAviso(data){
   } else if(data.accion==='linea'){
     if(!lineaDe(data.lid)){ showToast('Esa línea ya no está','info'); return; }
     setNav('lineas'); abrirLinea(data.lid); return;
+  } else if(data.accion==='sobre'){
+    abrirSobre();
   } else if(data.accion==='pend'){
     const p=pendientes(); if(p.length) abrirCantidad({id:p[0].id}); else showToast('No quedan cantidades pendientes','info');
   }
@@ -1861,6 +1884,13 @@ function revisarAlertasLineas(){
     revisarProduccion(l);
   });
 }
+function claveFinSobre(now){
+  if(!S.turno) return null; now=now||Date.now();
+  if(!S.turno.equipo.some(c=>!salioDelTurno(c))) return null;
+  const act=sobreActivo(S.turno,now);
+  if(act) return now>=act.hasta-15*60000?'sobrefin|'+act.id+'|'+act.hasta:null;
+  const fj=finJornada(); return now>=fj-15*60000&&now<fj+4*H_MS?'jornada|'+S.turno.id+'|'+((S.turno.sobre||[]).length):null;
+}
 // Revisa cada 30 s: personas sin tarea, tareas o pausas largas y cantidades pendientes al final de la jornada
 function revisarAlertas(){
   if(!S.turno||IS_TV||!currentUser) return;
@@ -1871,6 +1901,7 @@ function revisarAlertas(){
     if(d.accion==='libre') return !actDe(d.pid)&&libreDesde(d.pid)===d.desde;
     if(d.accion==='larga') return S.tareasActivas.some(t=>t.id===d.tid);
     if(d.accion==='pend') return pendientes().length>0;
+    if(d.accion==='sobre') return a.key===claveFinSobre();
     if(d.accion==='linea'){ const l=lineaDe(d.lid); return !!l&&l.estado==='corriendo'&&(a.key.startsWith('paro|')?!!(l.paroActivo&&a.key==='paro|'+l.paroActivo.id):insumosPorAgotar(l).length>0); }
     return true; });
   if(_avisosApp.length!==antes) pintarAvisosApp();
@@ -1879,6 +1910,11 @@ function revisarAlertas(){
   S.tareasActivas.forEach(t=>{ const h=msH(now-t.inicio), td=t.tdId&&(S.turno.tareasDia||[]).find(x=>x.id===t.tdId);
     const lim=t.isEspecial?(LIM_PAUSA[t.causa]||1):td&&td.horasEsperadas?Math.max(td.horasEsperadas*1.5,0.5):(cfg.alertaTareaH||3);
     if(h>=lim) avisarUnaVez('larga|'+t.id,t.isEspecial?'Pausa larga':'¿Sigue en curso?',t.tarea+' · '+t.colaboradores.map(c=>c.nombre.split(' ')[0]).join(', ')+' lleva '+fmtH(h),{accion:'larga',tid:t.id},'tur_larga'); });
+  // Fin de jornada sin sobretiempo, o sobretiempo por terminar: 15 min antes, con quienes siguen trabajando
+  const kf=claveFinSobre();
+  if(kf){ const act=sobreActivo();
+    avisarUnaVez(kf,act?'El sobretiempo termina a las '+horaHM(act.hasta):'La jornada termina a las '+horaHM(finJornada()),
+      act?'Amplíalo si hace falta más tiempo.':'Si van a seguir trabajando, activa el sobretiempo.',{accion:'sobre'},'tur_sobre_fin'); }
   const hoy=new Date(), hNow=hoy.getHours()+hoy.getMinutes()/60, p=pendientes().length;
   if(p&&hNow>=hmToH(cfg.horaFin)-0.25) avisarUnaVez('pend|'+S.turno.id+'|'+p,'Cantidades pendientes',p+' tarea(s) sin cantidad. Complétalas para cerrar el turno.',{accion:'pend'},'tur_pend');
 }
@@ -2035,6 +2071,85 @@ async function abrirTurno(){
   await save();hideModal('modalAbrirTurno');renderAll();showToast('Turno iniciado');setTimeout(showToolboxScreen,400);
 }
 
+// ═══ SOBRETIEMPO ═══
+// El supervisor lo activa dentro del turno (horas estimadas, motivo y personas que se quedan) y lo puede ampliar.
+// Se guarda en el turno (S.turno.sobre). Las horas que pasan de la jornada se pagan igual, pero solo las que caen
+// dentro de un sobretiempo activado cuentan como autorizadas; el resto queda señalado como «sin autorizar».
+const MOTIVOS_SOBRE=['Carga pendiente','Despacho urgente','Contenedor por descargar','Pedido del cliente'];
+const H_MS=3600000;
+function finJornada(T){
+  T=T||S.turno; if(!T) return null;
+  if(T.jornada==='media') return new Date(T.fecha+'T'+(T.hora||getConfig().horaInicio)+':00').getTime()+((T.hpPorPersona||4)+0)*H_MS;
+  return new Date(T.fecha+'T'+(getConfig().horaFin||'17:00')+':00').getTime();
+}
+const sobreFin=so=>so.terminado||so.hasta;
+function sobreActivo(T, now){ T=T||S.turno; now=now||Date.now(); return ((T&&T.sobre)||[]).find(so=>!so.terminado&&now<so.hasta)||null; }
+// Horas de sobretiempo autorizadas a una persona en un turno (ventanas activadas que la incluyen)
+function horasAutorizadas(T, pid, now){ now=now||Date.now();
+  return ((T&&T.sobre)||[]).filter(so=>(so.personas||[]).includes(pid)).reduce((a,so)=>a+Math.max(0,Math.min(sobreFin(so),T.fin||now,Math.max(so.hasta,0))-so.inicio)/H_MS,0); }
+let _so={modo:'nuevo',horas:2,motivo:'',sel:new Set()};
+function abrirSobre(modo){
+  if(!S.turno){ showToast('No hay turno abierto','error'); return; }
+  const act=sobreActivo(); modo=modo||(act?'ampliar':'nuevo');
+  const vivos=S.turno.equipo.filter(c=>!salioDelTurno(c));
+  _so={modo,horas:modo==='ampliar'?1:2,motivo:'',sel:new Set(modo==='ampliar'?act.personas:vivos.map(c=>c.id))};
+  document.getElementById('soTitulo').textContent=modo==='ampliar'?'Ampliar sobretiempo':'Activar sobretiempo';
+  document.getElementById('soConfirmar').textContent=modo==='ampliar'?'Ampliar sobretiempo':'Activar sobretiempo';
+  const fj=finJornada();
+  document.getElementById('soInfo').innerHTML=modo==='ampliar'
+    ?`Sobretiempo activo hasta las <b>${horaHM(act.hasta)}</b> · ${act.personas.length} persona(s) · ${esc(act.motivo)}`
+    :`La jornada termina a las <b>${horaHM(fj)}</b>. El sobretiempo empieza ${Date.now()>fj?'ahora':'a esa hora'} y se suma a quienes elijas.`;
+  document.getElementById('soMotivoField').classList.toggle('hidden',modo==='ampliar');
+  document.getElementById('soPersonasField').classList.toggle('hidden',modo==='ampliar');
+  document.getElementById('soMotivo').value=''; document.getElementById('soErr').classList.add('hidden');
+  pintarSobre(); showModal('modalSobre');
+}
+function pintarSobre(){
+  const act=sobreActivo(), vivos=S.turno.equipo.filter(c=>!salioDelTurno(c));
+  document.getElementById('soHoras').innerHTML=[0.5,1,1.5,2,3,4].map(h=>`<div class="chip${_so.horas===h?' selected':''}" onclick="_so.horas=${h};pintarSobre()">${h<1?'30 min':h+' h'}</div>`).join('');
+  document.getElementById('soMotivos').innerHTML=MOTIVOS_SOBRE.map(m=>`<div class="chip${_so.motivo===m?' selected':''}" onclick="_so.motivo='${m}';document.getElementById('soMotivo').value='${m}';pintarSobre()">${m}</div>`).join('');
+  document.getElementById('soPersonas').innerHTML=vivos.map(c=>`<div class="chip${_so.sel.has(c.id)?' selected':''}" onclick="_so.sel.has('${c.id}')?_so.sel.delete('${c.id}'):_so.sel.add('${c.id}');pintarSobre()">${esc(c.nombre)}</div>`).join('')||'<div class="empty-text">No hay personas trabajando en el turno.</div>';
+  const desde=_so.modo==='ampliar'?act.hasta:Math.max(Date.now(),finJornada()), hasta=desde+_so.horas*H_MS;
+  const n=_so.modo==='ampliar'?act.personas.length:_so.sel.size, hh=n*_so.horas;
+  let costo=''; if(currentUser&&currentUser.rol==='admin'){ const cfg=getConfig(), ids=_so.modo==='ampliar'?act.personas:[..._so.sel];
+    const c=ids.reduce((a,id)=>{ const p=S.turno.equipo.find(x=>x.id===id)||{}; return a+costoCargo(p.cargo||'operador',S.turno.fecha).hora*(cfg.multSobretiempo||1.5)*_so.horas; },0);
+    costo=` · costo estimado <b>$${c.toFixed(0)}</b>`; }
+  document.getElementById('soResumen').innerHTML=`Hasta las <b>${horaHM(hasta)}</b> · ${n} persona(s) · <b>${fmtN(hh)} h-persona</b> de sobretiempo${costo}`;
+}
+async function confirmarSobre(){
+  const err=document.getElementById('soErr'), act=sobreActivo(), quienN=currentUser?currentUser.nombre:'';
+  if(_so.modo==='ampliar'){
+    if(!act){ err.textContent='El sobretiempo ya terminó: actívalo de nuevo'; err.classList.remove('hidden'); return; }
+    act.hasta+=_so.horas*H_MS; act.horas+=_so.horas; (act.amp=act.amp||[]).push({ts:Date.now(),horas:_so.horas,por:quien()});
+    await save(); hideModal('modalSobre'); renderAll(); showToast('Sobretiempo ampliado hasta las '+horaHM(act.hasta),'success');
+    emitirAviso('tur_sobre','sobre|'+act.id+'|'+act.amp.length,'Sobretiempo ampliado',quienN+' lo amplió '+(_so.horas<1?'30 min':_so.horas+' h')+' · '+act.personas.length+' persona(s) hasta las '+horaHM(act.hasta),{accion:'sobre'});
+    return;
+  }
+  const motivo=document.getElementById('soMotivo').value.trim();
+  if(!motivo){ err.textContent='Escribe o elige el motivo'; err.classList.remove('hidden'); return; }
+  if(!_so.sel.size){ err.textContent='Elige al menos una persona'; err.classList.remove('hidden'); return; }
+  const inicio=Math.max(Date.now(),finJornada());
+  const so={id:uid(),inicio,hasta:inicio+_so.horas*H_MS,horas:_so.horas,motivo,personas:[..._so.sel],por:quien(),porNombre:quienN,creado:Date.now(),amp:[]};
+  (S.turno.sobre=S.turno.sobre||[]).push(so);
+  await save(); hideModal('modalSobre'); renderAll(); showToast('Sobretiempo activado hasta las '+horaHM(so.hasta),'success');
+  emitirAviso('tur_sobre','sobre|'+so.id+'|0','Sobretiempo activado',quienN+' · '+so.personas.length+' persona(s) de '+horaHM(so.inicio)+' a '+horaHM(so.hasta)+' · '+motivo,{accion:'sobre'});
+}
+async function terminarSobre(){
+  const act=sobreActivo(); if(!act) return;
+  if(!confirm('¿Terminar el sobretiempo ahora? Las horas que sigan después quedarán como sin autorizar.')) return;
+  act.terminado=Math.max(act.inicio,Date.now()); await save(); renderAll(); showToast('Sobretiempo terminado');
+}
+function renderSobreBar(){
+  const el=document.getElementById('sobreBar'), btn=document.getElementById('sobreBtn'); if(!el) return;
+  const act=S.turno&&sobreActivo();
+  if(btn) btn.style.display=act?'none':'';
+  if(!act){ el.classList.add('hidden'); el.innerHTML=''; return; }
+  const empieza=act.inicio>Date.now();
+  el.classList.remove('hidden');
+  el.innerHTML=`<div class="sb-txt"><b>Sobretiempo</b> ${empieza?'desde las '+horaHM(act.inicio)+' ':''}hasta las <b>${horaHM(act.hasta)}</b> · ${act.personas.length} persona(s) · ${esc(act.motivo)}${act.porNombre?' · '+esc(act.porNombre):''}</div>
+    <button class="btn btn-amber btn-sm" onclick="abrirSobre('ampliar')">Ampliar</button><button class="btn btn-ghost-w btn-sm" onclick="terminarSobre()">Terminar</button>`;
+}
+
 // ═══ BANNER (NO COSTOS PARA SUPERVISOR) ═══
 function calcKPITurno(){
   const k=engVivo(); if(!k) return null;
@@ -2042,6 +2157,7 @@ function calcKPITurno(){
 }
 function updateBanner(){
   if(!S.turno)return;
+  renderSobreBar();
   const k=engVivo();
   const dispH=k.disp,usH=k.usadas,libH=k.libres,pct=k.pct;
   document.getElementById('tDisp').textContent=dispH.toFixed(1)+'h';
@@ -2053,7 +2169,7 @@ function updateBanner(){
   const ops=S.turno.equipo.filter(c=>c.cargo==='operador').length,ags=S.turno.equipo.filter(c=>c.cargo==='ag').length;
   document.getElementById('tEquipoLbl').textContent=`${S.turno.equipo.length} pers · ${ops}Op ${ags}AG`;
   const jornadaTag=S.turno.jornada==='media'?'Media jornada':'Jornada completa';
-  document.getElementById('turnoBannerMeta').textContent=`${S.turno.fecha} · ${S.turno.hora} · ${jornadaTag}`;
+  document.getElementById('turnoBannerMeta').textContent=`${S.turno.fecha} · ${S.turno.hora} · ${jornadaTag} · termina ${horaHM(finJornada())}`;
   // KPI admin en tiempo real
   const kpiEl=document.getElementById('adminKPI');
   if(kpiEl){
@@ -2736,11 +2852,12 @@ async function cargarAsistencia(desde, hasta){
 function resumenAsistencia(){
   const por={};
   _asist.marcas.filter(m=>!m.anulado).forEach(m=>{ const o=por[m.persona_id]||(por[m.persona_id]={id:m.persona_id,nombre:m.nombre,dias:{}}); (o.dias[m.fecha]=o.dias[m.fecha]||[]).push(m); });
-  return Object.values(por).map(o=>{ const D=Object.entries(o.dias).map(([f,M])=>({fecha:f,...diaAsistencia(M,f)}));
-    return {...o,D,horas:D.reduce((a,d)=>a+d.horas,0),extra:D.reduce((a,d)=>a+d.extra,0),tardes:D.filter(d=>d.tarde).length,minTarde:D.reduce((a,d)=>a+d.tarde,0),incompletos:D.filter(d=>!d.sal&&d.fecha!==hoyStr()).length}; })
+  return Object.values(por).map(o=>{ const D=Object.entries(o.dias).map(([f,M])=>{ const d=diaAsistencia(M,f), aut=Math.min(d.extra,autorizadoDia(o.id,f)); return {fecha:f,...d,extraAut:aut,extraSin:Math.max(0,d.extra-aut)}; });
+    return {...o,D,horas:D.reduce((a,d)=>a+d.horas,0),extra:D.reduce((a,d)=>a+d.extra,0),extraSin:D.reduce((a,d)=>a+d.extraSin,0),tardes:D.filter(d=>d.tarde).length,minTarde:D.reduce((a,d)=>a+d.tarde,0),incompletos:D.filter(d=>!d.sal&&d.fecha!==hoyStr()).length}; })
     .sort((a,b)=>a.nombre.localeCompare(b.nombre));
 }
-const totalAsistencia=R=>({horas:R.reduce((a,o)=>a+o.horas,0),extra:R.reduce((a,o)=>a+o.extra,0),dias:R.reduce((a,o)=>a+o.D.length,0),tardes:R.reduce((a,o)=>a+o.tardes,0),minTarde:R.reduce((a,o)=>a+o.minTarde,0),incompletos:R.reduce((a,o)=>a+o.incompletos,0)});
+function autorizadoDia(pid, fecha){ return [S.turno,...(S.turnosHistorial||[])].filter(t=>t&&t.fecha===fecha).reduce((a,t)=>a+horasAutorizadas(t,pid),0); }
+const totalAsistencia=R=>({horas:R.reduce((a,o)=>a+o.horas,0),extra:R.reduce((a,o)=>a+o.extra,0),extraSin:R.reduce((a,o)=>a+o.extraSin,0),dias:R.reduce((a,o)=>a+o.D.length,0),tardes:R.reduce((a,o)=>a+o.tardes,0),minTarde:R.reduce((a,o)=>a+o.minTarde,0),incompletos:R.reduce((a,o)=>a+o.incompletos,0)});
 function buildPersonalSection(){
   const sinCed=S.colaboradores.filter(c=>!_personal.some(p=>p.id===c.id&&p.tiene_cedula));
   let h=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sPers','cPers')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Personal y marcaje</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalPersona()">+ Persona</button><button class="btn btn-indigo btn-sm" onclick="event.stopPropagation();activarKiosco()">Marcaje en esta tablet</button><span class="chevron open" id="cPers">▼</span></div></div><div class="sec-body" id="sPers">
@@ -2760,10 +2877,10 @@ function buildAsistenciaSection(){
   <div class="field-row"><div class="field"><label>Desde</label><input type="date" value="${_asist.desde}" onchange="cargarAsistencia(this.value,'${_asist.hasta}')"></div><div class="field"><label>Hasta</label><input type="date" value="${_asist.hasta}" onchange="cargarAsistencia('${_asist.desde}',this.value)"></div></div>`;
   const T=totalAsistencia(R);
   h+=R.length?`<div class="stat-row"><div class="stat-card"><div class="stat-label">Horas trabajadas</div><div class="stat-val">${fmtN(T.horas)}</div><div class="stat-sub">según el marcaje · ${R.length} persona(s)</div></div>
-    <div class="stat-card"><div class="stat-label">Horas extra</div><div class="stat-val">${fmtN(T.extra)}</div><div class="stat-sub">sobre la jornada</div></div>
+    <div class="stat-card"><div class="stat-label">Horas extra</div><div class="stat-val">${fmtN(T.extra)}</div><div class="stat-sub">${T.extraSin>0.05?'<b style="color:var(--amber)">'+fmtN(T.extraSin)+' sin autorizar</b>':'todas autorizadas'}</div></div>
     <div class="stat-card"><div class="stat-label">Días-persona</div><div class="stat-val">${T.dias}</div><div class="stat-sub">${T.tardes} tardanza(s)${T.incompletos?' · <b style="color:var(--amber)">'+T.incompletos+' sin salida</b>':''}</div></div></div>
-  <table class="rt-table"><tr><th>Persona</th><th>Días</th><th>Horas</th><th>Extra</th><th>Tardanzas</th><th>Sin salida</th><th></th></tr>`+R.map(o=>`<tr><td>${esc(o.nombre)}</td><td>${o.D.length}</td><td><b>${fmtN(o.horas)}</b></td><td>${o.extra>0.05?fmtN(o.extra):'—'}</td><td>${o.tardes?o.tardes+' ('+o.minTarde+' min)':'—'}</td><td>${o.incompletos?'<b style="color:var(--amber)">'+o.incompletos+'</b>':'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="verAsistencia('${o.id}')">Detalle</button></td></tr>`).join('')+`<tr class="rt-total"><td><b>Total</b></td><td><b>${T.dias}</b></td><td><b>${fmtN(T.horas)}</b></td><td><b>${T.extra>0.05?fmtN(T.extra):'—'}</b></td><td><b>${T.tardes||'—'}</b></td><td><b>${T.incompletos||'—'}</b></td><td></td></tr></table>
-    <div class="li-sub">Horas = suma de lo marcado: de la entrada a la salida, sin el tiempo entre salida y regreso de almuerzo (un día sin salida cuenta solo los tramos cerrados; hoy cuenta hasta ahora). Extra = por encima de la jornada del día (${getConfig().horaInicio}–${getConfig().horaFin}). Tardanza = entrada después de las ${getConfig().horaInicio} + ${getConfig().toleranciaMin||5} min.</div>`
+  <table class="rt-table"><tr><th>Persona</th><th>Días</th><th>Horas</th><th>Extra</th><th>Tardanzas</th><th>Sin salida</th><th></th></tr>`+R.map(o=>`<tr><td>${esc(o.nombre)}</td><td>${o.D.length}</td><td><b>${fmtN(o.horas)}</b></td><td>${o.extra>0.05?fmtN(o.extra)+(o.extraSin>0.05?' <small style="color:var(--amber);font-weight:700">('+fmtN(o.extraSin)+' sin aut.)</small>':''):'—'}</td><td>${o.tardes?o.tardes+' ('+o.minTarde+' min)':'—'}</td><td>${o.incompletos?'<b style="color:var(--amber)">'+o.incompletos+'</b>':'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="verAsistencia('${o.id}')">Detalle</button></td></tr>`).join('')+`<tr class="rt-total"><td><b>Total</b></td><td><b>${T.dias}</b></td><td><b>${fmtN(T.horas)}</b></td><td><b>${T.extra>0.05?fmtN(T.extra):'—'}</b>${T.extraSin>0.05?' <small style="color:var(--amber);font-weight:700">('+fmtN(T.extraSin)+' sin aut.)</small>':''}</td><td><b>${T.tardes||'—'}</b></td><td><b>${T.incompletos||'—'}</b></td><td></td></tr></table>
+    <div class="li-sub">Horas = suma de lo marcado: de la entrada a la salida, sin el tiempo entre salida y regreso de almuerzo (un día sin salida cuenta solo los tramos cerrados; hoy cuenta hasta ahora). Extra = por encima de la jornada del día (${getConfig().horaInicio}–${getConfig().horaFin}); «sin autorizar» = extra fuera de un sobretiempo activado en el turno. Tardanza = entrada después de las ${getConfig().horaInicio} + ${getConfig().toleranciaMin||5} min.</div>`
     :'<div class="empty-text">Sin marcajes en el período.</div>';
   return h+`</div></div>`;
 }
@@ -2776,7 +2893,7 @@ function verAsistencia(pid){
   h+=o.D.sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(d=>{ const M=marcasDe(pid,_asist.marcas).filter(m=>m.fecha===d.fecha);
     return `<div class="ins-row"><div class="ins-name">${etiquetaDia(d.fecha)} · ${d.fecha}<small>${PUESTOS[d.puesto]||''}${d.tarde?' · '+d.tarde+' min tarde':''}${d.corregido?' · con corrección':''}</small></div>
       <div class="ins-nums">${M.map(m=>`<span>${TIPOS_MARCA[m.tipo]} <b>${horaHM(msTs(m.ts))}</b>${esAdmin?` <a href="#" onclick="event.preventDefault();abrirCorreccion(${m.id})">corregir</a>`:''}</span>`).join('')}</div>
-      <div class="ins-nums"><span>Horas <b>${fmtN(d.horas)}</b></span>${d.extra>0.05?`<span>Extra <b>${fmtN(d.extra)}</b></span>`:''}${!d.sal&&d.fecha!==hoyStr()?'<span><b style="color:var(--amber)">Sin salida</b></span>':''}
+      <div class="ins-nums"><span>Horas <b>${fmtN(d.horas)}</b></span>${d.extra>0.05?`<span>Extra <b>${fmtN(d.extra)}</b>${d.extraSin>0.05?` <b style="color:var(--amber)">(${fmtN(d.extraSin)} sin autorizar)</b>`:''}</span>`:''}${!d.sal&&d.fecha!==hoyStr()?'<span><b style="color:var(--amber)">Sin salida</b></span>':''}
       ${esAdmin?`<a href="#" onclick="event.preventDefault();abrirCorreccion(null,'${d.fecha}')">+ agregar marcaje</a>`:''}</div></div>`; }).join('');
   document.getElementById('asBody').innerHTML=h; showModal('modalAsist');
 }
@@ -2808,11 +2925,11 @@ async function guardarCorreccion(){
 }
 function exportarAsistencia(){
   const R=resumenAsistencia(), wb=XLSX.utils.book_new(), r2=n=>Math.round((n||0)*100)/100, hh=m=>m?horaHM(msTs(m.ts)):'';
-  const dia=[['Fecha','Persona','Posición','Entrada','Salida a almuerzo','Regreso de almuerzo','Salida','Horas trabajadas','Jornada (h)','Horas extra','Tardanza (min)','Observaciones']];
-  R.forEach(o=>o.D.sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(d=>dia.push([d.fecha,o.nombre,PUESTOS[d.puesto]||'',hh(d.ent),hh(d.salAlm),hh(d.regAlm),hh(d.sal),r2(d.horas),d.jornada,r2(d.extra),d.tarde||'',[!d.sal&&d.fecha!==hoyStr()?'Sin salida':'',d.corregido?'Con corrección':''].filter(Boolean).join(' · ')])));
-  const res=[['Persona','Días trabajados','Horas trabajadas','Horas extra','Tardanzas','Minutos de tardanza','Días sin salida']];
-  R.forEach(o=>res.push([o.nombre,o.D.length,r2(o.horas),r2(o.extra),o.tardes,o.minTarde,o.incompletos]));
-  const T=totalAsistencia(R); res.push(['TOTAL',T.dias,r2(T.horas),r2(T.extra),T.tardes,T.minTarde,T.incompletos]);
+  const dia=[['Fecha','Persona','Posición','Entrada','Salida a almuerzo','Regreso de almuerzo','Salida','Horas trabajadas','Jornada (h)','Horas extra','Extra autorizado','Extra sin autorizar','Tardanza (min)','Observaciones']];
+  R.forEach(o=>o.D.sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(d=>dia.push([d.fecha,o.nombre,PUESTOS[d.puesto]||'',hh(d.ent),hh(d.salAlm),hh(d.regAlm),hh(d.sal),r2(d.horas),d.jornada,r2(d.extra),r2(d.extraAut),r2(d.extraSin),d.tarde||'',[!d.sal&&d.fecha!==hoyStr()?'Sin salida':'',d.corregido?'Con corrección':''].filter(Boolean).join(' · ')])));
+  const res=[['Persona','Días trabajados','Horas trabajadas','Horas extra','Extra sin autorizar','Tardanzas','Minutos de tardanza','Días sin salida']];
+  R.forEach(o=>res.push([o.nombre,o.D.length,r2(o.horas),r2(o.extra),r2(o.extraSin),o.tardes,o.minTarde,o.incompletos]));
+  const T=totalAsistencia(R); res.push(['TOTAL',T.dias,r2(T.horas),r2(T.extra),r2(T.extraSin),T.tardes,T.minTarde,T.incompletos]);
   const raw=[['Fecha','Persona','Marcaje','Hora','Posición','Registrado por','Anulado','Motivo de corrección','Corregido por','Corregido el']];
   _asist.marcas.forEach(m=>raw.push([m.fecha,m.nombre,TIPOS_MARCA[m.tipo],new Date(msTs(m.ts)).toLocaleString('es-PA'),PUESTOS[m.puesto]||'',m.por||'',m.anulado?'Sí':'',m.motivo||'',m.corregido_por||'',m.corregido_en?new Date(m.corregido_en).toLocaleString('es-PA'):'']));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(res),'Resumen por persona');
@@ -2939,7 +3056,7 @@ function renderEquipo(){
       <button onclick="sumarCant('${a.id}',1)">+1</button><button onclick="sumarCant('${a.id}',5)">+5</button></div>`:'';
     return `<div class="pc st-${est}${_sel.has(c.id)?' sel':''}" data-pid="${c.id}" onclick="${est==='fuera'?'':`togglePersona('${c.id}')`}">
       <div class="pc-top"><div class="pc-av" style="background:${COLORS[i%COLORS.length]}">${iniciales(c.nombre)}</div>
-        <div style="min-width:0;flex:1"><div class="pc-name">${esc(c.nombre)}</div><div class="pc-role">${{operador:'Operador',ag:'Ayudante General',supervisor:'Supervisor'}[c.cargo]||'Operador'}${c.marcas&&c.marcas.length?' · entró '+horaHM((c.marcas.find(m=>m.tipo==='entrada'&&!m.anulado)||{}).ts):''}</div></div></div>
+        <div style="min-width:0;flex:1"><div class="pc-name">${esc(c.nombre)}</div><div class="pc-role">${{operador:'Operador',ag:'Ayudante General',supervisor:'Supervisor'}[c.cargo]||'Operador'}${c.marcas&&c.marcas.length?' · entró '+horaHM((c.marcas.find(m=>m.tipo==='entrada'&&!m.anulado)||{}).ts):''}${(sobreActivo()||{personas:[]}).personas.includes(c.id)&&!fuera?'<span class="pc-st">Sobretiempo</span>':''}</div></div></div>
       <div class="pc-est">${info}</div>
       <div class="pc-timer" id="pt_${c.id}">${fuera?'':msHMS(Date.now()-(a?a.inicio:libreDesde(c.id)))}</div>${cnt}</div>`;
   }).join('');
