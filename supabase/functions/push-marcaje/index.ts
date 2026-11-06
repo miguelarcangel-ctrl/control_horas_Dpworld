@@ -17,11 +17,11 @@ const KEYS = ['ctrl_horas', 'ctrl_horas_test'];
 const ROLES = ['admin', 'supervisor', 'responsable'];
 // Avisos por omisión de cada rol (los mismos que muestra la app en la pantalla Avisos)
 const DEF: Record<string, string[]> = {
-  admin: ['ent_sup', 'ent_resp', 'ent_op', 'ent_lin', 'alm_reg', 'lin_meta', 'lin_riesgo', 'lin_paro', 'lin_cierre', 'tur_sobre', 'tur_reap'],
+  admin: ['ent_sup', 'ent_resp', 'ent_op', 'ent_lin', 'alm_reg', 'lin_meta', 'lin_riesgo', 'lin_paro', 'lin_cierre', 'tur_sobre', 'tur_reap', 'per_alta'],
   supervisor: ['ent_sup', 'ent_op', 'alm_reg', 'lin_riesgo', 'lin_paro', 'tur_libre', 'tur_larga', 'tur_pend', 'tur_sobre', 'tur_sobre_fin'],
   responsable: ['ent_resp', 'ent_lin', 'alm_reg', 'lin_arranca', 'lin_mitad', 'lin_meta', 'lin_riesgo', 'lin_paro', 'lin_insumo'],
 };
-const RELAY = new Set(['lin_arranca', 'lin_mitad', 'lin_meta', 'lin_riesgo', 'lin_paro', 'lin_insumo', 'lin_cierre', 'tur_libre', 'tur_larga', 'tur_pend', 'tur_sobre', 'tur_sobre_fin', 'tur_reap']);
+const RELAY = new Set(['lin_arranca', 'lin_mitad', 'lin_meta', 'lin_riesgo', 'lin_paro', 'lin_insumo', 'lin_cierre', 'tur_libre', 'tur_larga', 'tur_pend', 'tur_sobre', 'tur_sobre_fin', 'tur_reap', 'per_alta']);
 const eventoMarca = (m: any) => m.tipo === 'entrada'
   ? (({ supervisor: 'ent_sup', responsable: 'ent_resp', linea: 'ent_lin' } as Record<string, string>)[m.puesto] || 'ent_op')
   : ({ salida_almuerzo: 'alm_sal', regreso_almuerzo: 'alm_reg', salida: 'salida' } as Record<string, string>)[m.tipo];

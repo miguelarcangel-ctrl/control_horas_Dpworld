@@ -40,14 +40,16 @@
       const ex=SRV.users.find(x=>x.id===a.p_id);if(!ex){if(!a.p_pass)return err('CLAVE_CORTA');SRV.users.push({id:'u'+Math.random(),username:a.p_username,nombre:a.p_nombre,rol:a.p_rol,pass:a.p_pass,activo:true});}
       else{Object.assign(ex,{username:a.p_username,nombre:a.p_nombre,rol:a.p_rol});if(a.p_pass)ex.pass=a.p_pass;}return{data:null};},
     // Marcaje (misma semántica que 20261031_marcaje.sql; cédula en claro solo en el simulador)
-    ch_personal_list:a=>{if(!user(a.p_token))return err('SESION','28000');return{data:SRV.personal.filter(x=>x.key===a.p_key).map(x=>({id:x.id,nombre:x.nombre,puesto_def:x.puesto_def,activo:x.activo,tiene_cedula:!!x.cedula})).sort((x,y)=>x.nombre.localeCompare(y.nombre))};},
-    ch_personal_upsert:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(u.rol!=='admin')return err('PERMISO','42501');
+    ch_personal_list:a=>{if(!user(a.p_token))return err('SESION','28000');return{data:SRV.personal.filter(x=>x.key===a.p_key).map(x=>({id:x.id,nombre:x.nombre,puesto_def:x.puesto_def,activo:x.activo,tiene_cedula:!!x.cedula,contingente:!!x.contingente,creado_por:x.creado_por||null})).sort((x,y)=>x.nombre.localeCompare(y.nombre))};},
+    ch_personal_upsert:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');
+      const nuevo=!a.p_id||!SRV.personal.some(x=>x.key===a.p_key&&x.id===a.p_id);
+      if(u.rol==='supervisor'){if(!nuevo)return err('PERMISO','42501');if(!normCed(a.p_cedula))return err('DATOS');}else if(u.rol!=='admin')return err('PERMISO','42501');
       const ced=normCed(a.p_cedula);if(!String(a.p_nombre||'').trim())return err('DATOS');if(ced&&ced.length<4)return err('CEDULA_CORTA');
       const id=a.p_id||('p'+Math.random().toString(36).slice(2,10));
       if(ced&&SRV.personal.some(x=>x.key===a.p_key&&x.id!==id&&x.cedula===ced))return err('CEDULA_EXISTE');
       const ex=SRV.personal.find(x=>x.key===a.p_key&&x.id===id);
       if(ex)Object.assign(ex,{nombre:a.p_nombre.trim(),puesto_def:a.p_puesto,activo:a.p_activo!==false},ced?{cedula:ced}:{});
-      else SRV.personal.push({key:a.p_key,id,nombre:a.p_nombre.trim(),cedula:ced||null,puesto_def:a.p_puesto,activo:a.p_activo!==false});
+      else SRV.personal.push({key:a.p_key,id,nombre:a.p_nombre.trim(),cedula:ced||null,puesto_def:a.p_puesto,activo:u.rol==='supervisor'?true:a.p_activo!==false,contingente:u.rol==='supervisor',creado_por:u.username});
       return{data:id};},
     ch_marcar:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(u.rol!=='admin')return err('PERMISO','42501');
       const per=SRV.personal.find(x=>x.key===a.p_key&&x.id===a.p_persona&&x.activo);if(!per||!per.cedula||per.cedula!==normCed(a.p_cedula))return err('CEDULA','28000');

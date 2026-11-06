@@ -12,6 +12,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
 
 async function newPage(browser, opts = {}) {
   const ctx = await browser.newContext({ viewport: opts.viewport || { width: 420, height: 900 } });
+  await ctx.addInitScript(() => { try { if (!sessionStorage.getItem('__tour')) ['u1', 'u2'].forEach(id => localStorage.setItem('ch_tutorial_' + id, 'visto')); } catch (e) {} });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -613,6 +614,41 @@ async function newPage(browser, opts = {}) {
   ok(fx.domingo, 'asistencia: domingo (jornada 0 h) y días pasados sin salida no suman extra');
   ok(fx.arrancar && fx.arrancarMotivo, 'línea: «Arrancar línea» deshabilitado (se ve gris) mientras falte la meta o la cuadrilla, con el motivo');
   ok(fx.caja, 'catálogo de tareas: unidad «caja»');
+
+  // 9m) Personal de contingente (supervisor) y tutorial de primera sesión
+  const ct = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, u = currentUser, sup = SRV.users.find(x => x.rol === 'supervisor');
+    document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
+    // como supervisor: alta de contingente desde el menú
+    SRV.sessions[SESSION.token] = sup.id; currentUser = { id: sup.id, nombre: sup.nombre, username: sup.username, rol: 'supervisor' }; pintarMenu();
+    r.menu = [...document.querySelectorAll('#dpwItems *')].some(x => /Alta de personal de contingente/.test(x.textContent));
+    SRV.push = []; await altaContingente();
+    r.modal = /contingente/i.test(document.getElementById('peTitulo').textContent) && !document.getElementById('peContInfo').classList.contains('hidden') && document.getElementById('peActivoRow').classList.contains('hidden');
+    document.getElementById('peNombre').value = 'Carlos Contingente'; document.getElementById('peCedula').value = '8-777-0001'; _pePuesto = 'operador'; await guardarPersona();
+    const p = SRV.personal.find(x => x.nombre === 'Carlos Contingente');
+    r.guarda = p && p.contingente && p.creado_por === sup.username && p.activo && SRV.push.some(x => x.body.evento === 'per_alta');
+    // el supervisor no edita personas ya registradas
+    openModalPersona(p.id); document.getElementById('peNombre').value = 'Otro'; document.getElementById('peCedula').value = '8-777-0002'; await guardarPersona();
+    r.noEdita = /Solo puedes dar de alta personas nuevas/.test(document.getElementById('peErr').textContent) && SRV.personal.find(x => x.id === p.id).nombre === 'Carlos Contingente';
+    hideModal('modalPersona');
+    // como administrador: aparece marcado como contingente
+    SRV.sessions[SESSION.token] = u.id; currentUser = u; pintarMenu(); await cargarPersonal();
+    r.admin = /Contingente/.test(buildPersonalSection()) && /alta por super/.test(buildPersonalSection());
+    // tutorial: se muestra la primera vez, recorre las tarjetas y queda como visto
+    localStorage.removeItem(TUT_KEY()); r.pendiente = tutorialPendiente();
+    iniciarTutorial(); const n = _tour.pasos.length;
+    r.tarjeta = !document.getElementById('tour').classList.contains('hidden') && /Bienvenido/.test(document.querySelector('.tour-card').textContent) && n >= 8;
+    pasoTutorial(1); r.resalta = /Menú/.test(document.querySelector('.tour-card h3').textContent) && !document.querySelector('.tour-hole').classList.contains('sin');
+    let vistos = new Set(); for (let k = 0; k < n; k++) { vistos.add(document.querySelector('.tour-card h3').textContent); pasoTutorial(1); }
+    r.admin_pasos = ['Personal y marcaje', 'Asistencia y planilla', 'Usuarios'].every(t => vistos.has(t));
+    cerrarTutorial(); r.visto = !tutorialPendiente() && document.getElementById('tour').classList.contains('hidden') && _nav === 'supervisor';
+    r.menuTut = [...document.querySelectorAll('#dpwItems *')].some(x => /Ver tutorial/.test(x.textContent));
+    return r; });
+  ok(ct.menu && ct.modal && ct.guarda, 'contingente: el supervisor da de alta desde el menú; queda como contingente con su nombre y avisa al admin');
+  ok(ct.noEdita, 'contingente: el supervisor no puede editar personas ya registradas');
+  ok(ct.admin, 'contingente: el administrador lo ve marcado como «Contingente» y quién lo dio de alta');
+  ok(ct.pendiente && ct.tarjeta && ct.resalta && ct.admin_pasos, 'tutorial: primera sesión con tarjetas que resaltan cada parte (según el perfil)');
+  ok(ct.visto && ct.menuTut, 'tutorial: al terminar no vuelve a salir; se repite desde «Ver tutorial»');
 
   // 9i) El turno solo se inicia con personal que marcó entrada
   const tm = await page.evaluate(async () => {
