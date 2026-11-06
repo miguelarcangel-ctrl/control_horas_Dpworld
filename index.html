@@ -1893,9 +1893,12 @@ function renderAvisos(){
   document.getElementById('avTitulo').textContent=E.uid?'Avisos de '+E.nombre:'Mis avisos';
   let h='';
   if(!E.uid) h+=`<div class="info-box">${st==='granted'?(_pushOk?'Este equipo recibe tus avisos aunque la app esté cerrada.':'Los avisos están permitidos en este equipo.')
-      :st==='denied'?'Los avisos están bloqueados en este equipo: habilítalos en la configuración del navegador.'
+      :st==='denied'?`<b>Los avisos están bloqueados en este equipo.</b> El teléfono le negó el permiso a la app y ya no se puede volver a preguntar; hay que permitirlo a mano:
+        <br><b>Android (Chrome):</b> toca el ícono a la izquierda de la dirección → Permisos → Notificaciones → Permitir. Si la app está instalada: mantén presionado su ícono → Información de la app → Notificaciones. Revisa también Ajustes → Aplicaciones → Chrome → Notificaciones.
+        <br><b>iPhone:</b> instala la app (Safari → Compartir → Agregar a inicio), ábrela desde ese ícono y permite en Ajustes → Notificaciones → Control de Horas.
+        <br>Luego recarga la app y toca «Probar aviso». Si abriste el link desde WhatsApp u otra app, ábrelo en el navegador.`
       :st==='no'?'Este navegador no muestra avisos. En iPhone, instala la app (Compartir → Agregar a inicio).':'Activa los avisos para que lleguen a este equipo.'}
-    <div class="btn-row" style="margin-top:8px">${st==='default'?'<button class="btn btn-green btn-sm" onclick="activarAvisos()">Activar en este equipo</button>':''}${st==='granted'?'<button class="btn btn-ghost btn-sm" onclick="probarAviso()">Probar aviso</button>':''}</div></div>`;
+    <div class="btn-row" style="margin-top:8px">${st==='default'?'<button class="btn btn-green btn-sm" onclick="activarAvisos()">Activar en este equipo</button>':''}${st==='granted'?'<button class="btn btn-ghost btn-sm" onclick="probarAviso()">Probar aviso</button>':''}${st==='denied'?'<button class="btn btn-ghost btn-sm" onclick="location.reload()">Ya lo permití: recargar</button>':''}</div></div>`;
   else h+=`<div class="info-box">${esc(E.nombre)} · ${ROL_NOMBRE[E.rol]||E.rol}. Le llegan a los celulares donde activó los avisos.</div>`;
   h+=`<div class="li-sub">Elige qué momentos son importantes: ${n} activo(s)${E.propios?'':' · por ahora, los de su rol'}.</div>`;
   AVISOS_CAT.forEach(g=>{ h+=`<div class="av-grupo">${g.g}</div>`+g.items.map(([id,nom,det])=>{ const d=typeof det==='function'?det():det;
