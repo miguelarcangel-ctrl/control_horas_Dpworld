@@ -276,6 +276,16 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 .rt-asis{min-width:540px}.rt-asis td:first-child{white-space:nowrap}
 @media (max-width:700px){.stat-row{flex-wrap:wrap}.stat-row .stat-card{flex:1 1 30%;min-width:96px}}
 .tv-login-aviso{margin-bottom:14px;padding:10px 12px;border-radius:8px;background:#EEF0FF;border:1px solid #C9CCF5;color:#1a1760;font-size:.78rem;font-weight:600;text-align:left}
+.tour{position:fixed;inset:0;z-index:2000}
+.tour-hole{position:fixed;border-radius:10px;box-shadow:0 0 0 9999px rgba(8,6,30,.62);transition:all .25s ease;pointer-events:none;outline:2px solid var(--green);outline-offset:3px}
+.tour-hole.sin{width:0;height:0;left:50%;top:40%;outline:none}
+.tour-card{position:fixed;width:min(360px,calc(100vw - 24px));background:var(--card);color:var(--t);border:1px solid var(--b1);border-radius:14px;padding:16px 16px 12px;box-shadow:0 18px 50px rgba(0,0,0,.4);transition:top .25s ease,left .25s ease}
+.tour-paso{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--green)}
+.tour-card h3{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.25rem;letter-spacing:.3px;margin:4px 0 6px;color:var(--t)}
+.tour-card p{font-size:.86rem;line-height:1.5;color:var(--t2);margin:0}
+.tour-nav{display:flex;gap:8px;align-items:center;margin-top:14px}
+.tour-nav .tour-saltar{margin-right:auto}
+.tour-puntos{display:flex;gap:4px;margin-top:12px}.tour-puntos i{width:6px;height:6px;border-radius:50%;background:var(--b1)}.tour-puntos i.on{background:var(--green)}
 .rt-table tr.rt-total td{border-top:2px solid var(--b1);color:var(--t1)}
 
 /* SOLICITUD */
@@ -1203,7 +1213,8 @@ body.con-sel .toast{bottom:96px}
     <div class="field"><label>Nombre completo</label><input type="text" id="peNombre" autocomplete="off"></div>
     <div class="field"><label>Número de cédula</label><input type="password" id="peCedula" autocomplete="off" placeholder="Ej. 8-123-4567"><div class="li-sub" id="peCedHint"></div></div>
     <div class="field"><label>Posición habitual</label><div class="chip-wrap" id="pePuestos"></div></div>
-    <label class="li-sub" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="peActivo" checked> Activo (aparece en el marcaje)</label>
+    <div class="info-box hidden" id="peContInfo">Queda guardada en el personal como <b>contingente</b>, con tu nombre. Desde ya puede marcar en la tablet con su cédula. El administrador la revisa después.</div>
+    <label class="li-sub" id="peActivoRow" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="peActivo" checked> Activo (aparece en el marcaje)</label>
     <div class="err-box hidden" id="peErr"></div>
     <button class="btn btn-green btn-full" onclick="guardarPersona()">Guardar</button>
   </div>
@@ -1669,7 +1680,84 @@ async function startApp(){
   renderAll();
   avisoDesdeUrl(); setTimeout(revisarAlertas,1500);
   if(IS_TV) entrarTv();
+  else if(!enKiosco()&&tutorialPendiente()) setTimeout(()=>{ if(!_tour&&tutorialPendiente()&&!enKiosco()) iniciarTutorial(); },900);
 }
+// ═══ TUTORIAL: la primera sesión de cada usuario en este equipo muestra tarjetas sobre cada parte de la app ═══
+const TUT_KEY=()=>'ch_tutorial_'+(currentUser?currentUser.id:'');
+const secPorTitulo=t=>[...document.querySelectorAll('.sec-title')].find(x=>x.textContent.trim().toLowerCase().startsWith(t.toLowerCase()))?.closest('.sec');
+function pasosTutorial(){
+  const rol=currentUser.rol, P=[];
+  P.push({t:'Bienvenido, '+currentUser.nombre.split(' ')[0],d:'Te mostramos en pocas tarjetas qué es cada parte de la app. Puedes saltarlo y volver a verlo cuando quieras desde el menú, en «Ver tutorial».'});
+  P.push({sel:'.dpw-burger',t:'Menú',d:'Aquí están todas las secciones'+(rol==='admin'?' (Turno, Líneas, Insights, Vista TV, Marcaje en esta tablet)':rol==='supervisor'?' (Turno, Líneas y el alta de personal de contingente)':' (Líneas de producción)')+' y los ajustes: Avisos y este tutorial.'});
+  P.push({sel:'[data-dpw="tema"]',t:'Tema claro u oscuro',d:'Cambia los colores de la app según la luz del lugar. Se recuerda en este equipo.'});
+  if(rol!=='responsable'){
+    if(!S.turno){
+      P.push({nav:'supervisor',sel:'button[onclick*="modalAbrirTurno"]',t:'Abrir el turno',d:'El turno se arma con el personal que marcó su entrada en la tablet. Si nadie ha marcado, el botón espera. Quien llega después se suma solo al tablero.'});
+      P.push({nav:'supervisor',sel:'#plantillasQuickBtn',t:'Plantillas',d:'Un turno típico guardado: su jornada, sus personas y sus tareas del día. Al usarla, el turno abre ya preparado.'});
+      P.push({nav:'supervisor',sel:'button[onclick*="modalDimensionador"]',t:'Planificar',d:'Calcula cuántas personas y horas necesita un día según las tareas y cantidades que esperas.'});
+      P.push({nav:'supervisor',sel:'#turnosCerradosList',t:'Turnos cerrados',d:'Los turnos de los últimos 7 días. Si a uno le faltó algo, pides la reapertura y el administrador la aprueba.'});
+    } else {
+      P.push({nav:'supervisor',sel:'.turno-stats',t:'El turno en números',d:'Horas disponibles del equipo, horas trabajadas, no productivas (pausas) y sin registrar: tiempo en que alguien no tiene actividad.'});
+      P.push({nav:'supervisor',sel:'#equipoList',t:'Tablero por persona',d:'Cada tarjeta es una persona. Tócala (o varias) y asigna una tarea o una pausa: la actividad anterior se cierra sola. Cuenta cantidades con +1 y +5.'});
+      P.push({nav:'supervisor',sel:'button[onclick="asignarDesdeBanner()"]',t:'+ Tarea',d:'Asigna una tarea a las personas seleccionadas, o a todas las que están libres.'});
+      P.push({nav:'supervisor',sel:'#sobreBtn',t:'Sobretiempo',d:'Si hay que quedarse después de la jornada, actívalo con horas, motivo y quiénes se quedan. Lo que pase de la jornada sin activarlo queda como «sin autorizar».'});
+      P.push({nav:'supervisor',sel:'button[onclick="prepCerrarTurno()"]',t:'Cerrar turno',d:'Al final de la jornada. Antes pide las cantidades que falten.'});
+    }
+  }
+  if(rol==='responsable'||(S.lineasTipo||[]).length||rol==='admin'){
+    P.push({nav:'lineas',sel:'#lineasList',t:'Líneas de producción',d:'Cada bloque es una línea del día: meta, pallets, ritmo y si llega. Ábrelo para armar la cuadrilla con quienes marcaron, sumar pallets a cada persona, registrar paros e insumos.'});
+    P.push({nav:'lineas',sel:'button[onclick*="abrirPlanLinea(fechaManana())"]',t:'Planificar líneas',d:'Programa líneas para cualquier día con su meta: la app calcula cuántas personas hacen falta.'});
+  }
+  if(rol==='admin'){
+    P.push({nav:'insights',sel:()=>secPorTitulo('Personal y marcaje'),t:'Personal y marcaje',d:'Alta del personal con su cédula para que marque en la tablet. Los registrados por un supervisor salen como «Contingente». Desde aquí también activas la tablet de marcaje.'});
+    P.push({nav:'insights',sel:()=>secPorTitulo('Asistencia y horas'),t:'Asistencia y planilla',d:'Horas trabajadas por persona según el marcaje, extra autorizado y sin autorizar, tardanzas y días sin salida. Se corrige con motivo y se exporta a Excel.'});
+    P.push({nav:'insights',sel:()=>secPorTitulo('Usuarios'),t:'Usuarios',d:'Perfiles con su contraseña y, en «Avisos», qué notificaciones recibe cada uno.'});
+  }
+  P.push({t:'Avisos',d:'En el menú, «Avisos», eliges con interruptores qué momentos te notifican (llegadas, almuerzos, metas de línea, sobretiempo…) y los activas en tu teléfono.'});
+  P.push({t:'Listo',d:'Eso es todo. Si necesitas repasarlo, el tutorial está en el menú, en «Ver tutorial».'});
+  return P;
+}
+let _tour=null;
+function iniciarTutorial(){
+  if(IS_TV||!currentUser||enKiosco()) return;
+  _tour={pasos:pasosTutorial(),i:0,nav:_nav};
+  let el=document.getElementById('tour'); if(!el){ el=document.createElement('div'); el.id='tour'; el.className='tour'; el.innerHTML='<div class="tour-hole sin"></div><div class="tour-card" role="dialog" aria-modal="true" aria-live="polite"></div>'; document.body.appendChild(el); }
+  el.classList.remove('hidden'); pintarTutorial();
+}
+function pintarTutorial(){
+  const T=_tour, p=T.pasos[T.i], el=document.getElementById('tour'); if(!p||!el) return;
+  if(p.nav&&_nav!==p.nav) setNav(p.nav);
+  let tgt=typeof p.sel==='function'?p.sel():p.sel?document.querySelector(p.sel):null;
+  if(tgt&&!(tgt.offsetWidth||tgt.offsetHeight)) tgt=null;
+  const hole=el.querySelector('.tour-hole'), card=el.querySelector('.tour-card'), ult=T.i===T.pasos.length-1;
+  card.innerHTML=`<div class="tour-paso">Tutorial · ${T.i+1} de ${T.pasos.length}</div><h3>${esc(p.t)}</h3><p>${esc(p.d)}</p>
+    <div class="tour-puntos">${T.pasos.map((_,k)=>`<i class="${k===T.i?'on':''}"></i>`).join('')}</div>
+    <div class="tour-nav"><button class="btn btn-ghost btn-sm tour-saltar" onclick="cerrarTutorial()">${ult?'Cerrar':'Saltar'}</button>
+      ${T.i?'<button class="btn btn-ghost btn-sm" onclick="pasoTutorial(-1)">Anterior</button>':''}
+      <button class="btn btn-green btn-sm" onclick="${ult?'cerrarTutorial()':'pasoTutorial(1)'}">${ult?'Terminar':'Siguiente'}</button></div>`;
+  const ubicar=()=>{
+    const cw=card.offsetWidth, ch=card.offsetHeight, W=window.innerWidth, H=window.innerHeight;
+    if(!tgt){ hole.className='tour-hole sin'; card.style.left=Math.max(12,(W-cw)/2)+'px'; card.style.top=Math.max(12,(H-ch)/2)+'px'; return; }
+    const r=tgt.getBoundingClientRect(), pad=6;
+    hole.className='tour-hole'; Object.assign(hole.style,{left:(r.left-pad)+'px',top:(r.top-pad)+'px',width:(r.width+pad*2)+'px',height:(Math.min(r.height,H*0.55)+pad*2)+'px'});
+    const abajo=r.top+Math.min(r.height,H*0.55)+pad+12, arriba=r.top-pad-12-ch;
+    card.style.top=(abajo+ch<=H-8?abajo:arriba>=8?arriba:Math.max(8,H-ch-8))+'px';
+    card.style.left=Math.min(Math.max(12,r.left+r.width/2-cw/2),W-cw-12)+'px';
+  };
+  if(tgt){ const r=tgt.getBoundingClientRect(); if(r.top<70||r.bottom>window.innerHeight-40) tgt.scrollIntoView({block:'center'}); }
+  ubicar(); setTimeout(ubicar,80);
+  card.querySelector('.btn-green').focus();
+}
+function pasoTutorial(d){ if(!_tour) return; _tour.i=Math.max(0,Math.min(_tour.pasos.length-1,_tour.i+d)); pintarTutorial(); }
+function cerrarTutorial(){
+  const el=document.getElementById('tour'); if(el) el.classList.add('hidden');
+  try{ localStorage.setItem(TUT_KEY(),new Date().toISOString()); }catch(e){}
+  if(_tour&&_tour.nav&&_nav!==_tour.nav) setNav(_tour.nav); _tour=null; window.scrollTo(0,0);
+}
+document.addEventListener('keydown',e=>{ if(!_tour) return; if(e.key==='Escape') cerrarTutorial(); else if(e.key==='ArrowRight') pasoTutorial(1); else if(e.key==='ArrowLeft') pasoTutorial(-1); });
+window.addEventListener('resize',()=>{ if(_tour) pintarTutorial(); });
+function tutorialPendiente(){ try{ return !localStorage.getItem(TUT_KEY()); }catch(e){ return false; } }
+
 // Vista TV (?tv=1): solo con sesión de administrador. Cualquier otro perfil vuelve a la app normal.
 function urlSinTv(){ const q=new URLSearchParams(); if(QS.get('datos')) q.set('datos',QS.get('datos')); return location.pathname+(q.toString()?'?'+q:''); }
 function entrarTv(){
@@ -1778,10 +1866,11 @@ const AVISOS_CAT=[
     ['tur_sobre','Sobretiempo activado o ampliado','Quién, cuántas personas, hasta qué hora y el motivo'],
     ['tur_sobre_fin','Fin de jornada o del sobretiempo','15 min antes, para activar o ampliar el sobretiempo'],
     ['tur_reap','Solicitud de reapertura de un turno','Para aprobarla o rechazarla en Insights'],
+    ['per_alta','Personal de contingente registrado','Cuando un supervisor da de alta a alguien nuevo'],
   ]},
 ];
 const AVISOS_DEF={
-  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre','tur_sobre','tur_reap'],
+  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre','tur_sobre','tur_reap','per_alta'],
   supervisor:['ent_sup','ent_op','alm_reg','lin_riesgo','lin_paro','tur_libre','tur_larga','tur_pend','tur_sobre','tur_sobre_fin'],
   responsable:['ent_resp','ent_lin','alm_reg','lin_arranca','lin_mitad','lin_meta','lin_riesgo','lin_paro','lin_insumo'],
 };
@@ -1888,7 +1977,7 @@ function tocarAviso(i){ const v=quitarVista(i); if(v) manejarAviso(v.data); }
 // Lleva a la acción de cada aviso (desde la tarjeta o desde la notificación del sistema)
 function manejarAviso(data){
   if(!data||!data.accion) return;
-  if(data.accion==='reap'){ if(currentUser&&currentUser.rol==='admin') setNav('insights'); return; }
+  if(data.accion==='reap'||data.accion==='personal'){ if(currentUser&&currentUser.rol==='admin') setNav('insights'); return; }
   if(data.accion!=='linea'&&!S.turno) return;
   if(data.accion!=='linea') setNav('supervisor');
   if(data.accion==='libre'){
@@ -1986,7 +2075,9 @@ function pintarMenu(){
     {id:'insights',label:'Insights',badge:pend||0,hidden:!currentUser||currentUser.rol!=='admin',on:()=>setNav('insights')},
     {id:'tv',label:'Vista TV',hint:'pantalla completa',hidden:!currentUser||currentUser.rol!=='admin',on:openDashboard},
     {id:'marcaje',label:'Marcaje en esta tablet',group:'Ajustes',hint:'modo quiosco',hidden:!currentUser||currentUser.rol!=='admin'||IS_TV,on:activarKiosco},
-    {id:'avisos',label:'Avisos',group:'Ajustes',hint:st==='denied'?'Bloqueados en este equipo':st==='granted'?'Elegir qué avisa':'Activar y elegir',hidden:IS_TV||!currentUser,on:()=>abrirAvisos()}
+    {id:'contingente',label:'Alta de personal de contingente',group:'Personal',hint:'para que pueda marcar',hidden:!currentUser||currentUser.rol!=='supervisor'||IS_TV,on:()=>altaContingente()},
+    {id:'avisos',label:'Avisos',group:'Ajustes',hint:st==='denied'?'Bloqueados en este equipo':st==='granted'?'Elegir qué avisa':'Activar y elegir',hidden:IS_TV||!currentUser,on:()=>abrirAvisos()},
+    {id:'tutorial',label:'Ver tutorial',group:'Ajustes',hint:'qué es cada cosa',hidden:IS_TV||!currentUser,on:()=>{ DPW.cerrarMenu&&DPW.cerrarMenu(); iniciarTutorial(); }}
   ],_nav);
 }
 function esResponsable(){ return !!currentUser&&currentUser.rol==='responsable'; }
@@ -2879,8 +2970,13 @@ function openModalPersona(id, desdeColab){
   document.getElementById('peNombre').value=p?p.nombre:''; document.getElementById('peCedula').value='';
   document.getElementById('peCedHint').textContent=p&&p.tiene_cedula?'Ya tiene cédula registrada: déjala vacía para no cambiarla.':'Se usa como clave para marcar. Se guarda cifrada y no se muestra en ninguna pantalla.';
   document.getElementById('peActivo').checked=p?p.activo!==false:true; document.getElementById('peErr').classList.add('hidden');
+  const cont=!!(currentUser&&currentUser.rol==='supervisor');
+  document.getElementById('peContInfo').classList.toggle('hidden',!cont); document.getElementById('peActivoRow').classList.toggle('hidden',cont);
+  if(cont) document.getElementById('peTitulo').textContent='Alta de personal de contingente';
   pintarPePuestos(); showModal('modalPersona');
 }
+// El supervisor da de alta personal que llega de contingente y no está registrado (solo personas nuevas)
+async function altaContingente(){ await cargarPersonal(); openModalPersona(null); }
 function pintarPePuestos(){ document.getElementById('pePuestos').innerHTML=Object.entries(PUESTOS).map(([k,v])=>`<div class="chip${_pePuesto===k?' selected':''}" onclick="_pePuesto='${k}';pintarPePuestos()">${v}</div>`).join(''); }
 async function guardarPersona(){
   const nombre=document.getElementById('peNombre').value.trim(), ced=document.getElementById('peCedula').value.trim(), err=document.getElementById('peErr');
@@ -2889,9 +2985,15 @@ async function guardarPersona(){
   if(!ced&&!(existe&&existe.tiene_cedula)){ err.textContent='Escribe la cédula'; err.classList.remove('hidden'); return; }
   try{
     await rpc('ch_personal_upsert',{p_token:SESSION.token,p_key:STATE_KEY,p_id:_peEdit,p_nombre:nombre,p_cedula:ced,p_puesto:_pePuesto,p_activo:document.getElementById('peActivo').checked});
-    hideModal('modalPersona'); await cargarPersonal(); showToast('Persona guardada','success');
+    hideModal('modalPersona'); await cargarPersonal();
+    if(currentUser&&currentUser.rol==='supervisor'){
+      showToast(nombre+' quedó registrada como contingente: ya puede marcar en la tablet','success');
+      emitirAviso('per_alta','per|'+normTxt(nombre)+'|'+Date.now(),'Personal de contingente registrado',nombre+' · '+(PUESTOS[_pePuesto]||'')+' · alta por '+currentUser.nombre,{accion:'personal'});
+      return;
+    }
+    showToast('Persona guardada','success');
     if(!document.getElementById('viewMarcaje').classList.contains('hidden')) renderKiosco(); else renderInsights();
-  }catch(e){ err.textContent=/CEDULA_EXISTE/.test(e.message)?'Esa cédula ya está registrada a otra persona':/CEDULA_CORTA/.test(e.message)?'La cédula es muy corta':/PERMISO/.test(e.message)?'Solo el administrador puede registrar personal':'No se pudo guardar: '+e.message; err.classList.remove('hidden'); }
+  }catch(e){ err.textContent=/CEDULA_EXISTE/.test(e.message)?'Esa cédula ya está registrada a otra persona':/CEDULA_CORTA/.test(e.message)?'La cédula es muy corta':/PERMISO/.test(e.message)?(currentUser&&currentUser.rol==='supervisor'?'Solo puedes dar de alta personas nuevas; para cambiar una registrada, pide al administrador':'Solo el administrador puede registrar personal'):'No se pudo guardar: '+e.message; err.classList.remove('hidden'); }
 }
 
 // ── Insights: personal y asistencia del período (planilla)
@@ -2918,8 +3020,8 @@ function buildPersonalSection(){
   <div class="info-box">Cada persona marca en la tablet con su nombre y su cédula: entrada, almuerzo y salida. Quien entra como operador, ayudante o supervisor aparece solo en el tablero del turno; quien entra a la línea, en la cuadrilla disponible.</div>`;
   if(sinCed.length) h+=`<div class="warn-box">${sinCed.length} colaborador(es) del maestro sin cédula: no podrán marcar hasta registrarla.</div>`;
   const filas=[..._personal.map(p=>({...p,deMaestro:S.colaboradores.some(c=>c.id===p.id)})),...sinCed.filter(c=>!_personal.some(p=>p.id===c.id)).map(c=>({id:c.id,nombre:c.nombre,puesto_def:c.cargo==='ag'?'ag':'operador',activo:true,tiene_cedula:false,deMaestro:true}))].sort((a,b)=>a.nombre.localeCompare(b.nombre));
-  h+=filas.map(p=>{ const e=estadoMarca(p.id); return `<div class="list-item"><div class="li-info"><div class="li-name">${esc(p.nombre)}${p.activo===false?' <span class="badge bgy">Inactivo</span>':''}</div>
-    <div class="li-sub">${PUESTOS[p.puesto_def]||'—'} · ${p.tiene_cedula?'Cédula registrada':'<b style="color:var(--amber)">Sin cédula</b>'}${e.estado==='presente'?' · trabajando desde '+horaHM(msTs(e.ultima.ts)):e.estado==='almuerzo'?' · en almuerzo':e.estado==='salio'?' · salió '+horaHM(msTs(e.ultima.ts)):''}</div></div>
+  h+=filas.map(p=>{ const e=estadoMarca(p.id); return `<div class="list-item"><div class="li-info"><div class="li-name">${esc(p.nombre)}${p.activo===false?' <span class="badge bgy">Inactivo</span>':''}${p.contingente?' <span class="badge ba" title="Alta por '+esc(p.creado_por||'')+'">Contingente</span>':''}</div>
+    <div class="li-sub">${PUESTOS[p.puesto_def]||'—'}${p.contingente&&p.creado_por?' · alta por '+esc(p.creado_por):''} · ${p.tiene_cedula?'Cédula registrada':'<b style="color:var(--amber)">Sin cédula</b>'}${e.estado==='presente'?' · trabajando desde '+horaHM(msTs(e.ultima.ts)):e.estado==='almuerzo'?' · en almuerzo':e.estado==='salio'?' · salió '+horaHM(msTs(e.ultima.ts)):''}</div></div>
     <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalPersona('${p.id}')">${p.tiene_cedula?'Editar':'Registrar'}</button></div></div>`; }).join('')||'<div class="empty-text">Sin personal registrado.</div>';
   return h+`</div></div>`;
 }
