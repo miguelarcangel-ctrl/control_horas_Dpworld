@@ -448,6 +448,9 @@ body.con-sel .avisos-app{bottom:90px}
 .lb-num{font-family:'Barlow Condensed',sans-serif;font-size:.9rem;color:var(--t2)}
 .lb-num b{font-size:1.9rem;font-weight:800;color:var(--t);font-variant-numeric:tabular-nums}
 .lb-sub{font-size:.72rem;color:var(--t2)}
+.lp-row.lp-total{padding:12px;border-color:var(--green);background:rgba(0,195,137,.06)}
+.lp-row.lp-total .lp-name{font-size:1rem}
+.lp-row.lp-total .lp-cnt{font-size:1.8rem;min-width:56px}
 .lp-row{display:flex;align-items:center;gap:8px;border:1px solid var(--b1);border-radius:9px;padding:8px 10px;background:rgba(var(--fg),.03)}
 .lp-name{flex:1;min-width:0;font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lp-name small{display:block;font-weight:500;font-size:.68rem;color:var(--t3)}
@@ -1281,14 +1284,14 @@ body.con-sel .toast{bottom:96px}
     <div class="field"><label>Nombre de la línea</label><input type="text" id="tlNombre" placeholder="Ej. Inserto botella"></div>
     <div class="field"><label>Cliente</label><select id="tlCliente" onchange="renderTlExcel()"></select></div>
     <div class="field-row">
-      <div class="field"><label>Productividad (pallets por persona por hora, de quienes paletizan)</label><input type="number" id="tlProd" min="0" step="0.01"></div>
+      <div class="field"><label>Productividad (pallets por persona por hora, de toda la cuadrilla)</label><input type="number" id="tlProd" min="0" step="0.01"></div>
     </div>
-    <div class="field"><label>Puestos de apoyo por línea (no hacen pallets)</label><div id="tlApoyo" style="display:flex;flex-direction:column;gap:6px"></div>
+    <div class="field hidden"><label>Puestos de apoyo por línea (no hacen pallets)</label><div id="tlApoyo" style="display:flex;flex-direction:column;gap:6px"></div>
       <button class="btn btn-ghost btn-sm" style="align-self:flex-start;margin-top:4px" onclick="addPuestoApoyo('',1)">+ Puesto</button></div>
     <div class="field" id="tlExcelField"><label>Nombre en el Excel de ventas</label><select id="tlExcel"></select></div>
     <div class="field"><label>Insumos de la línea (consumo estándar por pallet)</label><div id="tlInsumos" style="display:flex;flex-direction:column;gap:6px"></div>
       <button class="btn btn-ghost btn-sm" style="align-self:flex-start;margin-top:4px" onclick="addInsumoTipo('','',0)">+ Insumo</button></div>
-    <div class="li-sub">Cuadrilla = quienes paletizan (meta ÷ (productividad × horas)) + los puestos de apoyo. Insumo esperado = pallets × consumo por pallet.</div>
+    <div class="li-sub">Personas necesarias = meta ÷ (productividad × horas). Insumo esperado = pallets × consumo por pallet.</div>
     <button class="btn btn-green btn-full" onclick="guardarTipoLinea()">Guardar</button>
   </div>
 </div>
@@ -1705,7 +1708,7 @@ function pasosTutorial(){
     }
   }
   if(rol==='responsable'||(S.lineasTipo||[]).length||rol==='admin'){
-    P.push({nav:'lineas',sel:'#lineasList',t:'Líneas de producción',d:'Cada bloque es una línea del día: meta, pallets, ritmo y si llega. Ábrelo para armar la cuadrilla con quienes marcaron, sumar pallets a cada persona, registrar paros e insumos.'});
+    P.push({nav:'lineas',sel:'#lineasList',t:'Líneas de producción',d:'Cada bloque es una línea del día: meta, pallets, ritmo y si llega. Ábrelo para armar la cuadrilla con quienes marcaron, sumar los pallets de la línea (+1 / +5), registrar paros e insumos.'});
     P.push({nav:'lineas',sel:'button[onclick*="abrirPlanLinea(fechaManana())"]',t:'Planificar líneas',d:'Programa líneas para cualquier día con su meta: la app calcula cuántas personas hacen falta.'});
   }
   if(rol==='admin'){
@@ -2329,18 +2332,17 @@ function updateBanner(){
 
 // ═══ LÍNEAS DE PRODUCCIÓN (módulo propio) ═══
 // Control y monitoreo de cantidades por línea, con su propio ciclo por día: no depende del turno regular.
-// Cada línea tiene fecha, meta en pallets y una cuadrilla escrita a mano (personas fuera del maestro):
-// quienes paletizan (cada pallet a su nombre) y puestos de apoyo que no hacen pallets (cajas, bandejas, etiquetas).
-// Personas = paletizadores (meta ÷ (productividad × horas)) + apoyo. Las tareas de operadores del maestro
-// (abastecimiento, montacargas) pueden marcarse como apoyo a una línea (t.lineaId) para medir sus horas.
-const PALETIZA='pallets';
+// Cada línea tiene fecha, meta en pallets y una cuadrilla de personas que marcaron entrada en la tablet.
+// Los pallets se cuentan al total de la línea. Personas necesarias = meta ÷ (productividad por persona-hora × horas).
+// Las tareas de operadores del maestro (abastecimiento, montacargas) pueden marcarse como apoyo a una línea (t.lineaId).
 const tipoLinea=id=>(S.lineasTipo||[]).find(t=>t.id===id);
-const totalPallets=l=>(l.personas||[]).reduce((s,p)=>s+(p.pallets||[]).length,0);
-const paletizadores=l=>(l.personas||[]).filter(p=>(p.puesto||PALETIZA)===PALETIZA);
-const deApoyo=l=>(l.personas||[]).filter(p=>(p.puesto||PALETIZA)!==PALETIZA);
+// Los pallets se cuentan al total de la línea (l.pallets: hora de cada pallet). La cuadrilla es solo la lista de personas.
+const totalPallets=l=>(l.pallets||[]).length;
+const paletizadores=l=>l.personas||[];   // todas las personas de la línea (ya no hay puestos)
+const deApoyo=()=>[];
 const apoyoTotal=ap=>(ap||[]).reduce((s,a)=>s+(+a.cant||0),0);
 const personasNecesarias=(meta,prod,horas)=>prod>0&&horas>0&&meta>0?Math.ceil(meta/(prod*horas)):0;
-const metaPosible=(paletizan,prod,horas)=>Math.floor(Math.max(0,paletizan)*prod*horas);
+const metaPosible=(personas,prod,horas)=>Math.floor(Math.max(0,personas)*prod*horas);
 const horasLinea=fecha=>horasProductivas(fecha)||hpRegular();
 const hoyStr=()=>fechaLocal(new Date());
 const fechaManana=()=>{ const d=new Date(); d.setDate(d.getDate()+1); return fechaLocal(d); };
@@ -2354,15 +2356,16 @@ function etiquetaDia(f){
   if(f===hoyStr()) return 'Hoy'; if(f===fechaManana()) return 'Mañana';
   return new Date(f+'T12:00:00').toLocaleDateString('es-PA',{weekday:'short',day:'numeric',month:'short'}).replace('.','');
 }
-function cuadrilla(meta, prod, horas, apoyo){
-  const pal=personasNecesarias(meta,prod,horas), ap=apoyoTotal(apoyo);
-  return {pal,ap,total:pal+ap,texto:pal?`<b>${pal+ap} personas</b>: ${pal} que paletizan${ap?' + '+ap+' de apoyo ('+apoyo.filter(a=>+a.cant>0).map(a=>a.cant+' '+esc(a.nombre.toLowerCase())).join(', ')+')':''}`:''};
+// Personas necesarias = meta ÷ (productividad por persona-hora × horas), sin distinguir puestos
+function cuadrilla(meta, prod, horas){
+  const n=personasNecesarias(meta,prod,horas);
+  return {pal:n,ap:0,total:n,texto:n?`<b>${n} persona${n===1?'':'s'}</b>`:''};
 }
 function datosDeTipo(t){ return {tipoId:t.id,nombre:t.nombre,clienteId:t.clienteId||null,cliente:(S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||'',prod:t.prod||0,apoyo:JSON.parse(JSON.stringify(t.apoyo||[])),
   insumos:(t.insumos||[]).map(i=>({id:uid(),nombre:i.nombre,unidad:i.unidad||'unid',porPallet:+i.porPallet||0,entregas:[],sobrante:null}))}; }
 function nuevaLinea(t, meta, horas, fecha){
   fecha=fecha||hoyStr();
-  return {id:uid(),fecha,...datosDeTipo(t),meta:+meta||0,horas:+horas||horasLinea(fecha),excel:null,estado:'pendiente',personas:[],inicio:null,fin:null,por:quien()};
+  return {id:uid(),fecha,...datosDeTipo(t),meta:+meta||0,horas:+horas||horasLinea(fecha),excel:null,estado:'pendiente',personas:[],pallets:[],inicio:null,fin:null,por:quien()};
 }
 // Una sola vez: las líneas que vivían dentro de los turnos y los planes pasan a S.lineas
 let _lineasMigradas=false;
@@ -2377,6 +2380,8 @@ function migrarLineas(){
     S.lineasPlan.filter(p=>!p.turnoId).forEach(p=>{ const t=tipoLinea(p.tipoId); if(t&&!ya.has(p.id)){ S.lineas.push({...nuevaLinea(t,p.meta,p.horas,p.fecha),id:p.id,por:p.por||''}); ya.add(p.id); } });
     S.lineasPlan=[];
   }
+  // Pallets que estaban a nombre de cada persona pasan al total de la línea
+  S.lineas.forEach(l=>{ if(!Array.isArray(l.pallets)){ l.pallets=(l.personas||[]).flatMap(p=>p.pallets||[]).sort((a,b)=>a-b); (l.personas||[]).forEach(p=>{ delete p.pallets; delete p.puesto; }); _lineasMigradas=true; } });
   if(antes!==S.lineas.length) _lineasMigradas=true;
 }
 function ritmoLinea(l, now){
@@ -2386,7 +2391,7 @@ function ritmoLinea(l, now){
   // Proyección: al ritmo con la línea corriendo, por las horas que faltan (sin contar un paro en curso)
   const proy=l.estado==='corriendo'?Math.round(tot+ritmoEf*Math.max(0,l.horas-h)):tot;
   const fin=l.fin||now, hp=pp=>pp.reduce((a,p)=>a+horasEnLinea(p,l,fin),0);
-  const hPal=l.inicio?hp(paletizadores(l)):0, hTot=l.inicio?hp(l.personas):0;
+  const hTot=l.inicio?hp(l.personas||[]):0, hPal=hTot;
   return {h,tot,ritmo,ritmoEf,proy,paroH,disponibilidad:h?Math.max(0,(h-paroH)/h):1,porPaletizador:hPal?tot/hPal:0,porPersona:hTot?tot/hTot:0,hPal,hTot};
 }
 // ── Paros de línea
@@ -2416,7 +2421,7 @@ function apoyoOperadores(lineaId){
 // Bloques (en la vista de líneas y como resumen en el turno)
 function htmlBloques(L, vacio){
   return L.length?L.map(l=>{
-    const r=ritmoLinea(l), pct=l.meta?Math.min(100,r.tot/l.meta*100):0, nP=paletizadores(l).length, nA=deApoyo(l).length;
+    const r=ritmoLinea(l), pct=l.meta?Math.min(100,r.tot/l.meta*100):0, nP=(l.personas||[]).length;
     const est={pendiente:['ba','Por arrancar'],corriendo:['bg','En marcha'],cerrada:['bgy','Cerrada']}[l.estado];
     const c=cuadrilla(l.meta,l.prod,l.horas,l.apoyo);
     const agota=insumosPorAgotar(l);
@@ -2426,7 +2431,7 @@ function htmlBloques(L, vacio){
       :`Cumplimiento ${l.meta?Math.round(r.tot/l.meta*100):0}%${r.paroH>0.01?' · paros '+fmtH(r.paroH):''}`;
     return `<div class="lb lb-${l.paroActivo?'paro':l.estado}" onclick="abrirLinea('${l.id}')">
       <div class="lb-top"><span class="lb-name">Línea ${esc(l.nombre)}</span><span class="badge ${l.paroActivo?'br':est[0]}">${l.paroActivo?'En paro':est[1]}</span></div>
-      <div class="lb-cli">${esc(l.cliente||'')}${nP+nA?` · ${nP} paletizan${nA?' · '+nA+' apoyo':''}`:''}${l.fecha!==hoyStr()?' · desde '+etiquetaDia(l.fecha).toLowerCase():''}${l.responsable?' · '+esc(l.responsable):''}</div>
+      <div class="lb-cli">${esc(l.cliente||'')}${nP?` · ${nP} persona${nP===1?'':'s'}`:''}${l.fecha!==hoyStr()?' · desde '+etiquetaDia(l.fecha).toLowerCase():''}${l.responsable?' · '+esc(l.responsable):''}</div>
       <div class="lb-num"><b>${r.tot}</b> / ${l.meta} pallets</div>
       <div class="pbar-wrap"><div class="pbar-fill ${pct>=100||r.proy>=l.meta?'pg':'pa'}" style="width:${pct}%"></div></div>
       <div class="lb-sub">${sub}</div></div>`;
@@ -2449,7 +2454,7 @@ function abrirTvLineas(){ if(!currentUser||currentUser.rol!=='admin') return; co
 function renderPlanesLinea(){
   const el=document.getElementById('lineasPlanList'); if(!el) return;
   const P=(S.lineas||[]).filter(l=>l.estado==='pendiente'&&l.fecha>hoyStr()).sort((a,b)=>a.fecha.localeCompare(b.fecha));
-  el.innerHTML=P.length?P.map(l=>{ const c=cuadrilla(l.meta,l.prod,l.horas,l.apoyo);
+  el.innerHTML=P.length?P.map(l=>{ const c=cuadrilla(l.meta,l.prod,l.horas);
     return `<div class="plan-linea"><span><b>${etiquetaDia(l.fecha)}</b> · Línea ${esc(l.nombre)} · ${l.meta} pallets · ${c.total} personas</span>
     <span class="btn-row"><button class="btn btn-ghost btn-sm" onclick="abrirPlanLinea(null,'${l.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarPlanLinea('${l.id}')" aria-label="Eliminar plan">×</button></span></div>`; }).join('')
     :'<div class="empty-text">Nada planificado para los próximos días.</div>';
@@ -2458,33 +2463,26 @@ function renderPlanesLinea(){
 // Ventana de la línea
 let _lineaAbierta=null;
 function abrirLinea(id){ _lineaAbierta=id; renderLineaModal(); showModal('modalLinea'); }
-function opcionesPuesto(l, sel){
-  const ap=(l.apoyo||[]).filter(a=>a.nombre);
-  return `<option value="${PALETIZA}">Paletiza</option>`+ap.map(a=>`<option value="${esc(a.nombre)}"${a.nombre===sel?' selected':''}>${esc(a.nombre)}</option>`).join('')+`<option value="Otro apoyo">Otro apoyo</option>`;
-}
 function renderLineaModal(foco){
   const l=lineaDe(_lineaAbierta); if(!l) return;
-  const r=ritmoLinea(l), c=cuadrilla(l.meta,l.prod,l.horas,l.apoyo), P=paletizadores(l), A=deApoyo(l);
+  const r=ritmoLinea(l), c=cuadrilla(l.meta,l.prod,l.horas), n=(l.personas||[]).length;
   document.getElementById('lineaTitulo').textContent='Línea '+l.nombre;
-  // Siguiente puesto sugerido: el primero que aún no tiene su cantidad
-  const falta=l.estado==='pendiente'&&P.length>=c.pal?(l.apoyo||[]).find(a=>A.filter(p=>p.puesto===a.nombre).length<(+a.cant||0)):null;
-  const agregar=htmlCuadrillaMarcada(l, falta&&falta.nombre);
-  const chipsApoyo=A.map(p=>{ const e=estadoEnLinea(p); return `<span class="chip selected${e.bloqueo?' chip-off':''}" ${l.estado==='pendiente'?`onclick="quitarPersonaLinea('${p.id}')" title="Quitar"`:''}>${esc(p.nombre)} · ${esc(p.puesto)}${e.bloqueo?' · '+e.texto:''}${l.estado==='pendiente'?' ×':''}</span>`; }).join('');
+  const agregar=htmlCuadrillaMarcada(l);
+  const chips=(l.personas||[]).map(p=>{ const e=estadoEnLinea(p), quitar=l.estado==='pendiente';
+    return `<span class="chip selected${e.bloqueo?' chip-off':''}" ${quitar?`onclick="quitarPersonaLinea('${p.id}')" title="Quitar"`:''}>${esc(p.nombre)}${e.bloqueo?' · '+e.texto:''}${quitar?' ×':''}</span>`; }).join('');
   let h='';
   if(l.estado==='pendiente'){
-    const puestos=(l.apoyo||[]).filter(a=>+a.cant>0).map(a=>`${esc(a.nombre)} ${A.filter(p=>p.puesto===a.nombre).length} de ${a.cant}`).join(' · ');
-    h+=`<div class="li-sub">${esc(l.cliente||'')} · productividad ${l.prod} pallets por persona-hora (quienes paletizan)</div>
+    h+=`<div class="li-sub">${esc(l.cliente||'')}${l.prod?' · productividad '+l.prod+' pallets por persona-hora':''}</div>
     <div class="field-row"><div class="field"><label>Meta del día (pallets)</label><input type="number" id="lmMeta" min="1" value="${l.meta||''}" oninput="lineaMetaHoras()"></div>
     <div class="field"><label>Horas de la línea</label><input type="number" id="lmHoras" min="0.5" step="0.5" value="${l.horas}" oninput="lineaMetaHoras()"></div></div>
     <div class="info-box" id="lmCalc">${c.texto?'Se necesitan '+c.texto+'.':'Ingresa la meta.'}</div>
-    <div class="field"><label>Cuadrilla · ${l.personas.length} de ${c.total}</label>${agregar}</div>
-    <div class="li-sub">Paletizan: ${P.length} de ${c.pal}${puestos?' · '+puestos:''}</div>
-    <div class="chip-wrap">${P.map(p=>{ const e=estadoEnLinea(p); return `<span class="chip selected${e.bloqueo?' chip-off':''}" onclick="quitarPersonaLinea('${p.id}')" title="Quitar">${esc(p.nombre)}${e.bloqueo?' · '+e.texto:''} ×</span>`; }).join('')}${chipsApoyo}</div>
+    <div class="field"><label>Cuadrilla · ${n}${c.total?' de '+c.total:''} persona${(c.total||n)===1?'':'s'}</label>${agregar}</div>
+    <div class="chip-wrap">${chips}</div>
     ${l.fecha>hoyStr()?`<div class="warn-box">Planificada para ${etiquetaDia(l.fecha).toLowerCase()}: ese día la cuadrilla se arma con quienes marquen entrada en la tablet.</div>`:`<div id="lmArrancar">${htmlArrancar(l)}</div>`}
     <button class="btn btn-ghost btn-sm" style="align-self:center" onclick="eliminarLinea()">Quitar esta línea</button>`;
   } else {
-    const pct=l.meta?Math.round(r.tot/l.meta*100):0;
-    if(l.estado==='corriendo') h+=l.paroActivo
+    const pct=l.meta?Math.round(r.tot/l.meta*100):0, corre=l.estado==='corriendo', ult=(l.pallets||[]).slice(-1)[0];
+    if(corre) h+=l.paroActivo
       ?`<div class="paro-on"><div><b>En paro</b> · ${esc(l.paroActivo.causa)}${l.paroActivo.nota?' · '+esc(l.paroActivo.nota):''}<small>desde ${horaHM(l.paroActivo.inicio)} · ${fmtH(paroDur(l.paroActivo))}</small></div><button class="btn btn-green" onclick="reanudarLinea()">Reanudar</button></div>`
       :_paroPick?`<div class="paro-pick"><div class="asig-ttl">Causa del paro</div><div class="chip-wrap">${causasParo().map((c,i)=>`<div class="chip" onclick="iniciarParo(${i})">${esc(c)}</div>`).join('')}</div>
           <input type="text" id="paroNota" placeholder="Nota (opcional)"><button class="btn btn-ghost btn-sm" style="align-self:flex-start" onclick="_paroPick=false;renderLineaModal()">Cancelar</button></div>`
@@ -2494,18 +2492,16 @@ function renderLineaModal(foco){
     h+=`<div class="stat-row">
       <div class="stat-card"><div class="stat-label">Pallets</div><div class="stat-val">${r.tot} <span style="font-size:.9rem;color:var(--t3)">/ ${l.meta}</span></div><div class="stat-sub">${pct}% de la meta</div></div>
       <div class="stat-card"><div class="stat-label">Ritmo</div><div class="stat-val">${fmtN(r.ritmo)}</div><div class="stat-sub">pallets/h · ${fmtH(r.h)}${r.paroH>0.01?' · '+Math.round(r.disponibilidad*100)+'% corriendo':''}</div></div>
-      <div class="stat-card"><div class="stat-label">${l.estado==='corriendo'?'Proyección':'Cuadrilla'}</div><div class="stat-val ${l.estado==='corriendo'?(r.proy>=l.meta?'g':'a'):''}">${l.estado==='corriendo'?r.proy:l.personas.length}</div><div class="stat-sub">${l.estado==='corriendo'?'al cierre':'personas'}</div></div></div>
-    <div class="li-sub">${P.length} paletizan · ${A.length} de apoyo · ${fmtN(r.porPaletizador)} pallets por paletizador-hora · ${fmtN(r.porPersona)} por persona-hora de la cuadrilla${l.responsable?' · a cargo: '+esc(l.responsable):''}</div>
+      <div class="stat-card"><div class="stat-label">${corre?'Proyección':'Cuadrilla'}</div><div class="stat-val ${corre?(r.proy>=l.meta?'g':'a'):''}">${corre?r.proy:n}</div><div class="stat-sub">${corre?'al cierre':'personas'}</div></div></div>
+    <div class="li-sub">${n} persona${n===1?'':'s'} · ${fmtN(r.porPersona)} pallets por persona-hora${l.prod?' (objetivo '+l.prod+')':''}${l.responsable?' · a cargo: '+esc(l.responsable):''}</div>
     ${(()=>{ const op=apoyoOperadores(l.id); return op.total?`<div class="info-box">Apoyo de operadores: <b>${fmtN(op.total)} h-persona</b> · ${op.personas.map(o=>esc(o.nombre.split(' ')[0])+' '+fmtN(o.h)+' h ('+[...o.tareas].map(esc).join(', ')+')').join(' · ')}</div>`:''; })()}
-    <div class="asig-ttl">Paletizan</div>`;
-    h+=P.map(p=>{ const n=p.pallets.length, hp=Math.max(1/60,horasEnLinea(p,l)), rp=n/hp, ok=!l.prod||rp>=l.prod, e=estadoEnLinea(p), corre=l.estado==='corriendo';
-      return `<div class="lp-row${e.bloqueo&&corre?' lp-off':''}"><div class="lp-name">${esc(p.nombre)}<small style="color:${n?(ok?'var(--green)':'var(--amber)'):'var(--t3)'}">${fmtN(rp)} pallets/h${l.prod?' · objetivo '+l.prod:''}</small>${e.bloqueo&&corre?`<small class="lp-estado">${e.texto}</small>`:''}</div>
-        ${corre?`<button class="btn btn-ghost" onclick="sumarPallet('${p.id}',-1)" aria-label="Restar un pallet">−</button>`:''}
-        <span class="lp-cnt">${n}</span>
-        ${corre?(e.bloqueo?`<button class="btn btn-ghost" disabled>${e.corto}</button>`:`<button class="btn btn-green" onclick="sumarPallet('${p.id}',1)">+1 pallet</button>`):''}</div>`; }).join('')||'<div class="empty-text">Nadie paletiza todavía.</div>';
-    if(A.length) h+=`<div class="asig-ttl">Apoyo</div><div class="chip-wrap">${chipsApoyo}</div>`;
+    <div class="lp-row lp-total"><div class="lp-name">Pallets<small>${ult?'último '+horaHM(ult):'sin pallets aún'}</small></div>
+      ${corre?`<button class="btn btn-ghost" onclick="sumarPallet(-1)" aria-label="Restar un pallet">−</button>`:''}
+      <span class="lp-cnt">${r.tot}</span>
+      ${corre?`<button class="btn btn-green" onclick="sumarPallet(1)">+1</button><button class="btn btn-green" onclick="sumarPallet(5)">+5</button>`:''}</div>
+    <div class="asig-ttl">Cuadrilla · ${n} persona${n===1?'':'s'}</div><div class="chip-wrap">${chips||'<span class="li-sub">Sin personas</span>'}</div>`;
     h+=htmlInsumosLinea(l)+htmlParosLinea(l);
-    if(l.estado==='corriendo') h+=`<div class="field"><label>Se suma alguien a la línea</label>${agregar}</div>
+    if(corre) h+=`<div class="field"><label>Se suma alguien a la línea</label>${agregar}</div>
       <button class="btn btn-indigo btn-full" onclick="cerrarLinea()">Cerrar línea</button>`;
   }
   document.getElementById('lineaBody').innerHTML=h;
@@ -2515,7 +2511,7 @@ function htmlArrancar(l){ const f=faltaParaArrancar(l);
 function lineaMetaHoras(){
   const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='pendiente'||!document.getElementById('lmMeta')) return;
   l.meta=+document.getElementById('lmMeta').value||0; l.horas=+document.getElementById('lmHoras').value||l.horas;
-  const c=cuadrilla(l.meta,l.prod,l.horas,l.apoyo);
+  const c=cuadrilla(l.meta,l.prod,l.horas);
   document.getElementById('lmCalc').innerHTML=c.texto?'Se necesitan '+c.texto+'.':'Ingresa la meta.';
   const ar=document.getElementById('lmArrancar'); if(ar) ar.innerHTML=htmlArrancar(l);
 }
@@ -2524,12 +2520,11 @@ function disponiblesLinea(){
   const ocupados=new Set((S.lineas||[]).filter(x=>x.estado!=='cerrada'&&(x.fecha===hoyStr()||x.estado==='corriendo')).flatMap(x=>x.personas.map(p=>p.personaId||'n:'+normTxt(p.nombre))));
   return presentes(['linea']).filter(p=>!ocupados.has(p.id)&&!ocupados.has('n:'+normTxt(p.nombre)));
 }
-function htmlCuadrillaMarcada(l, puestoSug){
+function htmlCuadrillaMarcada(l){
   if(l.estado==='cerrada') return '';
   const D=disponiblesLinea();
   if(!D.length) return `<div class="li-sub" style="margin-top:6px">${_marcasCargadas?'Nadie disponible. El personal de la línea marca su entrada en la tablet con la posición «Línea de producción» y aparece aquí.':'Leyendo el marcaje…'}</div>`;
-  return `<div class="edit-row" style="margin-top:6px"><span class="li-sub">Puesto</span><select id="lmPuesto" style="flex:1">${opcionesPuesto(l,puestoSug)}</select></div>
-    <div class="li-sub">Marcaron para la línea (toca para agregar con el puesto elegido):</div><div class="chip-wrap">${D.map(p=>`<div class="chip" onclick="agregarMarcadoLinea('${p.id}')">${esc(p.nombre)}</div>`).join('')}</div>`;
+  return `<div class="li-sub" style="margin-top:6px">Marcaron para la línea (toca para agregar):</div><div class="chip-wrap">${D.map(p=>`<div class="chip" onclick="agregarMarcadoLinea('${p.id}')">${esc(p.nombre)}</div>`).join('')}</div>`;
 }
 // Estado de una persona de la línea según su marcaje: en almuerzo o con salida no se le suman pallets
 function estadoEnLinea(p){
@@ -2559,14 +2554,14 @@ function faltaParaArrancar(l){
   if(!(l.meta>0)) return 'Pon la meta del día para arrancar.';
   const sin=l.personas.filter(p=>estadoEnLinea(p).bloqueo||!p.personaId);
   if(sin.length) return 'No han marcado o no están trabajando: '+sin.map(p=>esc(p.nombre)+(p.personaId?' ('+estadoEnLinea(p).corto.toLowerCase()+')':'')).join(', ')+'. Quítalos o espera su marcaje.';
-  if(!paletizadores(l).length) return 'Agrega al menos una persona que paletice.';
+  if(!(l.personas||[]).length) return 'Agrega al menos una persona de las que marcaron.';
   return '';
 }
 async function agregarMarcadoLinea(pid){
   const l=lineaDe(_lineaAbierta), p=_personal.find(x=>x.id===pid); if(!l||!p) return;
   if(!disponiblesLinea().some(x=>x.id===pid)){ showToast(p.nombre+' no está disponible: no ha marcado entrada o ya está en otra línea','error'); return; }
   lineaMetaHoras();
-  l.personas.push({id:uid(),nombre:p.nombre,personaId:pid,puesto:(document.getElementById('lmPuesto')||{}).value||PALETIZA,pallets:[],desde:l.estado==='corriendo'?Date.now():null});
+  l.personas.push({id:uid(),nombre:p.nombre,personaId:pid,desde:l.estado==='corriendo'?Date.now():null});
   renderLineaModal(); renderLineas(); await save();
 }
 async function quitarPersonaLinea(pid){ const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='pendiente') return; lineaMetaHoras(); l.personas=l.personas.filter(p=>p.id!==pid); renderLineaModal(); renderLineas(); await save(); }
@@ -2584,11 +2579,11 @@ async function arrancarLinea(){
   renderLineaModal(); renderLineas(); await save(); showToast('Línea '+l.nombre+' en marcha');
   emitirAviso('lin_arranca','arranca|'+l.id,'Arrancó la línea '+l.nombre,'Meta '+l.meta+' pallets · '+l.personas.length+' personas'+(l.responsable?' · a cargo '+l.responsable:''),{accion:'linea',lid:l.id});
 }
-async function sumarPallet(pid, n){
-  const l=lineaDe(_lineaAbierta), p=l&&l.personas.find(x=>x.id===pid); if(!p||l.estado!=='corriendo') return;
-  const e=estadoEnLinea(p);
-  if(n>0&&e.bloqueo){ showToast(p.nombre+': '+e.texto.toLowerCase()+'. No se le suman pallets hasta que marque su regreso.','error'); return; }
-  if(n>0) p.pallets.push(Date.now()); else if(p.pallets.length) p.pallets.pop();
+// Suma o resta pallets al total de la línea
+async function sumarPallet(n){
+  const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='corriendo') return;
+  l.pallets=l.pallets||[]; const t=Date.now();
+  if(n>0) for(let k=0;k<n;k++) l.pallets.push(t); else l.pallets.splice(Math.max(0,l.pallets.length+n));
   renderLineaModal(); renderLineas(); await save(); revisarProduccion(l);
 }
 // Paros: la línea queda «en paro» con su causa hasta que se reanuda
@@ -2671,10 +2666,10 @@ function setPlanFecha(f, horas){
 function plHorasPorFecha(){ setPlanFecha(document.getElementById('plFecha').value); }
 function calcPlanLinea(){
   const t=tipoLinea(document.getElementById('plTipo').value)||{}, meta=+document.getElementById('plMeta').value||0, horas=+document.getElementById('plHoras').value||0, per=+document.getElementById('plPersonas').value||0;
-  const c=cuadrilla(meta,t.prod,horas,t.apoyo);
-  let h=t.prod?`Productividad: <b>${t.prod}</b> pallets por persona-hora (quienes paletizan).`:'Este tipo de línea no tiene productividad configurada.';
-  if(c.pal) h+=`<br>Se necesitan ${c.texto} para ${meta} pallets en ${horas} h.`;
-  if(per&&t.prod){ const pal=per-c.ap; h+=pal>0?`<br>Con ${per} personas (${pal} paletizan) alcanzas <b>${metaPosible(pal,t.prod,horas)} pallets</b>${c.total&&per<c.total?` · faltan ${c.total-per} personas para la meta`:''}.`:`<br>Con ${per} personas no alcanza ni para los ${c.ap} puestos de apoyo.`; }
+  const c=cuadrilla(meta,t.prod,horas);
+  let h=t.prod?`Productividad: <b>${t.prod}</b> pallets por persona-hora.`:'Este tipo de línea no tiene productividad configurada.';
+  if(c.total) h+=`<br>Se necesitan ${c.texto} para ${meta} pallets en ${horas} h.`;
+  if(per&&t.prod) h+=`<br>Con ${per} personas alcanzas <b>${metaPosible(per,t.prod,horas)} pallets</b>${c.total&&per<c.total?` · faltan ${c.total-per} personas para la meta`:''}.`;
   document.getElementById('plCalc').innerHTML=h;
 }
 async function guardarPlanLinea(){
@@ -2723,7 +2718,7 @@ async function guardarTipoLinea(){
   if(!nombre||!(prod>0)){ showToast('Pon el nombre y la productividad','error'); return; }
   const apoyo=[...document.querySelectorAll('#tlApoyo .edit-row')].map(r=>{ const [n,c]=r.querySelectorAll('input'); return {nombre:n.value.trim(),cant:Math.max(0,Math.round(+c.value||0))}; }).filter(a=>a.nombre);
   const insumos=[...document.querySelectorAll('#tlInsumos .edit-row')].map(r=>{ const [n,u,q]=r.querySelectorAll('input'); return {nombre:n.value.trim(),unidad:u.value.trim()||'unid',porPallet:Math.max(0,+q.value||0)}; }).filter(i=>i.nombre&&i.porPallet>0);
-  const d={nombre,prod,apoyo,insumos,clienteId:document.getElementById('tlCliente').value||null,excel:document.getElementById('tlExcel').value||null};
+  const d={nombre,prod,apoyo:[],insumos,clienteId:document.getElementById('tlCliente').value||null,excel:document.getElementById('tlExcel').value||null};
   S.lineasTipo=S.lineasTipo||[];
   if(_tipoEdit) Object.assign(tipoLinea(_tipoEdit),d); else S.lineasTipo.push({id:uid(),...d});
   hideModal('modalTipoLinea'); renderInsights(); renderAll(); await save(); showToast('Tipo de línea guardado');
@@ -2740,14 +2735,14 @@ async function eliminarTipoLinea(id){ if(!confirm('¿Eliminar este tipo de líne
 function buildLineasSection(){
   const T=S.lineasTipo||[], L=(S.lineas||[]).filter(l=>l.estado!=='pendiente');
   let h=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sLinCfg','cLinCfg')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Líneas de producción</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalTipoLinea()">+ Tipo</button><span class="chevron open" id="cLinCfg">▼</span></div></div><div class="sec-body" id="sLinCfg">`;
-  if(!T.length) h+=`<div class="warn-box">Crea los tipos de línea (por ejemplo Inserto botella, Canastilla) con su productividad y sus puestos de apoyo. Luego los supervisores podrán planificarlas y arrancarlas desde el tablero.</div>`;
+  if(!T.length) h+=`<div class="warn-box">Crea los tipos de línea (por ejemplo Inserto botella, Canastilla) con su productividad (pallets por persona-hora). Luego los supervisores podrán planificarlas y arrancarlas desde el tablero.</div>`;
   T.forEach(t=>{ const mk=t.excel&&maestroRow(t.excel), ap=(t.apoyo||[]).filter(a=>+a.cant>0);
-    h+=`<div class="list-item"><div class="li-info"><div class="li-name">${esc(t.nombre)}</div><div class="li-sub">${esc((S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||'Sin cliente')} · ${t.prod} pallets por persona-hora${ap.length?' · apoyo: '+ap.map(a=>a.cant+' '+esc(a.nombre.toLowerCase())).join(', '):''}${mk?' · Excel: '+esc(mk.actividad):''}</div></div>
+    h+=`<div class="list-item"><div class="li-info"><div class="li-name">${esc(t.nombre)}</div><div class="li-sub">${esc((S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||'Sin cliente')} · ${t.prod} pallets por persona-hora${mk?' · Excel: '+esc(mk.actividad):''}</div></div>
     <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalTipoLinea('${t.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarTipoLinea('${t.id}')" aria-label="Eliminar tipo">×</button></div></div>`; });
   if(L.length){
     const por={}; L.forEach(l=>{ const o=por[l.nombre]||(por[l.nombre]={n:0,pal:0,meta:0,hPal:0,hTot:0,pers:0,hOp:0}); const r=ritmoLinea(l); o.n++; o.pal+=r.tot; o.meta+=l.meta||0; o.hPal+=r.hPal; o.hTot+=r.hTot; o.pers+=l.personas.length; o.hOp+=apoyoOperadores(l.id).total; });
-    h+=`<table class="rt-table"><tr><th>Línea</th><th>Días</th><th>Pallets</th><th>Meta</th><th>Cumpl.</th><th>Personas prom.</th><th>Pallets/paletizador-h</th><th>Pallets/persona-h</th><th>Horas operadores</th></tr>`+
-      Object.entries(por).map(([n,o])=>`<tr><td>${esc(n)}</td><td>${o.n}</td><td>${o.pal}</td><td>${o.meta}</td><td><b style="color:${o.pal>=o.meta?'var(--green)':'var(--amber)'}">${o.meta?Math.round(o.pal/o.meta*100):0}%</b></td><td>${fmtN(o.pers/o.n)}</td><td>${o.hPal?fmtN(o.pal/o.hPal):'—'}</td><td>${o.hTot?fmtN(o.pal/o.hTot):'—'}</td><td>${fmtN(o.hOp)}</td></tr>`).join('')+`</table>
+    h+=`<table class="rt-table"><tr><th>Línea</th><th>Días</th><th>Pallets</th><th>Meta</th><th>Cumpl.</th><th>Personas prom.</th><th>Pallets/persona-h</th><th>Horas operadores</th></tr>`+
+      Object.entries(por).map(([n,o])=>`<tr><td>${esc(n)}</td><td>${o.n}</td><td>${o.pal}</td><td>${o.meta}</td><td><b style="color:${o.pal>=o.meta?'var(--green)':'var(--amber)'}">${o.meta?Math.round(o.pal/o.meta*100):0}%</b></td><td>${fmtN(o.pers/o.n)}</td><td>${o.hTot?fmtN(o.pal/o.hTot):'—'}</td><td>${fmtN(o.hOp)}</td></tr>`).join('')+`</table>
       <div class="li-sub">Horas operadores: horas-persona de tareas del turno regular marcadas como apoyo a la línea (abastecimiento, montacargas…).</div>`;
   }
   // Causas de paro (configurables) y paros por causa
@@ -3881,13 +3876,13 @@ function exportExcel(turnoId){
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(opRows),'Costos por Colaborador');
 
   // Líneas de producción: control de cantidades
-  const linRows=[['Fecha','Línea','Cliente','Actividad en Excel','Meta (pallets)','Pallets','Cumplimiento (%)','Personas','Paletizan','Apoyo','Horas línea','Pallets por paletizador-hora','Pallets por persona-hora','Productividad objetivo','Horas operadores de apoyo','Minutos en paro','Disponibilidad (%)','Responsable','Inicio','Fin','Estado']];
-  const perRows=[['Fecha','Línea','Cliente','Persona','Puesto','Pallets','Horas','Pallets por hora','Objetivo (pallets/h)']];
+  const linRows=[['Fecha','Línea','Cliente','Actividad en Excel','Meta (pallets)','Pallets','Cumplimiento (%)','Personas','Horas línea','Pallets por persona-hora','Productividad objetivo','Horas operadores de apoyo','Minutos en paro','Disponibilidad (%)','Responsable','Inicio','Fin','Estado']];
+  const perRows=[['Fecha','Línea','Cliente','Persona','Desde','Horas en la línea (sin almuerzo)']];
   const fechasT=new Set(turnos.map(t=>t.fecha));
   (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(!turnoId||fechasT.has(l.fecha))).forEach(l=>{ const t={fecha:l.fecha};
     const r=ritmoLinea(l), fin=l.fin||Date.now();
-    linRows.push([t.fecha,l.nombre,l.cliente||'',(l.excel||{}).actividad||'',l.meta,r.tot,l.meta?Math.round(r.tot/l.meta*100):'',l.personas.length,paletizadores(l).length,deApoyo(l).length,r2(r.h),r.hPal?r2(r.porPaletizador):'',r.hTot?r2(r.porPersona):'',l.prod||'',r2(apoyoOperadores(l.id).total),Math.round(r.paroH*60),Math.round(r.disponibilidad*100),l.responsable||'',hora(l.inicio),l.fin?hora(l.fin):'En marcha',l.estado==='cerrada'?'Cerrada':'En marcha']);
-    l.personas.forEach(p=>{ const h=msH(fin-(p.desde||l.inicio)), pal=(p.puesto||PALETIZA)===PALETIZA; perRows.push([t.fecha,l.nombre,l.cliente||'',p.nombre,pal?'Paletiza':p.puesto,pal?p.pallets.length:'',r2(h),pal&&h?r2(p.pallets.length/h):'',pal?(l.prod||''):'']); });
+    linRows.push([t.fecha,l.nombre,l.cliente||'',(l.excel||{}).actividad||'',l.meta,r.tot,l.meta?Math.round(r.tot/l.meta*100):'',l.personas.length,r2(r.h),r.hTot?r2(r.porPersona):'',l.prod||'',r2(apoyoOperadores(l.id).total),Math.round(r.paroH*60),Math.round(r.disponibilidad*100),l.responsable||'',hora(l.inicio),l.fin?hora(l.fin):'En marcha',l.estado==='cerrada'?'Cerrada':'En marcha']);
+    l.personas.forEach(p=>perRows.push([t.fecha,l.nombre,l.cliente||'',p.nombre,hora(p.desde||l.inicio),r2(horasEnLinea(p,l,fin))]));
   });
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(linRows),'Líneas de producción');
   const parRows=[['Fecha','Línea','Causa','Inicio','Fin','Minutos','Nota','Registrado por']];
@@ -3896,7 +3891,7 @@ function exportExcel(turnoId){
     [...(l.paros||[]),...(l.paroActivo?[l.paroActivo]:[])].forEach(p=>parRows.push([l.fecha,l.nombre,p.causa,hora(p.inicio),p.fin?hora(p.fin):'En curso',Math.round(paroDur(p)*60),p.nota||'',p.por||'']));
     (l.insumos||[]).forEach(i=>{ const e=estadoInsumo(i,l); insRows.push([l.fecha,l.nombre,i.nombre,i.unidad,i.porPallet,totalPallets(l),r2(e.esp),r2(e.ent),e.sob??'',e.real==null?'':r2(e.real),e.dif==null?'':r2(e.dif),e.difPct==null?'':Math.round(e.difPct)]); });
   });
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(perRows),'Pallets por persona');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(perRows),'Cuadrilla de línea');
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(parRows),'Paros de línea');
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(insRows),'Insumos de línea');
 
@@ -4335,19 +4330,18 @@ function tvLineasBody(){
   const L=lineasHoy(), now=Date.now();
   if(!L.length) return `<div class="tv-body"><div class="tv-no-turno"><div class="tv-no-title">Sin líneas de producción hoy</div><div style="font-size:.9rem">Actualización automática cada 15 segundos</div></div></div>`;
   const tarjetas=L.map(l=>{
-    const r=ritmoLinea(l,now), pct=l.meta?Math.min(100,r.tot/l.meta*100):0, P=paletizadores(l), A=deApoyo(l);
+    const r=ritmoLinea(l,now), pct=l.meta?Math.min(100,r.tot/l.meta*100):0, nP=(l.personas||[]).length;
     const esperado=l.estado==='corriendo'&&l.horas?Math.min(100,r.h/l.horas*100):null;
     const restanH=Math.max(0,l.horas-r.h), necesario=l.estado==='corriendo'&&restanH>0?Math.max(0,l.meta-r.tot)/restanH:null;
-    const ultimo=Math.max(0,...l.personas.flatMap(p=>p.pallets||[]));
+    const ultimo=(l.pallets||[]).slice(-1)[0]||0;
     const vaBien=r.proy>=l.meta;
     const estado=l.paroActivo?['tv-br','En paro']:{pendiente:['tv-ba','Por arrancar'],corriendo:[vaBien?'tv-bg':'tv-ba',vaBien?'En meta':'Bajo el ritmo'],cerrada:['tv-bgy','Cerrada']}[l.estado];
     const agota=insumosPorAgotar(l);
-    const rank=P.map(p=>({n:p.nombre,c:(p.pallets||[]).length,rt:(p.pallets||[]).length/Math.max(1/60,msH((l.fin||now)-(p.desde||l.inicio||now)))})).sort((a,b)=>b.c-a.c);
-    if(l.estado==='pendiente'){ const c=cuadrilla(l.meta,l.prod,l.horas,l.apoyo);
+    if(l.estado==='pendiente'){ const c=cuadrilla(l.meta,l.prod,l.horas);
       return `<div class="tvl"><div class="tvl-top"><div><div class="tvl-name">Línea ${esc(l.nombre)}</div><div class="tvl-cli">${esc(l.cliente||'')}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
-        <div class="tvl-big"><b>0</b><span>/ ${l.meta} pallets</span></div><div class="tvl-sub">Meta del día ${l.meta} pallets · cuadrilla de ${c.total} personas (${c.pal} paletizan${c.ap?' + '+c.ap+' apoyo':''})</div></div>`; }
+        <div class="tvl-big"><b>0</b><span>/ ${l.meta} pallets</span></div><div class="tvl-sub">Meta del día ${l.meta} pallets · cuadrilla de ${c.total} personas</div></div>`; }
     return `<div class="tvl tvl-${l.estado}">
-      <div class="tvl-top"><div><div class="tvl-name">Línea ${esc(l.nombre)}</div><div class="tvl-cli">${esc(l.cliente||'')} · ${P.length} paletizan${A.length?' · '+A.length+' apoyo':''}${l.responsable?' · '+esc(l.responsable):''}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
+      <div class="tvl-top"><div><div class="tvl-name">Línea ${esc(l.nombre)}</div><div class="tvl-cli">${esc(l.cliente||'')} · ${nP} persona${nP===1?'':'s'}${l.responsable?' · '+esc(l.responsable):''}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
       ${l.paroActivo?`<div class="tvl-paro">EN PARO · ${esc(l.paroActivo.causa)}<span>${fmtH(paroDur(l.paroActivo,now))}</span></div>`:''}
       ${agota.length?`<div class="tvl-agota">Por agotarse: ${agota.map(i=>esc(i.nombre)+' (alcanza para '+Math.max(0,estadoInsumo(i,l).alcanza)+')').join(' · ')}</div>`:''}
       <div class="tvl-big"><b>${r.tot}</b><span>/ ${l.meta} pallets</span><em>${Math.round(pct)}%</em></div>
@@ -4358,9 +4352,9 @@ function tvLineasBody(){
         <div><span>Proyección</span><b class="${vaBien?'g':'a'}">${r.proy}</b><small>al cierre</small></div>
         <div><span>Último pallet</span><b>${ultimo?fmtH(msH(now-ultimo)).replace(' min','′'):'—'}</b><small>${ultimo?'atrás':''}</small></div>
         <div><span>En paro hoy</span><b class="${r.paroH>0.25?'a':''}">${Math.round(r.paroH*60)}′</b><small>${Math.round(r.disponibilidad*100)}% corriendo</small></div>`
-        :`<div><span>Duración</span><b>${fmtH(r.h)}</b><small></small></div><div><span>Por paletizador</span><b>${fmtN(r.porPaletizador)}</b><small>pallets/h</small></div>`}
+        :`<div><span>Duración</span><b>${fmtH(r.h)}</b><small></small></div><div><span>Por persona</span><b>${fmtN(r.porPersona)}</b><small>pallets/h</small></div>`}
       </div>
-      ${rank.length?`<div class="tvl-rank">${rank.slice(0,6).map((x,i)=>`<div><span>${i+1}</span>${esc(x.n.split(' ')[0])} <b>${x.c}</b><small style="color:${!l.prod||x.rt>=l.prod?'var(--green)':'var(--amber)'}">${fmtN(x.rt)}/h</small></div>`).join('')}</div>`:''}
+      ${l.estado==='corriendo'&&l.prod?`<div class="tvl-sub">${fmtN(r.porPersona)} pallets por persona-hora · objetivo ${l.prod}</div>`:''}
     </div>`;
   }).join('');
   return `<div class="tv-body"><div class="tvl-grid tvl-n${Math.min(L.length,3)}">${tarjetas}</div>
