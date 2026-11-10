@@ -1825,6 +1825,14 @@ async function desuscribirPush(){
     if(SESSION) await rpc('ch_push_unsubscribe',{p_token:SESSION.token,p_endpoint:sub.endpoint}).catch(()=>{});
     await sub.unsubscribe(); _pushOk=false; }catch(e){ console.warn('Push:',e); }
 }
+// Prueba con la app cerrada: el servidor envía el aviso 20 s después
+async function probarAvisoCerrada(){
+  if(!(await suscribirPush())){ showToast('No se pudo registrar este equipo para avisos.','error'); return; }
+  try{ const r=await funcionPush({accion:'prueba',token:SESSION.token,key:STATE_KEY,espera:20});
+    if(!r||!r.celulares){ showToast('Este equipo no quedó registrado para avisos','error'); return; }
+    alert('Listo. Ahora cierra la app (sal a la pantalla de inicio o ciérrala del todo).\n\nEn 20 segundos debe llegarte «Avisos activos». Si no llega, el teléfono está frenando los avisos de Chrome: revisa el ahorro de batería (ver pasos en esta pantalla).'); }
+  catch(e){ showToast('No se pudo programar la prueba','error'); }
+}
 async function probarAviso(){
   if(!(await suscribirPush())){ showToast('No se pudo registrar este equipo para avisos. En iPhone, instala la app (Compartir → Agregar a inicio) y vuelve a intentar.','error'); return; }
   try{ const r=await funcionPush({accion:'prueba',token:SESSION.token,key:STATE_KEY}); showToast(r&&r.enviados?'Aviso de prueba enviado a '+r.enviados+' equipo(s)':'No se pudo enviar el aviso de prueba','info'); }
@@ -1895,13 +1903,13 @@ function renderAvisos(){
   const E=_avEdit, st=avisosEstado(), n=Object.values(E.prefs).filter(Boolean).length-(E.prefs.solo_tarde?1:0);
   document.getElementById('avTitulo').textContent=E.uid?'Avisos de '+E.nombre:'Mis avisos';
   let h='';
-  if(!E.uid) h+=`<div class="info-box">${st==='granted'?(_pushOk?'Este equipo recibe tus avisos aunque la app esté cerrada.':'Los avisos están permitidos en este equipo.')
+  if(!E.uid) h+=`<div class="info-box">${st==='granted'?(_pushOk?'Este equipo está registrado para recibir tus avisos con la app cerrada. Si no te llegan, usa «Probar con la app cerrada». En Android, pon Chrome (o la app instalada) sin restricciones de batería: Ajustes → Aplicaciones → Chrome → Batería → Sin restricciones, y deja activadas sus notificaciones.':'Los avisos están permitidos en este equipo.')
       :st==='denied'?`<b>Los avisos están bloqueados en este equipo.</b> El teléfono le negó el permiso a la app y ya no se puede volver a preguntar; hay que permitirlo a mano:
         <br><b>Android (Chrome):</b> toca el ícono a la izquierda de la dirección → Permisos → Notificaciones → Permitir. Si la app está instalada: mantén presionado su ícono → Información de la app → Notificaciones. Revisa también Ajustes → Aplicaciones → Chrome → Notificaciones.
         <br><b>iPhone:</b> instala la app (Safari → Compartir → Agregar a inicio), ábrela desde ese ícono y permite en Ajustes → Notificaciones → Control de Horas.
         <br>Luego recarga la app y toca «Probar aviso». Si abriste el link desde WhatsApp u otra app, ábrelo en el navegador.`
       :st==='no'?'Este navegador no muestra avisos. En iPhone, instala la app (Compartir → Agregar a inicio).':'Activa los avisos para que lleguen a este equipo.'}
-    <div class="btn-row" style="margin-top:8px">${st==='default'?'<button class="btn btn-green btn-sm" onclick="activarAvisos()">Activar en este equipo</button>':''}${st==='granted'?'<button class="btn btn-ghost btn-sm" onclick="probarAviso()">Probar aviso</button>':''}${st==='denied'?'<button class="btn btn-ghost btn-sm" onclick="location.reload()">Ya lo permití: recargar</button>':''}</div></div>`;
+    <div class="btn-row" style="margin-top:8px">${st==='default'?'<button class="btn btn-green btn-sm" onclick="activarAvisos()">Activar en este equipo</button>':''}${st==='granted'?'<button class="btn btn-ghost btn-sm" onclick="probarAviso()">Probar aviso</button><button class="btn btn-ghost btn-sm" onclick="probarAvisoCerrada()">Probar con la app cerrada</button>':''}${st==='denied'?'<button class="btn btn-ghost btn-sm" onclick="location.reload()">Ya lo permití: recargar</button>':''}</div></div>`;
   else h+=`<div class="info-box">${esc(E.nombre)} · ${ROL_NOMBRE[E.rol]||E.rol}. Le llegan a los celulares donde activó los avisos.</div>`;
   h+=`<div class="li-sub">Elige qué momentos son importantes: ${n} activo(s)${E.propios?'':' · por ahora, los de su rol'}.</div>`;
   AVISOS_CAT.forEach(g=>{ h+=`<div class="av-grupo">${g.g}</div>`+g.items.map(([id,nom,det])=>{ const d=typeof det==='function'?det():det;

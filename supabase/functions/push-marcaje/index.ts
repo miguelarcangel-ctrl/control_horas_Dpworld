@@ -2,7 +2,8 @@
 // Cada usuario elige con interruptores qué momentos le avisan (ch_push_prefs); sin elección, los de su rol (DEF).
 // Pedidos (POST JSON):
 //   {accion:'clave'}                                         → clave pública VAPID (la primera vez la genera y la guarda)
-//   {accion:'prueba', token, key}                            → aviso de prueba a los celulares de quien lo pide
+//   {accion:'prueba', token, key, espera?}                   → aviso de prueba a los celulares de quien lo pide
+//                                                               (espera: segundos, hasta 30, para probar con la app cerrada)
 //   {accion:'marca',  token, key, marcaId}                   → aviso de un marcaje (lo pide la tablet, sesión admin)
 //   {accion:'evento', token, key, evento, ref, titulo, cuerpo, data} → aviso de producción o del turno que detectó la app
 //                                                               (sale una sola vez por ref aunque lo detecten varios equipos)
@@ -57,7 +58,8 @@ Deno.serve(async (req) => {
     let n = 0;
     for (const s of subs) {
       try {
-        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload), { TTL: 3600, urgency: 'high' });
+        const r = await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload), { TTL: 3600, urgency: 'high' });
+        console.log('push enviado', r && r.statusCode, s.endpoint.slice(0, 40));   // 201 = el servicio de avisos lo aceptó
         n++;
       } catch (e: any) {
         if (e && (e.statusCode === 404 || e.statusCode === 410)) await sb.from('ch_push_subs').delete().eq('endpoint', s.endpoint);   // celular que ya no existe
@@ -85,7 +87,16 @@ Deno.serve(async (req) => {
 
   if (body.accion === 'prueba') {
     const { data: subs } = await sb.from('ch_push_subs').select('endpoint, p256dh, auth').eq('usuario_id', yo.id).eq('key', body.key);
-    const n = await enviar(subs || [], { title: 'Avisos activos', body: 'Este celular recibirá los avisos que elegiste.', tag: 'ch-prueba', data: { accion: 'prueba' } });
+    const espera = Math.min(30, Math.max(0, Number(body.espera) || 0));
+    const aviso = { title: 'Avisos activos', body: espera ? 'Aviso de prueba con la app cerrada: este celular recibe los avisos.' : 'Este celular recibirá los avisos que elegiste.', tag: 'ch-prueba', data: { accion: 'prueba' } };
+    if (espera) {
+      // Responde ya y envía después, para que dé tiempo de cerrar la app
+      const tarea = new Promise((r) => setTimeout(r, espera * 1000)).then(() => enviar(subs || [], aviso));
+      // @ts-ignore EdgeRuntime existe en Supabase Edge Functions
+      if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) EdgeRuntime.waitUntil(tarea); else await tarea;
+      return json({ ok: true, programado: espera, celulares: (subs || []).length });
+    }
+    const n = await enviar(subs || [], aviso);
     return json({ ok: true, enviados: n, celulares: (subs || []).length });
   }
 
