@@ -86,6 +86,7 @@
     const u=user(body.token);if(!u)return{data:null,error:{message:'SESION'}};
     if(body.accion==='marca'){if(u.rol!=='admin')return{data:null,error:{message:'PERMISO'}};const m=SRV.marcas.find(x=>x.id===body.marcaId);if(!m||m.push_enviado)return{data:{ok:true,enviados:0},error:null};m.push_enviado=true;return{data:{ok:true,enviados:SRV.subs.filter(x=>x.key===body.key).length},error:null};}
     if(body.accion==='evento'){if(SRV.eventos.has(body.key+'|'+body.ref))return{data:{ok:true,enviados:0,repetido:true},error:null};SRV.eventos.add(body.key+'|'+body.ref);return{data:{ok:true,enviados:1},error:null};}
+    if(body.accion==='estado'){if(u.rol!=='admin')return{data:null,error:{message:'PERMISO'}};const por={};SRV.subs.filter(x=>x.key===body.key).forEach(x=>{por[x.usuario_id]=por[x.usuario_id]||{usuario_id:x.usuario_id,n:0};por[x.usuario_id].n++;});return{data:{ok:true,usuarios:Object.values(por)},error:null};}
     if(body.accion==='prueba'){const n=SRV.subs.filter(x=>x.usuario_id===u.id).length;return{data:body.espera?{ok:true,programado:body.espera,celulares:n}:{ok:true,enviados:n,celulares:n},error:null};}
     return{data:null,error:{message:'ACCION'}};}};
   window.supabase={createClient:()=>({functions,rpc:async(fn,args)=>{SRV.calls.push(fn);await new Promise(r=>setTimeout(r,5));

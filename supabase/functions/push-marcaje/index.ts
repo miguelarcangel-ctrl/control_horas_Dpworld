@@ -4,6 +4,7 @@
 //   {accion:'clave'}                                         → clave pública VAPID (la primera vez la genera y la guarda)
 //   {accion:'prueba', token, key, espera?}                   → aviso de prueba a los celulares de quien lo pide
 //                                                               (espera: segundos, hasta 30, para probar con la app cerrada)
+//   {accion:'estado', token, key}                            → teléfonos registrados por usuario (solo admin)
 //   {accion:'marca',  token, key, marcaId}                   → aviso de un marcaje (lo pide la tablet, sesión admin)
 //   {accion:'evento', token, key, evento, ref, titulo, cuerpo, data} → aviso de producción o del turno que detectó la app
 //                                                               (sale una sola vez por ref aunque lo detecten varios equipos)
@@ -84,6 +85,15 @@ Deno.serve(async (req) => {
     const { data: subs } = await sb.from('ch_push_subs').select('endpoint, p256dh, auth').eq('key', body.key).in('usuario_id', ids);
     return subs || [];
   };
+
+  // Teléfonos registrados por usuario (solo admin): para ver quién no recibiría avisos
+  if (body.accion === 'estado') {
+    if (yo.rol !== 'admin') return json({ error: 'PERMISO' }, 403);
+    const { data: subs } = await sb.from('ch_push_subs').select('usuario_id, actualizado').eq('key', body.key);
+    const por: Record<string, { usuario_id: string; n: number; ultimo: string }> = {};
+    (subs || []).forEach((x: any) => { const o = por[x.usuario_id] || (por[x.usuario_id] = { usuario_id: x.usuario_id, n: 0, ultimo: x.actualizado }); o.n++; if (x.actualizado > o.ultimo) o.ultimo = x.actualizado; });
+    return json({ ok: true, usuarios: Object.values(por) });
+  }
 
   if (body.accion === 'prueba') {
     const { data: subs } = await sb.from('ch_push_subs').select('endpoint, p256dh, auth').eq('usuario_id', yo.id).eq('key', body.key);
