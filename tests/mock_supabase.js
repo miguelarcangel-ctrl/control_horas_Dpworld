@@ -1,7 +1,7 @@
 // Simulador en memoria de las funciones ch_* de Supabase (misma semántica que el SQL)
 (function(){
   const H=3600000, now=Date.now();
-  const hoy=new Date(now-5*H).toISOString().slice(0,10);
+  const hoy=new Date(now-new Date(now).getTimezoneOffset()*60000).toISOString().slice(0,10);   // misma fecha local que usan la app y los marcajes simulados
   const colabs=[{id:'c1',nombre:'Juan Pérez',cargo:'operador'},{id:'c2',nombre:'Luis Gómez',cargo:'ag'},{id:'c3',nombre:'Ana Ruiz',cargo:'ag'},{id:'c4',nombre:'Pedro Díaz',cargo:'operador'}];
   const tcat=[{id:'t1',nombre:'Descargue contenedor',prod:20,unidad:'pallet',efic:85},{id:'t2',nombre:'Picking',prod:60,unidad:'caja',efic:85},{id:'t3',nombre:'Supervisión',prod:0,unidad:'hora',sinProd:true}];
   const clis=[{id:'k1',nombre:'CERNAC'},{id:'k2',nombre:'Alicorp'}];
@@ -86,7 +86,7 @@
     const u=user(body.token);if(!u)return{data:null,error:{message:'SESION'}};
     if(body.accion==='marca'){if(u.rol!=='admin')return{data:null,error:{message:'PERMISO'}};const m=SRV.marcas.find(x=>x.id===body.marcaId);if(!m||m.push_enviado)return{data:{ok:true,enviados:0},error:null};m.push_enviado=true;return{data:{ok:true,enviados:SRV.subs.filter(x=>x.key===body.key).length},error:null};}
     if(body.accion==='evento'){if(SRV.eventos.has(body.key+'|'+body.ref))return{data:{ok:true,enviados:0,repetido:true},error:null};SRV.eventos.add(body.key+'|'+body.ref);return{data:{ok:true,enviados:1},error:null};}
-    if(body.accion==='prueba')return{data:{ok:true,enviados:SRV.subs.filter(x=>x.usuario_id===u.id).length},error:null};
+    if(body.accion==='prueba'){const n=SRV.subs.filter(x=>x.usuario_id===u.id).length;return{data:body.espera?{ok:true,programado:body.espera,celulares:n}:{ok:true,enviados:n,celulares:n},error:null};}
     return{data:null,error:{message:'ACCION'}};}};
   window.supabase={createClient:()=>({functions,rpc:async(fn,args)=>{SRV.calls.push(fn);await new Promise(r=>setTimeout(r,5));
     if(SRV.offline)return{data:null,error:{message:'Failed to fetch',code:''}};
