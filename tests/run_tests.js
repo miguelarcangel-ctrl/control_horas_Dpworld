@@ -649,6 +649,20 @@ async function newPage(browser, opts = {}) {
   ok(ct.pendiente && ct.tarjeta && ct.resalta && ct.admin_pasos, 'tutorial: primera sesión con tarjetas que resaltan cada parte (según el perfil)');
   ok(ct.visto && ct.menuTut, 'tutorial: al terminar no vuelve a salir; se repite desde «Ver tutorial»');
 
+  // 9n) Teléfono sin registrar para avisos: aviso en la app; el admin ve quién tiene teléfono registrado
+  const reg = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV; _avisosApp = []; _pushOk = false; setNav('supervisor');
+    revisarRegistroAvisos();
+    r.card = _avisosApp.some(a => a.key === 'avisos|equipo') && /Este teléfono no recibe avisos/.test(document.getElementById('avisosApp').textContent) && /Activar avisos/.test(document.getElementById('avisosApp').textContent);
+    tocarAviso(0); await new Promise(res => setTimeout(res, 80)); r.abre = !document.getElementById('modalAvisos').classList.contains('hidden'); hideModal('modalAvisos');
+    _pushOk = true; revisarRegistroAvisos(); r.sale = !_avisosApp.some(a => a.key === 'avisos|equipo');
+    SRV.subs = [{ endpoint: 'https://push.example/a', usuario_id: 'u2', key: STATE_KEY }];
+    await refreshUsuarios(); const html = _usuarios.map(u => u.username + ':' + equiposTxt(u)).join('|');
+    r.usuarios = /super:.*avisos en 1 teléfono/.test(html) && /admin:.*sin teléfono para avisos/.test(html);
+    SRV.subs = []; _pushOk = false; _avisosApp = []; pintarAvisosApp(); return r; });
+  ok(reg.card && reg.abre && reg.sale, 'avisos: si este teléfono no está registrado, la app lo dice y lleva a activarlos; se quita al registrarse');
+  ok(reg.usuarios, 'avisos: en Usuarios el admin ve quién tiene teléfono registrado y quién no');
+
   // 9i) El turno solo se inicia con personal que marcó entrada
   const tm = await page.evaluate(async () => {
     const r = {}, SRV = window.__SRV, a0 = window.alert; let alerta = ''; window.alert = m => { alerta = m; };

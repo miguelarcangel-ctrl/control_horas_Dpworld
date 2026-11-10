@@ -1674,7 +1674,7 @@ async function startApp(){
   document.getElementById('hdrUser').textContent=currentUser.nombre;
   DPW.quien('Sesión',currentUser.nombre+' · '+(ROL_NOMBRE[currentUser.rol]||currentUser.rol));
   setNav(esResponsable()?'lineas':'supervisor');
-  cargarMisAvisos(); cargarPersonal().then(cargarMarcas).then(()=>{ if(!enKiosco()) suscribirPush(); if(enKiosco()){ if(currentUser.rol==='admin') entrarKiosco(); else try{ localStorage.removeItem(KIOSCO_KEY); }catch(e){} } });
+  cargarMisAvisos(); cargarPersonal().then(cargarMarcas).then(()=>{ if(!enKiosco()) suscribirPush().then(revisarRegistroAvisos); if(enKiosco()){ if(currentUser.rol==='admin') entrarKiosco(); else try{ localStorage.removeItem(KIOSCO_KEY); }catch(e){} } });
   if(_lineasMigradas){ _lineasMigradas=false; save(); }
   const now=new Date();
   document.getElementById('tFecha').value=fechaLocal(now);
@@ -1825,6 +1825,14 @@ async function desuscribirPush(){
     if(SESSION) await rpc('ch_push_unsubscribe',{p_token:SESSION.token,p_endpoint:sub.endpoint}).catch(()=>{});
     await sub.unsubscribe(); _pushOk=false; }catch(e){ console.warn('Push:',e); }
 }
+// Si este teléfono no quedó registrado para avisos, se dice en la app (las llegadas no le llegarían con la app cerrada)
+function revisarRegistroAvisos(){
+  if(IS_TV||enKiosco()||!currentUser||!['admin','supervisor','responsable'].includes(currentUser.rol)) return;
+  const k='avisos|equipo';
+  if(_pushOk){ const n=_avisosApp.length; _avisosApp=_avisosApp.filter(a=>a.key!==k); if(n!==_avisosApp.length) pintarAvisosApp(); return; }
+  const st=avisosEstado();
+  if(!_avisosApp.some(a=>a.key===k)){ _avisosApp.unshift({key:k,titulo:'Este teléfono no recibe avisos',cuerpo:st==='denied'?'Las notificaciones están bloqueadas: toca para ver cómo permitirlas.':st==='no'?'Este navegador no muestra avisos. En iPhone, instala la app y ábrela desde su ícono.':'Actívalos para enterarte de las llegadas y la producción aunque la app esté cerrada.',data:{accion:'avisos'}}); pintarAvisosApp(); }
+}
 // Prueba con la app cerrada: el servidor envía el aviso 20 s después
 async function probarAvisoCerrada(){
   if(!(await suscribirPush())){ showToast('No se pudo registrar este equipo para avisos.','error'); return; }
@@ -1844,7 +1852,7 @@ async function activarAvisos(){
   if(st!=='granted'&&(await Notification.requestPermission())!=='granted'){ pintarAvisos(); return; }
   pintarAvisos();
   if(st==='granted'){ await probarAviso(); return; }   // ya activos: prueba que lleguen a este equipo
-  const push=await suscribirPush();
+  const push=await suscribirPush(); revisarRegistroAvisos();
   showToast(push?'Avisos activados: este equipo recibirá los avisos que elijas aunque la app esté cerrada':'Avisos activados con la app abierta','success');
   if(push) probarAviso();
   if(!document.getElementById('modalAvisos').classList.contains('hidden')) renderAvisos();
@@ -1965,7 +1973,7 @@ function avisarUnaVez(key, titulo, cuerpo, data, evento){
   if(!_avisosApp.some(a=>a.key===key)){ _avisosApp.push({key,titulo,cuerpo,data}); pintarAvisosApp(); }
   emitirAviso(evento,key,titulo,cuerpo,data);
 }
-const ACCION_AVISO={libre:'Asignar tarea',larga:'Ver tarea',pend:'Poner cantidad',linea:'Ver línea',sobre:'Sobretiempo'};
+const ACCION_AVISO={avisos:'Activar avisos',libre:'Asignar tarea',larga:'Ver tarea',pend:'Poner cantidad',linea:'Ver línea',sobre:'Sobretiempo'};
 // Las personas sin tarea se agrupan en una sola tarjeta; como máximo 3 tarjetas a la vez
 let _avisosVista=[];
 function pintarAvisosApp(){
@@ -1991,6 +1999,7 @@ function tocarAviso(i){ const v=quitarVista(i); if(v) manejarAviso(v.data); }
 // Lleva a la acción de cada aviso (desde la tarjeta o desde la notificación del sistema)
 function manejarAviso(data){
   if(!data||!data.accion) return;
+  if(data.accion==='avisos'){ abrirAvisos(); return; }
   if(data.accion==='reap'||data.accion==='personal'){ if(currentUser&&currentUser.rol==='admin') setNav('insights'); return; }
   if(data.accion!=='linea'&&!S.turno) return;
   if(data.accion!=='linea') setNav('supervisor');
@@ -2049,6 +2058,7 @@ function revisarAlertas(){
     if(d.accion==='larga') return S.tareasActivas.some(t=>t.id===d.tid);
     if(d.accion==='pend') return pendientes().length>0;
     if(d.accion==='sobre') return a.key===claveFinSobre();
+    if(d.accion==='avisos') return !_pushOk;
     if(d.accion==='linea'){ const l=lineaDe(d.lid); return !!l&&l.estado==='corriendo'&&(a.key.startsWith('paro|')?!!(l.paroActivo&&a.key==='paro|'+l.paroActivo.id):insumosPorAgotar(l).length>0); }
     return true; });
   if(_avisosApp.length!==antes) pintarAvisosApp();
@@ -3591,9 +3601,16 @@ function updateNotifBadge(){pintarMenu();}
 const ERR_USR={CLAVE_CORTA:'La contraseña debe tener al menos 6 caracteres',USUARIO_EXISTE:'Ese usuario ya existe',
   ULTIMO_ADMIN:'No puedes quitarte el rol admin ni desactivarte a ti mismo',PERMISO:'Solo un admin puede gestionar usuarios',DATOS:'Nombre y usuario son requeridos'};
 const errUsr=e=>{const k=Object.keys(ERR_USR).find(x=>(e.message||'').includes(x));return k?ERR_USR[k]:(e.message||'Error');};
+let _equiposAvisos=null;   // usuario_id → {n, ultimo}: teléfonos registrados para avisos (solo admin)
 async function refreshUsuarios(){
   if(!SESSION||currentUser?.rol!=='admin'){_usuarios=[];return;}
   try{ _usuarios=await rpc('ch_list_users',{p_token:SESSION.token})||[]; }catch(e){ if(esSesionVencida(e)) sesionVencida(); }
+  try{ const r=await funcionPush({accion:'estado',token:SESSION.token,key:STATE_KEY}); _equiposAvisos={}; (r&&r.usuarios||[]).forEach(x=>_equiposAvisos[x.usuario_id]=x); }catch(e){ _equiposAvisos=null; }
+}
+function equiposTxt(u){
+  if(!_equiposAvisos) return '';
+  const e=_equiposAvisos[u.id];
+  return e&&e.n?' · <span style="color:var(--green)">avisos en '+e.n+' teléfono'+(e.n>1?'s':'')+'</span>':' · <b style="color:var(--amber)">sin teléfono para avisos</b>';
 }
 function openModalUsuario(id){
   S.editingId=id||null;
@@ -4215,7 +4232,7 @@ function renderInsights(){
     // USUARIOS
     h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sUsers','cUsers')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Usuarios</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalUsuario()">+ Nuevo</button><span class="chevron open" id="cUsers">▼</span></div></div><div class="sec-body" id="sUsers">`;
     if(!_usuarios.length)h+=`<div class="info-box">Cargando usuarios…</div>`;
-    _usuarios.forEach(u=>{const yo=u.id===currentUser?.id;h+=`<div class="list-item"><div class="li-info"><div class="li-name">${esc(u.nombre)}${yo?' <span class="badge bg">Tú</span>':''}</div><div class="li-sub">@${esc(u.username)} · ${ROL_NOMBRE[u.rol]||u.rol}</div></div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="abrirAvisos('${u.id}')">Avisos</button><button class="btn btn-ghost btn-sm" onclick="openModalUsuario('${u.id}')">Editar</button>${yo?'':`<button class="btn btn-red btn-sm" title="Desactivar" onclick="eliminarUsuario('${u.id}')">×</button>`}</div></div>`;});
+    _usuarios.forEach(u=>{const yo=u.id===currentUser?.id;h+=`<div class="list-item"><div class="li-info"><div class="li-name">${esc(u.nombre)}${yo?' <span class="badge bg">Tú</span>':''}</div><div class="li-sub">@${esc(u.username)} · ${ROL_NOMBRE[u.rol]||u.rol}${equiposTxt(u)}</div></div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="abrirAvisos('${u.id}')">Avisos</button><button class="btn btn-ghost btn-sm" onclick="openModalUsuario('${u.id}')">Editar</button>${yo?'':`<button class="btn btn-red btn-sm" title="Desactivar" onclick="eliminarUsuario('${u.id}')">×</button>`}</div></div>`;});
     h+=`</div></div>`;
 
     // COLABORADORES
