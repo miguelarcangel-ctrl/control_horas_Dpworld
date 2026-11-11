@@ -663,6 +663,28 @@ async function newPage(browser, opts = {}) {
   ok(reg.card && reg.abre && reg.sale, 'avisos: si este teléfono no está registrado, la app lo dice y lleva a activarlos; se quita al registrarse');
   ok(reg.usuarios, 'avisos: en Usuarios el admin ve quién tiene teléfono registrado y quién no');
 
+  // 9o) Personal marcado sin turno abierto: aviso a los 15 min (también desde la tablet de marcaje); el kiosco no quita el registro de avisos
+  const st2 = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, H = 3600000, orig = { turno: S.turno, lineas: S.lineas };
+    SRV.push = []; _avisados.clear(); _avisosApp = []; S.turno = null; S.lineas = []; setNav('supervisor');
+    mkTmp('tmp_s1', 'Pedro Sinturno', 'operador', 'entrada', 0.5 * H); mkTmp('tmp_s2', 'Lia Linea', 'linea', 'entrada', 0.4 * H); mkTmp('tmp_s3', 'Recien Llega', 'ag', 'entrada', 0.05 * H);
+    await cargarPersonal(); await cargarMarcas(); revisarSinTurno();
+    const ev = SRV.push.find(x => x.body.evento === 'tur_sin_abrir');
+    r.aviso = !!ev && /2 personas marcaron y están sin turno/.test(ev.body.titulo) && /Pedro/.test(ev.body.cuerpo) && /Lia/.test(ev.body.cuerpo) && !/Recien/.test(ev.body.cuerpo);
+    r.card = _avisosApp.some(a => a.data && a.data.accion === 'abrir') && /Abrir turno/.test(document.getElementById('avisosApp').textContent);
+    revisarSinTurno(); r.unaVez = SRV.push.filter(x => x.body.evento === 'tur_sin_abrir').length === 1;
+    const k = _avisosApp.findIndex(a => a.data && a.data.accion === 'abrir'); pintarAvisosApp(); tocarAviso(_avisosVista.findIndex(v => v.data && v.data.accion === 'abrir'));
+    await new Promise(res => setTimeout(res, 50)); r.abre = !document.getElementById('modalAbrirTurno').classList.contains('hidden'); hideModal('modalAbrirTurno');
+    // con turno abierto y línea en marcha, ya no avisa
+    S.turno = orig.turno; S.lineas = [{ id: 'lx', estado: 'corriendo', fecha: hoyStr(), personas: [], pallets: [] }]; r.calla = !sinTurnoAhora();
+    // el kiosco no quita el registro de avisos de este equipo
+    SRV.calls.length = 0; window.confirm = () => true; await activarKiosco(); r.kioscoNoQuita = !SRV.calls.includes('ch_push_unsubscribe');
+    kioscoAdmin('salir'); document.getElementById('apPass').value = 'secreto1'; await confirmarAdminPass();
+    r.catalogo = avisosDeRol('supervisor').tur_sin_abrir && avisosDeRol('admin').tur_sin_abrir;
+    S.lineas = orig.lineas; await limpiarTmp(); _avisosApp = []; pintarAvisosApp(); return r; });
+  ok(st2.aviso && st2.card && st2.unaVez && st2.abre, 'sin turno: quienes marcaron hace 15 min o más sin turno (o línea) generan aviso y tarjeta «Abrir turno»; una vez por tramo');
+  ok(st2.calla && st2.kioscoNoQuita && st2.catalogo, 'sin turno: con turno/línea en marcha no avisa; el modo marcaje ya no quita el registro de avisos del equipo');
+
   // 9i) El turno solo se inicia con personal que marcó entrada
   const tm = await page.evaluate(async () => {
     const r = {}, SRV = window.__SRV, a0 = window.alert; let alerta = ''; window.alert = m => { alerta = m; };
