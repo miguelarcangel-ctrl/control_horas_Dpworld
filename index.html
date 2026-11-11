@@ -1879,6 +1879,7 @@ const AVISOS_CAT=[
     ['lin_cierre','Línea cerrada','Resumen: pallets, cumplimiento y paros'],
   ]},
   {g:'Turno regular',items:[
+    ['tur_sin_abrir','Personal marcado sin turno abierto','Marcaron entrada y a los 15 min no hay turno (o línea en marcha); se repite cada 30 min'],
     ['tur_libre','Personas sin tarea asignada',()=>'Más de '+(getConfig().alertaLibreMin||15)+' min sin tarea'],
     ['tur_larga','Tarea o pausa demasiado larga'],
     ['tur_pend','Cantidades pendientes al final de la jornada'],
@@ -1889,9 +1890,9 @@ const AVISOS_CAT=[
   ]},
 ];
 const AVISOS_DEF={
-  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre','tur_sobre','tur_reap','per_alta'],
-  supervisor:['ent_sup','ent_op','alm_reg','lin_riesgo','lin_paro','tur_libre','tur_larga','tur_pend','tur_sobre','tur_sobre_fin'],
-  responsable:['ent_resp','ent_lin','alm_reg','lin_arranca','lin_mitad','lin_meta','lin_riesgo','lin_paro','lin_insumo'],
+  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre','tur_sobre','tur_reap','per_alta','tur_sin_abrir'],
+  supervisor:['ent_sup','ent_op','alm_reg','lin_riesgo','lin_paro','tur_sin_abrir','tur_libre','tur_larga','tur_pend','tur_sobre','tur_sobre_fin'],
+  responsable:['ent_resp','ent_lin','alm_reg','tur_sin_abrir','lin_arranca','lin_mitad','lin_meta','lin_riesgo','lin_paro','lin_insumo'],
 };
 const avisosDeRol=rol=>{ const o={}; AVISOS_CAT.forEach(g=>g.items.forEach(([id])=>o[id]=(AVISOS_DEF[rol]||[]).includes(id))); return o; };
 let _misAvisos=null, _pushOk=false;
@@ -1973,7 +1974,7 @@ function avisarUnaVez(key, titulo, cuerpo, data, evento){
   if(!_avisosApp.some(a=>a.key===key)){ _avisosApp.push({key,titulo,cuerpo,data}); pintarAvisosApp(); }
   emitirAviso(evento,key,titulo,cuerpo,data);
 }
-const ACCION_AVISO={avisos:'Activar avisos',libre:'Asignar tarea',larga:'Ver tarea',pend:'Poner cantidad',linea:'Ver línea',sobre:'Sobretiempo'};
+const ACCION_AVISO={abrir:'Abrir turno',avisos:'Activar avisos',libre:'Asignar tarea',larga:'Ver tarea',pend:'Poner cantidad',linea:'Ver línea',sobre:'Sobretiempo'};
 // Las personas sin tarea se agrupan en una sola tarjeta; como máximo 3 tarjetas a la vez
 let _avisosVista=[];
 function pintarAvisosApp(){
@@ -2000,6 +2001,7 @@ function tocarAviso(i){ const v=quitarVista(i); if(v) manejarAviso(v.data); }
 function manejarAviso(data){
   if(!data||!data.accion) return;
   if(data.accion==='avisos'){ abrirAvisos(); return; }
+  if(data.accion==='abrir'){ if(esResponsable()){ setNav('lineas'); return; } setNav('supervisor'); if(!S.turno) showModal('modalAbrirTurno'); return; }
   if(data.accion==='reap'||data.accion==='personal'){ if(currentUser&&currentUser.rol==='admin') setNav('insights'); return; }
   if(data.accion!=='linea'&&!S.turno) return;
   if(data.accion!=='linea') setNav('supervisor');
@@ -2149,6 +2151,33 @@ function hideModal(id){
     renderTareasDia();
   }
 }
+
+// Personal que marcó entrada y quedó sin turno abierto (o, en la línea, sin línea en marcha): aviso a los 15 min y cada 30 min.
+// Lo revisa cualquier equipo con la app abierta, incluida la tablet de marcaje; el servidor lo manda una sola vez por clave.
+function sinTurnoAhora(now){
+  now=now||Date.now(); if(IS_TV||!SESSION||!_marcasCargadas) return null;
+  const hoy=hoyStr(), lim=(getConfig().alertaSinTurnoMin||15)*60000;
+  const desde=p=>{ const e=estadoMarca(p.id); return e.entrada&&e.entrada.fecha===hoy?msTs(e.entrada.ts):null; };
+  const turnoHoy=S.turno&&(S.turno.fecha===hoy||!S.turno.fin);
+  const lineaHoy=(S.lineas||[]).some(l=>l.estado==='corriendo');
+  const sinT=turnoHoy?[]:presentes(['operador','ag','supervisor']).filter(p=>desde(p)&&now-desde(p)>=lim);
+  const sinL=lineaHoy?[]:presentes(['linea']).filter(p=>desde(p)&&now-desde(p)>=lim);
+  const P=[...sinT,...sinL]; if(!P.length) return null;
+  const primera=Math.min(...P.map(desde)), tramo=Math.floor((now-primera-lim)/(30*60000));
+  return {P,sinT,sinL,primera,key:'sinturno|'+hoy+'|'+tramo};
+}
+function revisarSinTurno(){
+  const x=sinTurnoAhora();
+  const n0=_avisosApp.length; _avisosApp=_avisosApp.filter(a=>!(a.data&&a.data.accion==='abrir')||(x&&a.key===x.key)); if(n0!==_avisosApp.length) pintarAvisosApp();
+  if(!x) return;
+  const nom=L=>L.slice(0,5).map(p=>p.nombre.split(' ')[0]).join(', ')+(L.length>5?' y '+(L.length-5)+' más':'');
+  const partes=[x.sinT.length?x.sinT.length+' sin turno abierto ('+nom(x.sinT)+')':'',x.sinL.length?x.sinL.length+' de línea sin línea en marcha ('+nom(x.sinL)+')':''].filter(Boolean).join(' · ');
+  const tit=x.P.length+' persona'+(x.P.length===1?'':'s')+' marcaron y están sin turno';
+  const cuerpo=partes+' · marcan desde las '+horaHM(x.primera)+'. Abre el turno'+(x.sinL.length?' o arranca la línea':'')+' para asignarles trabajo.';
+  if(!enKiosco()&&!_avisosApp.some(a=>a.key===x.key)){ _avisosApp.unshift({key:x.key,titulo:tit,cuerpo,data:{accion:'abrir'}}); pintarAvisosApp(); }
+  emitirAviso('tur_sin_abrir',x.key,tit,cuerpo,{accion:'abrir'});
+}
+setInterval(revisarSinTurno,60000);
 
 // ═══ CLOCK ═══
 let _tic=0;
@@ -2797,6 +2826,7 @@ async function cargarMarcas(){
   const nuevas=_marcasCargadas?m.filter(x=>!_marcas.some(y=>y.id===x.id)):[];
   _marcas=m; _marcasCargadas=true;
   avisarMarcas(nuevas);
+  setTimeout(revisarSinTurno,0);
   if(aplicarMarcasAlTurno()) save();
   if(!document.getElementById('viewMarcaje').classList.contains('hidden')) renderKiosco();
   else if(S.turno) { renderEquipo(); updateBanner(); }
@@ -2903,7 +2933,7 @@ async function activarKiosco(){
   await entrarKiosco();
 }
 async function entrarKiosco(){
-  desuscribirPush();   // la tablet no recibe avisos de llegada
+  // El registro de avisos del equipo se mantiene: si el kiosco es el celular del administrador, debe seguir recibiéndolos
   document.body.classList.add('en-kiosco'); DPW.cerrarMenu&&DPW.cerrarMenu();
   document.getElementById('viewMarcaje').classList.remove('hidden');
   await cargarPersonal(); await cargarMarcas(); renderKiosco();
