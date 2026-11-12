@@ -776,6 +776,44 @@ async function newPage(browser, opts = {}) {
   ok(bod.asigBodega && bod.tarea && bod.mueve, 'bodega: la tarea toma la bodega de la persona y se puede ejecutar en otra; el filtro la sigue');
   ok(bod.excel && bod.asist, 'bodega: Excel de tareas y de asistencia con la bodega');
 
+  // 9s) Cierre de turno con personal sin marcar salida: aviso, confirmación, salida por cierre, notificación y reporte
+  const ci = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, H = 3600000, a0 = window.alert; let alerta = ''; window.alert = m => { alerta = m; };
+    document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
+    const orig = { turno: S.turno, act: S.tareasActivas, hist: S.historial, th: S.turnosHistorial.length };
+    mkTmp('tmp_c1', 'Carla Cierre', 'operador', 'entrada', 3 * H); mkTmp('tmp_c2', 'Cesar Cierre', 'ag', 'entrada', 3 * H); mkTmp('tmp_c2', 'Cesar Cierre', 'ag', 'salida', 0.5 * H);
+    await cargarPersonal(); await cargarMarcas();
+    S.turno = { id: 'tci', fecha: hoyStr(), hora: '08:00', inicio: Date.now() - 3 * H, hpPorPersona: 8, horasProd: 16, equipo: [{ id: 'tmp_c1', nombre: 'Carla Cierre', cargo: 'operador', marcaje: true }, { id: 'tmp_c2', nombre: 'Cesar Cierre', cargo: 'ag', marcaje: true }] };
+    S.turno.marcasAplicadas = Object.fromEntries(SRV.marcas.filter(m => !m.persona_id.startsWith('tmp_c')).map(m => [m.id, 1]));   // solo la gente de esta prueba
+    S.tareasActivas = []; S.historial = []; aplicarMarcasAlTurno(); SRV.push = []; _avisados.clear();
+    prepCerrarTurno();
+    const box = document.getElementById('cTurnoSalidas').textContent;
+    r.aviso = /1 persona no ha marcado su salida/.test(box) && /Carla Cierre/.test(box) && !/Cesar/.test(box) && /Salida por cierre de turno sin marcaje/.test(box);
+    document.getElementById('justCausa').value = 'otro';
+    await confirmarCierreTurno(); r.pideConfirmar = !!S.turno && /Confirma que se retiran/.test(alerta);
+    document.getElementById('cTurnoRetiro').checked = true; await confirmarCierreTurno();
+    const sal = SRV.marcas.find(m => m.persona_id === 'tmp_c1' && m.tipo === 'salida');
+    r.salida = !S.turno && sal && sal.motivo === 'Salida por cierre de turno sin marcaje' && sal.push_enviado && !SRV.marcas.some(m => m.persona_id === 'tmp_c2' && m.tipo === 'salida' && m.motivo);
+    r.noActivo = estadoMarca('tmp_c1').estado === 'salio';
+    r.notif = SRV.push.some(x => x.body.evento === 'tur_cierre_sin_marca' && /Carla Cierre/.test(x.body.cuerpo));
+    const tc = S.turnosHistorial[S.turnosHistorial.length - 1]; const ec = tc.equipo.find(e => e.id === 'tmp_c1'); r.horasTurno = ec.salidaPorCierre && ec.marcas.some(m => m.tipo === 'salida');
+    // reporte de asistencia
+    await cargarAsistencia(hoyStr(), hoyStr()); const R = resumenAsistencia(), oc = R.find(o => o.id === 'tmp_c1');
+    r.reporte = oc && oc.cierres === 1 && /Salida por cierre/.test(buildAsistenciaSection());
+    exportarAsistencia(); const dia = window.__xlsx.w.s.find(x => x[0] === 'Asistencia diaria')[1]; const obs = dia[0].indexOf('Observaciones');
+    r.excel = dia.some(x => x[1] === 'Carla Cierre' && /Salida por cierre de turno sin marcaje/.test(x[obs]));
+    // una entrada de otro día sin salida (más de 20 h) ya no cuenta como presente
+    mkTmp('tmp_c3', 'Viejo Abierto', 'operador', 'entrada', 30 * H); const mv = SRV.marcas.find(m => m.persona_id === 'tmp_c3'); mv.fecha = fechaMenos(hoyStr(), 1);
+    await cargarPersonal(); await cargarMarcas(); r.viejo = estadoMarca('tmp_c3').estado === 'fuera' && !!estadoMarca('tmp_c3').sinSalida;
+    r.oblig = avisoObligatorio('supervisor', 'tur_cierre_sin_marca') && avisoObligatorio('responsable', 'tur_cierre_sin_marca');
+    S.turnosHistorial.splice(orig.th); S.turno = orig.turno; S.tareasActivas = orig.act; S.historial = orig.hist; _asist.marcas = []; _asist.desde = null;
+    window.alert = a0; await limpiarTmp(); document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden')); await save(); renderAll(); return r; });
+  ok(ci.aviso && ci.pideConfirmar, 'cierre: avisa quiénes no marcaron salida y pide confirmar que se retiran');
+  ok(ci.salida && ci.noActivo && ci.horasTurno, 'cierre: registra «Salida por cierre de turno sin marcaje» a la hora del cierre; nadie queda activo sin turno');
+  ok(ci.notif && ci.oblig, 'cierre: notifica al admin y supervisores (aviso obligatorio)');
+  ok(ci.reporte && ci.excel, 'cierre: Asistencia y Excel muestran la salida por cierre');
+  ok(ci.viejo, 'marcaje: una entrada de otro día sin salida ya no cuenta como presente');
+
   // 9i) El turno solo se inicia con personal que marcó entrada
   const tm = await page.evaluate(async () => {
     const r = {}, SRV = window.__SRV, a0 = window.alert; let alerta = ''; window.alert = m => { alerta = m; };

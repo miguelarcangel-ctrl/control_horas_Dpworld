@@ -24,14 +24,14 @@ const DEF: Record<string, string[]> = {
   responsable: ['ent_resp', 'ent_lin', 'alm_reg', 'tur_sin_abrir', 'lin_arranca', 'lin_mitad', 'lin_meta', 'lin_riesgo', 'lin_paro', 'lin_insumo'],
 };
 // El uso correcto de la app depende de supervisores y del encargado de la línea: sus avisos de operación no se apagan.
-const OBLIG_TURNO = ['tur_sin_abrir', 'tur_libre', 'tur_larga', 'tur_pend', 'tur_sobre_fin', 'tur_sin_cerrar'];
-const OBLIG_LINEA = ['tur_sin_abrir', 'lin_paro', 'lin_insumo', 'lin_riesgo', 'lin_sin_registro', 'lin_sin_cerrar'];
+const OBLIG_TURNO = ['tur_sin_abrir', 'tur_libre', 'tur_larga', 'tur_pend', 'tur_sobre_fin', 'tur_sin_cerrar', 'tur_cierre_sin_marca'];
+const OBLIG_LINEA = ['tur_sin_abrir', 'lin_paro', 'lin_insumo', 'lin_riesgo', 'lin_sin_registro', 'lin_sin_cerrar', 'tur_cierre_sin_marca'];
 const OBLIG: Record<string, string[]> = {
   admin: [...OBLIG_TURNO, ...OBLIG_LINEA],
   supervisor: [...OBLIG_TURNO, ...OBLIG_LINEA],
   responsable: OBLIG_LINEA,
 };
-const RELAY = new Set(['lin_arranca', 'lin_mitad', 'lin_meta', 'lin_riesgo', 'lin_paro', 'lin_insumo', 'lin_cierre', 'tur_libre', 'tur_larga', 'tur_pend', 'tur_sobre', 'tur_sobre_fin', 'tur_reap', 'per_alta', 'tur_sin_abrir', 'tur_sin_cerrar', 'lin_sin_registro', 'lin_sin_cerrar']);
+const RELAY = new Set(['lin_arranca', 'lin_mitad', 'lin_meta', 'lin_riesgo', 'lin_paro', 'lin_insumo', 'lin_cierre', 'tur_libre', 'tur_larga', 'tur_pend', 'tur_sobre', 'tur_sobre_fin', 'tur_reap', 'per_alta', 'tur_sin_abrir', 'tur_sin_cerrar', 'lin_sin_registro', 'lin_sin_cerrar', 'tur_cierre_sin_marca']);
 const eventoMarca = (m: any) => m.tipo === 'entrada'
   ? (({ supervisor: 'ent_sup', responsable: 'ent_resp', linea: 'ent_lin' } as Record<string, string>)[m.puesto] || 'ent_op')
   : ({ salida_almuerzo: 'alm_sal', regreso_almuerzo: 'alm_reg', salida: 'salida' } as Record<string, string>)[m.tipo];
