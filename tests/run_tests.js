@@ -712,6 +712,22 @@ async function newPage(browser, opts = {}) {
   ok(hb.oblig && hb.switch && hb.avisoOn, 'avisos obligatorios para admin y supervisores (sin turno, sin tarea, tareas largas, pendientes, fin de jornada, turno sin cerrar)');
   ok(hb.sinCerrar && hb.supSinTarea, 'turno abierto después de la salida avisa para cerrarlo; «sin tarea» no aplica a supervisores');
 
+  // 9q) Uso correcto de la línea: pallets sin registrar y línea pasada de sus horas; obligatorios del encargado de línea
+  const ul = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, H = 3600000, orig = S.lineas;
+    const l = { id: 'lu', nombre: 'Inserto', estado: 'corriendo', fecha: hoyStr(), meta: 40, horas: 2, prod: 1, inicio: Date.now() - 3 * H, personas: [], pallets: [Date.now() - 40 * 60000], insumos: [], paros: [] };
+    S.lineas = [l]; SRV.push = []; _avisados.clear(); _avisosApp = [];
+    revisarAlertasLineas();
+    const ev = SRV.push.map(x => x.body.evento);
+    r.sinReg = ev.includes('lin_sin_registro') && _avisosApp.some(a => a.key.startsWith('sinreg|'));
+    r.sinCerrar = ev.includes('lin_sin_cerrar') && _avisosApp.some(a => a.key.startsWith('lcierre|'));
+    l.pallets.push(Date.now()); revisarAlertasLineas(); r.seQuita = !_avisosApp.some(a => a.key.startsWith('sinreg|'));
+    l.paroActivo = { id: 'p1', causa: 'Falla', inicio: Date.now() - 60 * 60000 }; l.pallets.pop(); r.paroNo = !claveSinRegistro(l); delete l.paroActivo;
+    r.oblig = ['lin_paro', 'lin_insumo', 'lin_riesgo', 'lin_sin_registro', 'lin_sin_cerrar', 'tur_sin_abrir'].every(e => avisoObligatorio('responsable', e) && avisoObligatorio('supervisor', e)) && !avisoObligatorio('responsable', 'tur_libre');
+    S.lineas = orig; _avisosApp = []; pintarAvisosApp(); return r; });
+  ok(ul.sinReg && ul.seQuita && ul.paroNo, 'línea: 30 min sin registrar pallets (sin paro) avisa; se quita al registrar; en paro no');
+  ok(ul.sinCerrar && ul.oblig, 'línea: abierta más allá de sus horas avisa; avisos de línea obligatorios para supervisor y encargado de línea');
+
   // 9i) El turno solo se inicia con personal que marcó entrada
   const tm = await page.evaluate(async () => {
     const r = {}, SRV = window.__SRV, a0 = window.alert; let alerta = ''; window.alert = m => { alerta = m; };
