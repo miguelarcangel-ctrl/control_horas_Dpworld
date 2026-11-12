@@ -23,7 +23,12 @@ const DEF: Record<string, string[]> = {
   supervisor: ['ent_sup', 'ent_op', 'alm_reg', 'lin_riesgo', 'lin_paro', 'tur_sin_abrir', 'tur_libre', 'tur_larga', 'tur_pend', 'tur_sobre', 'tur_sobre_fin'],
   responsable: ['ent_resp', 'ent_lin', 'alm_reg', 'tur_sin_abrir', 'lin_arranca', 'lin_mitad', 'lin_meta', 'lin_riesgo', 'lin_paro', 'lin_insumo'],
 };
-const RELAY = new Set(['lin_arranca', 'lin_mitad', 'lin_meta', 'lin_riesgo', 'lin_paro', 'lin_insumo', 'lin_cierre', 'tur_libre', 'tur_larga', 'tur_pend', 'tur_sobre', 'tur_sobre_fin', 'tur_reap', 'per_alta', 'tur_sin_abrir']);
+// Avisos obligatorios por perfil (uso correcto del turno): llegan aunque estén apagados en la elección guardada
+const OBLIG: Record<string, string[]> = {
+  admin: ['tur_sin_abrir', 'tur_libre', 'tur_larga', 'tur_pend', 'tur_sobre_fin', 'tur_sin_cerrar'],
+  supervisor: ['tur_sin_abrir', 'tur_libre', 'tur_larga', 'tur_pend', 'tur_sobre_fin', 'tur_sin_cerrar'],
+};
+const RELAY = new Set(['lin_arranca', 'lin_mitad', 'lin_meta', 'lin_riesgo', 'lin_paro', 'lin_insumo', 'lin_cierre', 'tur_libre', 'tur_larga', 'tur_pend', 'tur_sobre', 'tur_sobre_fin', 'tur_reap', 'per_alta', 'tur_sin_abrir', 'tur_sin_cerrar']);
 const eventoMarca = (m: any) => m.tipo === 'entrada'
   ? (({ supervisor: 'ent_sup', responsable: 'ent_resp', linea: 'ent_lin' } as Record<string, string>)[m.puesto] || 'ent_op')
   : ({ salida_almuerzo: 'alm_sal', regreso_almuerzo: 'alm_reg', salida: 'salida' } as Record<string, string>)[m.tipo];
@@ -76,7 +81,7 @@ Deno.serve(async (req) => {
     const P: Record<string, any> = {}; (pr || []).forEach((p: any) => { P[p.usuario_id] = p.prefs || {}; });
     const ids = (us || []).filter((u: any) => {
       // Un aviso que no está en la elección guardada (por ejemplo, uno nuevo) sigue lo de su rol
-      const p = P[u.id], on = p && p[evento] !== undefined ? !!p[evento] : (DEF[u.rol] || []).includes(evento);
+      const p = P[u.id], on = (OBLIG[u.rol] || []).includes(evento) || (p && p[evento] !== undefined ? !!p[evento] : (DEF[u.rol] || []).includes(evento));
       if (!on) return false;
       if (evento.startsWith('ent_') && p && p.solo_tarde && !tarde) return false;
       return true;
@@ -119,11 +124,12 @@ Deno.serve(async (req) => {
       .eq('anulado', false).lte('ts', m.ts).order('ts', { ascending: true });
     const puesto = PUESTOS[m.puesto] || '';
     let title = '', cuerpo = '', tarde = 0;
+    const { data: kv } = await sb.from('kv_store').select('value').eq('key', body.key).maybeSingle();
+    let cfgApp: any = {}; try { cfgApp = (JSON.parse(kv?.value || '{}').config) || {}; } catch (_) { /* sin configuración */ }
+    const inicioJ = new Date(`${m.fecha}T${cfgApp.horaInicio || '08:00'}:00-05:00`).getTime();   // lo marcado antes no se cuenta
     if (m.tipo === 'entrada') {
       // Tardanza contra la hora de inicio de la jornada (Configuración de la app)
-      const { data: kv } = await sb.from('kv_store').select('value').eq('key', body.key).maybeSingle();
-      let cfgApp: any = {}; try { cfgApp = (JSON.parse(kv?.value || '{}').config) || {}; } catch (_) { /* sin configuración */ }
-      const lim = new Date(`${m.fecha}T${cfgApp.horaInicio || '08:00'}:00-05:00`).getTime() + (Number(cfgApp.toleranciaMin) || 5) * 60000;
+      const lim = inicioJ + (Number(cfgApp.toleranciaMin) || 5) * 60000;
       tarde = Math.max(0, Math.round((new Date(m.ts).getTime() - lim) / 60000));
       title = 'Llegó ' + m.nombre; cuerpo = horaPA(m.ts) + ' · ' + puesto + (tarde ? ' · ' + tarde + ' min tarde' : '');
     } else if (m.tipo === 'salida_almuerzo') {
@@ -136,8 +142,8 @@ Deno.serve(async (req) => {
       // Horas trabajadas del día: de entrada/regreso a salida a almuerzo/salida
       let h = 0, ini: number | null = null;
       (dia || []).forEach((x: any) => { const t = new Date(x.ts).getTime();
-        if (x.tipo === 'entrada' || x.tipo === 'regreso_almuerzo') { if (ini == null) ini = t; }
-        else if (ini != null) { h += t - ini; ini = null; } });
+        if (x.tipo === 'entrada' || x.tipo === 'regreso_almuerzo') { if (ini == null) ini = Math.max(t, new Date(m.fecha + 'T12:00:00-05:00').getDay() === 0 ? 0 : inicioJ); }
+        else if (ini != null) { h += Math.max(0, t - ini); ini = null; } });
       title = 'Salió ' + m.nombre; cuerpo = horaPA(m.ts) + ' · ' + puesto + ' · ' + fmtH(h / 3600000) + ' trabajadas';
     }
     const n = await enviar(await celularesPara(evento, tarde), { title, body: cuerpo, tag: 'marca|' + m.id, data: { accion: 'marca' } });

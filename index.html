@@ -267,6 +267,7 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
 .sw span{position:absolute;inset:0;border-radius:13px;background:var(--b1);transition:background .15s}
 .sw span::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
 .sw input:checked+span{background:var(--green)}
+.sw input:disabled{cursor:not-allowed}.sw input:disabled+span{opacity:.6}
 .sw input:checked+span::after{transform:translateX(20px)}
 .sw input:focus-visible+span{outline:2px solid var(--green);outline-offset:2px}
 .sobre-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(245,158,11,.18);border:1px solid rgba(245,158,11,.55);border-radius:8px;padding:8px 11px;font-size:.76rem;line-height:1.5}
@@ -1477,7 +1478,7 @@ function calcTurno(turno, hist, activas, now){
     const trab=p.prod+p.apoyo;
     if(p.c.marcas&&p.c.marcas.length){
       // Con marcaje: horas pagadas = de la entrada a la salida sin el almuerzo; lo que pase de la jornada es sobretiempo
-      const mh=horasMarcas(p.c.marcas,enCurso?now:null).h; p.pagadasH=mh;
+      const mh=horasMarcas(p.c.marcas,enCurso?now:null,inicioJornadaTs(turno.fecha)).h; p.pagadasH=mh;
       p.base=Math.min(mh,p.base); p.extra=Math.max(0,mh-hp); p.libre=Math.max(0,mh-p.h);
       p.pagado=p.rate*p.base+p.rate*mST*p.extra;
       p.productivo=p.rate*Math.min(trab,p.base)+p.rate*mST*Math.min(p.extra,Math.max(0,trab-p.base));
@@ -1883,6 +1884,7 @@ const AVISOS_CAT=[
     ['tur_libre','Personas sin tarea asignada',()=>'Más de '+(getConfig().alertaLibreMin||15)+' min sin tarea'],
     ['tur_larga','Tarea o pausa demasiado larga'],
     ['tur_pend','Cantidades pendientes al final de la jornada'],
+    ['tur_sin_cerrar','Turno abierto después de la hora de salida','30 min después de la salida sin sobretiempo; se repite cada 30 min'],
     ['tur_sobre','Sobretiempo activado o ampliado','Quién, cuántas personas, hasta qué hora y el motivo'],
     ['tur_sobre_fin','Fin de jornada o del sobretiempo','15 min antes, para activar o ampliar el sobretiempo'],
     ['tur_reap','Solicitud de reapertura de un turno','Para aprobarla o rechazarla en Insights'],
@@ -1894,10 +1896,16 @@ const AVISOS_DEF={
   supervisor:['ent_sup','ent_op','alm_reg','lin_riesgo','lin_paro','tur_sin_abrir','tur_libre','tur_larga','tur_pend','tur_sobre','tur_sobre_fin'],
   responsable:['ent_resp','ent_lin','alm_reg','tur_sin_abrir','lin_arranca','lin_mitad','lin_meta','lin_riesgo','lin_paro','lin_insumo'],
 };
-const avisosDeRol=rol=>{ const o={}; AVISOS_CAT.forEach(g=>g.items.forEach(([id])=>o[id]=(AVISOS_DEF[rol]||[]).includes(id))); return o; };
+// Avisos obligatorios por perfil: los del uso correcto del turno (no se pueden apagar)
+const AVISOS_OBLIG={
+  admin:['tur_sin_abrir','tur_libre','tur_larga','tur_pend','tur_sobre_fin','tur_sin_cerrar'],
+  supervisor:['tur_sin_abrir','tur_libre','tur_larga','tur_pend','tur_sobre_fin','tur_sin_cerrar'],
+};
+const avisoObligatorio=(rol,ev)=>(AVISOS_OBLIG[rol]||[]).includes(ev);
+const avisosDeRol=rol=>{ const o={}; AVISOS_CAT.forEach(g=>g.items.forEach(([id])=>o[id]=(AVISOS_DEF[rol]||[]).includes(id)||avisoObligatorio(rol,id))); return o; };
 let _misAvisos=null, _pushOk=false;
 async function cargarMisAvisos(){ if(!SESSION||IS_TV) return; try{ _misAvisos=await rpc('ch_avisos_get',{p_token:SESSION.token,p_key:STATE_KEY}); }catch(e){ console.warn('Avisos:',e.message); } }
-const avisoOn=ev=>{ const p=_misAvisos||{}; return p[ev]===undefined?!!avisosDeRol(currentUser&&currentUser.rol)[ev]:!!p[ev]; };
+const avisoOn=ev=>{ if(currentUser&&avisoObligatorio(currentUser.rol,ev)) return true; const p=_misAvisos||{}; return p[ev]===undefined?!!avisosDeRol(currentUser&&currentUser.rol)[ev]:!!p[ev]; };
 const EVENTO_MARCA=m=>m.tipo==='entrada'?({supervisor:'ent_sup',responsable:'ent_resp',linea:'ent_lin'}[m.puesto]||'ent_op'):{salida_almuerzo:'alm_sal',regreso_almuerzo:'alm_reg',salida:'salida'}[m.tipo];
 // Pantalla Avisos: la del propio usuario (con el estado de este equipo) o, para el administrador, la de otro usuario
 let _avEdit={uid:null,prefs:null,rol:null,nombre:''};
@@ -1922,7 +1930,8 @@ function renderAvisos(){
   else h+=`<div class="info-box">${esc(E.nombre)} · ${ROL_NOMBRE[E.rol]||E.rol}. Le llegan a los celulares donde activó los avisos.</div>`;
   h+=`<div class="li-sub">Elige qué momentos son importantes: ${n} activo(s)${E.propios?'':' · por ahora, los de su rol'}.</div>`;
   AVISOS_CAT.forEach(g=>{ h+=`<div class="av-grupo">${g.g}</div>`+g.items.map(([id,nom,det])=>{ const d=typeof det==='function'?det():det;
-    return `<label class="av-row"><span class="av-txt"><b>${nom}</b>${d?`<small>${d}</small>`:''}</span><span class="sw"><input type="checkbox" data-av="${id}" ${E.prefs[id]?'checked':''} onchange="cambiarAviso('${id}',this.checked)"><span></span></span></label>`; }).join(''); });
+    const ob=avisoObligatorio(E.rol,id);
+    return `<label class="av-row"><span class="av-txt"><b>${nom}</b>${d?`<small>${d}</small>`:''}${ob?'<small style="color:var(--green);font-weight:600">Obligatorio para este perfil</small>':''}</span><span class="sw"><input type="checkbox" data-av="${id}" ${E.prefs[id]||ob?'checked':''} ${ob?'disabled':''} onchange="cambiarAviso('${id}',this.checked)"><span></span></span></label>`; }).join(''); });
   h+=`<button class="btn btn-ghost btn-sm" style="align-self:center;margin-top:8px" onclick="restablecerAvisos()">Volver a los de su rol</button>`;
   document.getElementById('avBody').innerHTML=h;
 }
@@ -1974,7 +1983,7 @@ function avisarUnaVez(key, titulo, cuerpo, data, evento){
   if(!_avisosApp.some(a=>a.key===key)){ _avisosApp.push({key,titulo,cuerpo,data}); pintarAvisosApp(); }
   emitirAviso(evento,key,titulo,cuerpo,data);
 }
-const ACCION_AVISO={abrir:'Abrir turno',avisos:'Activar avisos',libre:'Asignar tarea',larga:'Ver tarea',pend:'Poner cantidad',linea:'Ver línea',sobre:'Sobretiempo'};
+const ACCION_AVISO={cerrar:'Cerrar turno',abrir:'Abrir turno',avisos:'Activar avisos',libre:'Asignar tarea',larga:'Ver tarea',pend:'Poner cantidad',linea:'Ver línea',sobre:'Sobretiempo'};
 // Las personas sin tarea se agrupan en una sola tarjeta; como máximo 3 tarjetas a la vez
 let _avisosVista=[];
 function pintarAvisosApp(){
@@ -2001,6 +2010,7 @@ function tocarAviso(i){ const v=quitarVista(i); if(v) manejarAviso(v.data); }
 function manejarAviso(data){
   if(!data||!data.accion) return;
   if(data.accion==='avisos'){ abrirAvisos(); return; }
+  if(data.accion==='cerrar'){ setNav('supervisor'); if(S.turno) prepCerrarTurno(); return; }
   if(data.accion==='abrir'){ if(esResponsable()){ setNav('lineas'); return; } setNav('supervisor'); if(!S.turno) showModal('modalAbrirTurno'); return; }
   if(data.accion==='reap'||data.accion==='personal'){ if(currentUser&&currentUser.rol==='admin') setNav('insights'); return; }
   if(data.accion!=='linea'&&!S.turno) return;
@@ -2042,6 +2052,12 @@ function revisarAlertasLineas(){
     revisarProduccion(l);
   });
 }
+function claveSinCerrar(now){
+  now=now||Date.now(); if(!S.turno||S.turno.fin) return null;
+  const act=sobreActivo(S.turno,now), fin=act?0:finJornada();
+  if(act||!fin||now<fin+30*60000) return null;
+  return 'sincerrar|'+S.turno.id+'|'+Math.floor((now-fin-30*60000)/(30*60000));
+}
 function claveFinSobre(now){
   if(!S.turno) return null; now=now||Date.now();
   if(!S.turno.equipo.some(c=>!salioDelTurno(c))) return null;
@@ -2061,14 +2077,19 @@ function revisarAlertas(){
     if(d.accion==='pend') return pendientes().length>0;
     if(d.accion==='sobre') return a.key===claveFinSobre();
     if(d.accion==='avisos') return !_pushOk;
+    if(d.accion==='cerrar') return a.key===claveSinCerrar();
     if(d.accion==='linea'){ const l=lineaDe(d.lid); return !!l&&l.estado==='corriendo'&&(a.key.startsWith('paro|')?!!(l.paroActivo&&a.key==='paro|'+l.paroActivo.id):insumosPorAgotar(l).length>0); }
     return true; });
   if(_avisosApp.length!==antes) pintarAvisosApp();
-  S.turno.equipo.forEach(c=>{ if(actDe(c.id)||salioDelTurno(c)) return; const d=libreDesde(c.id), min=(now-d)/60000;
+  const iniJ=inicioJornadaTs(S.turno.fecha);
+  S.turno.equipo.forEach(c=>{ if(c.cargo==='supervisor'||actDe(c.id)||salioDelTurno(c)) return; const d=libreDesde(c.id), min=(now-Math.max(d,iniJ))/60000;
     if(min>=(cfg.alertaLibreMin||15)) avisarUnaVez('libre|'+c.id+'|'+d,'Sin tarea asignada',c.nombre+' lleva '+fmtH(min/60)+' sin tarea',{accion:'libre',pid:c.id,desde:d},'tur_libre'); });
   S.tareasActivas.forEach(t=>{ const h=msH(now-t.inicio), td=t.tdId&&(S.turno.tareasDia||[]).find(x=>x.id===t.tdId);
     const lim=t.isEspecial?(LIM_PAUSA[t.causa]||1):td&&td.horasEsperadas?Math.max(td.horasEsperadas*1.5,0.5):(cfg.alertaTareaH||3);
     if(h>=lim) avisarUnaVez('larga|'+t.id,t.isEspecial?'Pausa larga':'¿Sigue en curso?',t.tarea+' · '+t.colaboradores.map(c=>c.nombre.split(' ')[0]).join(', ')+' lleva '+fmtH(h),{accion:'larga',tid:t.id},'tur_larga'); });
+  // Turno abierto 30 min después de la hora de salida sin sobretiempo: cerrarlo o activar el sobretiempo (cada 30 min)
+  const ks=claveSinCerrar(now);
+  if(ks) avisarUnaVez(ks,'El turno sigue abierto','Pasó la hora de salida ('+horaHM(finJornada())+') y no hay sobretiempo activado. Si ya terminaron, cierra el turno; si siguen trabajando, activa el sobretiempo.',{accion:'cerrar'},'tur_sin_cerrar');
   // Fin de jornada sin sobretiempo, o sobretiempo por terminar: 15 min antes, con quienes siguen trabajando
   const kf=claveFinSobre();
   if(kf){ const act=sobreActivo();
@@ -2157,7 +2178,8 @@ function hideModal(id){
 function sinTurnoAhora(now){
   now=now||Date.now(); if(IS_TV||!SESSION||!_marcasCargadas) return null;
   const hoy=hoyStr(), lim=(getConfig().alertaSinTurnoMin||15)*60000;
-  const desde=p=>{ const e=estadoMarca(p.id); return e.entrada&&e.entrada.fecha===hoy?msTs(e.entrada.ts):null; };
+  const iniJ=inicioJornadaTs(hoy);
+  const desde=p=>{ const e=estadoMarca(p.id); return e.entrada&&e.entrada.fecha===hoy?Math.max(msTs(e.entrada.ts),iniJ):null; };
   const turnoHoy=S.turno&&(S.turno.fecha===hoy||!S.turno.fin);
   const lineaHoy=(S.lineas||[]).some(l=>l.estado==='corriendo');
   const sinT=turnoHoy?[]:presentes(['operador','ag','supervisor']).filter(p=>desde(p)&&now-desde(p)>=lim);
@@ -2173,7 +2195,7 @@ function revisarSinTurno(){
   const nom=L=>L.slice(0,5).map(p=>p.nombre.split(' ')[0]).join(', ')+(L.length>5?' y '+(L.length-5)+' más':'');
   const partes=[x.sinT.length?x.sinT.length+' sin turno abierto ('+nom(x.sinT)+')':'',x.sinL.length?x.sinL.length+' de línea sin línea en marcha ('+nom(x.sinL)+')':''].filter(Boolean).join(' · ');
   const tit=x.P.length+' persona'+(x.P.length===1?'':'s')+' marcaron y están sin turno';
-  const cuerpo=partes+' · marcan desde las '+horaHM(x.primera)+'. Abre el turno'+(x.sinL.length?' o arranca la línea':'')+' para asignarles trabajo.';
+  const cuerpo=partes+' · esperando desde las '+horaHM(x.primera)+'. Abre el turno'+(x.sinL.length?' o arranca la línea':'')+' para asignarles trabajo.';
   if(!enKiosco()&&!_avisosApp.some(a=>a.key===x.key)){ _avisosApp.unshift({key:x.key,titulo:tit,cuerpo,data:{accion:'abrir'}}); pintarAvisosApp(); }
   emitirAviso('tur_sin_abrir',x.key,tit,cuerpo,{accion:'abrir'});
 }
@@ -2842,10 +2864,13 @@ function estadoMarca(pid){
 }
 const presentes=puestos=>_personal.filter(p=>{ const e=estadoMarca(p.id); return (e.estado==='presente'||e.estado==='almuerzo')&&(!puestos||puestos.includes(e.puesto)); });
 // Horas trabajadas de una lista de marcajes (descuenta almuerzos; si sigue abierta, cuenta hasta ahora o hasta «hasta»)
-function horasMarcas(M, hasta){
+// Hora de inicio de la jornada de una fecha (Configuración). En días sin jornada (domingo con 0 h) no aplica.
+function inicioJornadaTs(fecha){ if(!fecha||!(horasProductivas(fecha)>0)) return 0; return new Date(fecha+'T'+(getConfig().horaInicio||'08:00')+':00').getTime(); }
+// desdeMin: los minutos marcados antes de la hora de inicio no se cuentan
+function horasMarcas(M, hasta, desdeMin){
   let h=0, ini=null; const ord=[...M].filter(m=>!m.anulado).sort((a,b)=>msTs(a.ts)-msTs(b.ts));
   ord.forEach(m=>{ const t=msTs(m.ts);
-    if(m.tipo==='entrada'||m.tipo==='regreso_almuerzo'){ if(ini==null) ini=t; }
+    if(m.tipo==='entrada'||m.tipo==='regreso_almuerzo'){ if(ini==null) ini=Math.max(t,desdeMin||0); }
     else if(ini!=null){ h+=Math.max(0,t-ini); ini=null; } });
   const abierta=ini!=null;
   if(abierta&&hasta) h+=Math.max(0,hasta-ini);
@@ -2855,7 +2880,7 @@ function horasMarcas(M, hasta){
 function diaAsistencia(M, fecha){
   const cfg=getConfig(), get=t=>M.filter(m=>m.tipo===t&&!m.anulado);
   const ent=get('entrada')[0], sal=get('salida').slice(-1)[0];
-  const r=horasMarcas(M, fecha===hoyStr()?Date.now():null);
+  const r=horasMarcas(M, fecha===hoyStr()?Date.now():null, inicioJornadaTs(fecha));
   // Día sin jornada (domingo con 0 h): es día de descanso y sus horas se pagan con el recargo del día, no como extra.
   // Un día ya pasado sin salida está incompleto: no suma extra hasta que se corrija.
   const jornada=horasProductivas(fecha)||0, descanso=jornada<=0, incompleto=!sal&&fecha!==hoyStr();
@@ -3082,7 +3107,7 @@ function buildAsistenciaSection(){
     <div class="stat-card"><div class="stat-label">Horas extra</div><div class="stat-val">${fmtN(T.extra)}</div><div class="stat-sub">${T.extraSin>0.05?'<b style="color:var(--amber)">'+fmtN(T.extraSin)+' sin autorizar</b>':'todas autorizadas'}</div></div>
     <div class="stat-card"><div class="stat-label">Días-persona</div><div class="stat-val">${T.dias}</div><div class="stat-sub">${T.tardes} tardanza(s)${T.incompletos?' · <b style="color:var(--amber)">'+T.incompletos+' sin salida</b>':''}</div></div></div>
   <div class="rt-scroll"><table class="rt-table rt-asis"><tr><th>Persona</th><th>Días</th><th>Horas</th><th>Extra</th><th>Tardanzas</th><th>Sin salida</th><th></th></tr>`+R.map(o=>`<tr><td>${esc(o.nombre)}</td><td>${o.D.length}</td><td><b>${fmtN(o.horas)}</b></td><td>${o.extra>0.05?fmtN(o.extra)+(o.extraSin>0.05?' <small style="color:var(--amber);font-weight:700">('+fmtN(o.extraSin)+' sin aut.)</small>':''):'—'}</td><td>${o.tardes?o.tardes+' ('+o.minTarde+' min)':'—'}</td><td>${o.incompletos?'<b style="color:var(--amber)">'+o.incompletos+'</b>':'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="verAsistencia('${o.id}')">Detalle</button></td></tr>`).join('')+`<tr class="rt-total"><td><b>Total</b></td><td><b>${T.dias}</b></td><td><b>${fmtN(T.horas)}</b></td><td><b>${T.extra>0.05?fmtN(T.extra):'—'}</b>${T.extraSin>0.05?' <small style="color:var(--amber);font-weight:700">('+fmtN(T.extraSin)+' sin aut.)</small>':''}</td><td><b>${T.tardes||'—'}</b></td><td><b>${T.incompletos||'—'}</b></td><td></td></tr></table></div>
-    <div class="li-sub">Horas = suma de lo marcado: de la entrada a la salida, sin el tiempo entre salida y regreso de almuerzo (un día sin salida cuenta solo los tramos cerrados; hoy cuenta hasta ahora). Extra = por encima de la jornada del día (${getConfig().horaInicio}–${getConfig().horaFin}); «sin autorizar» = extra fuera de un sobretiempo activado en el turno. Tardanza = entrada después de las ${getConfig().horaInicio} + ${getConfig().toleranciaMin||5} min.</div>`
+    <div class="li-sub">Horas = suma de lo marcado: de la entrada (o de la hora de inicio, ${getConfig().horaInicio}, si marcó antes) a la salida, sin el tiempo entre salida y regreso de almuerzo (un día sin salida cuenta solo los tramos cerrados; hoy cuenta hasta ahora). Extra = por encima de la jornada del día (${getConfig().horaInicio}–${getConfig().horaFin}); «sin autorizar» = extra fuera de un sobretiempo activado en el turno. Tardanza = entrada después de las ${getConfig().horaInicio} + ${getConfig().toleranciaMin||5} min.</div>`
     :'<div class="empty-text">Sin marcajes en el período.</div>';
   return h+`</div></div>`;
 }

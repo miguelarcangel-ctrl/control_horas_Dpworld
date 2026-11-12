@@ -195,7 +195,8 @@ async function newPage(browser, opts = {}) {
   ok(await page.evaluate(() => { const k = engVivo(); return k.baseH <= 3 * 3 + 0.1 && k.baseH > 8; }), 'turno en curso: la base son las horas transcurridas (3 h × 3), no la jornada completa');
 
   // 9d) Avisos y app instalable
-  const av = await page.evaluate(() => { _avisados.clear(); _avisosApp = []; pintarAvisosApp(); const ok15 = (revisarAlertas(), [..._avisados].some(k => k.startsWith('libre|'))); S.config.alertaLibreMin = 0.001; revisarAlertas(); S.config.alertaLibreMin = 15; if (ok15) return {}; return { libre: [..._avisados].some(k => k.startsWith('libre|')), toast: document.getElementById('avisosApp').textContent }; });
+  const av = await page.evaluate(() => { const f0 = S.turno.fecha; S.turno.fecha = '2026-10-20';   // fecha pasada: la hora de inicio no limita el aviso
+    _avisados.clear(); _avisosApp = []; pintarAvisosApp(); const ok15 = (revisarAlertas(), [..._avisados].some(k => k.startsWith('libre|'))); S.config.alertaLibreMin = 0.001; revisarAlertas(); S.config.alertaLibreMin = 15; S.turno.fecha = f0; if (ok15) return {}; return { libre: [..._avisados].some(k => k.startsWith('libre|')), toast: document.getElementById('avisosApp').textContent }; });
   ok(av.libre && /sin tarea/i.test(av.toast), 'aviso: persona sin tarea pasado el umbral (y no antes)');
   ok(await page.evaluate(() => { const n = _avisados.size; revisarAlertas(); return _avisados.size === n; }), 'aviso: no se repite el mismo aviso');
   const acc = await page.evaluate(async () => {
@@ -665,7 +666,7 @@ async function newPage(browser, opts = {}) {
 
   // 9o) Personal marcado sin turno abierto: aviso a los 15 min (también desde la tablet de marcaje); el kiosco no quita el registro de avisos
   const st2 = await page.evaluate(async () => {
-    const r = {}, SRV = window.__SRV, H = 3600000, orig = { turno: S.turno, lineas: S.lineas };
+    const r = {}, SRV = window.__SRV, H = 3600000, orig = { turno: S.turno, lineas: S.lineas }, ij0 = window.inicioJornadaTs; window.inicioJornadaTs = () => 0;   // sin límite de hora de inicio: no depende de la hora en que corre
     SRV.push = []; _avisados.clear(); _avisosApp = []; S.turno = null; S.lineas = []; setNav('supervisor');
     mkTmp('tmp_s1', 'Pedro Sinturno', 'operador', 'entrada', 0.5 * H); mkTmp('tmp_s2', 'Lia Linea', 'linea', 'entrada', 0.4 * H); mkTmp('tmp_s3', 'Recien Llega', 'ag', 'entrada', 0.05 * H);
     await cargarPersonal(); await cargarMarcas(); revisarSinTurno();
@@ -681,9 +682,35 @@ async function newPage(browser, opts = {}) {
     SRV.calls.length = 0; window.confirm = () => true; await activarKiosco(); r.kioscoNoQuita = !SRV.calls.includes('ch_push_unsubscribe');
     kioscoAdmin('salir'); document.getElementById('apPass').value = 'secreto1'; await confirmarAdminPass();
     r.catalogo = avisosDeRol('supervisor').tur_sin_abrir && avisosDeRol('admin').tur_sin_abrir;
-    S.lineas = orig.lineas; await limpiarTmp(); _avisosApp = []; pintarAvisosApp(); return r; });
+    S.lineas = orig.lineas; window.inicioJornadaTs = ij0; await limpiarTmp(); _avisosApp = []; pintarAvisosApp(); return r; });
   ok(st2.aviso && st2.card && st2.unaVez && st2.abre, 'sin turno: quienes marcaron hace 15 min o más sin turno (o línea) generan aviso y tarjeta «Abrir turno»; una vez por tramo');
   ok(st2.calla && st2.kioscoNoQuita && st2.catalogo, 'sin turno: con turno/línea en marcha no avisa; el modo marcaje ya no quita el registro de avisos del equipo');
+
+  // 9p) Horario base: lo marcado antes de las 8:00 no cuenta; avisos obligatorios; turno sin cerrar; sin tarea no aplica a supervisores
+  const hb = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, H = 3600000, f = '2026-10-20', at = hm => new Date(f + 'T' + hm + ':00').getTime();
+    const d = diaAsistencia([{ tipo: 'entrada', ts: at('07:30') }, { tipo: 'salida_almuerzo', ts: at('12:00') }, { tipo: 'regreso_almuerzo', ts: at('13:00') }, { tipo: 'salida', ts: at('17:00') }], f);
+    r.antes = Math.abs(d.horas - 8) < 1e-9 && d.extra === 0 && d.tarde === 0;
+    const c = { id: 'zz', nombre: 'T', cargo: 'operador', marcas: [{ tipo: 'entrada', ts: at('07:20') }, { tipo: 'salida', ts: at('16:00') }] };
+    const k = calcTurno({ fecha: f, inicio: at('07:20'), fin: at('16:00'), equipo: [c], hpPorPersona: 8 }, [], [], at('16:00'));
+    r.motor = Math.abs(k.per.zz.pagadasH - 8) < 1e-9;
+    // obligatorios: el supervisor no los puede apagar
+    r.oblig = avisoObligatorio('supervisor', 'tur_libre') && avisoObligatorio('admin', 'tur_sin_abrir') && !avisoObligatorio('responsable', 'tur_libre');
+    const sup = SRV.users.find(u => u.rol === 'supervisor'); _usuarios = SRV.users.map(u => ({ id: u.id, nombre: u.nombre, username: u.username, rol: u.rol }));
+    await abrirAvisos(sup.id); const sw = document.querySelector('#avBody input[data-av="tur_libre"]');
+    r.switch = sw.checked && sw.disabled && /Obligatorio para este perfil/.test(document.getElementById('avBody').textContent); hideModal('modalAvisos');
+    _misAvisos = { tur_libre: false }; r.avisoOn = avisoOn('tur_libre'); _misAvisos = null;
+    // turno abierto después de la salida, sin sobretiempo
+    const orig = { turno: S.turno, act: S.tareasActivas }, fj0 = window.finJornada;
+    S.turno = { id: 'tsc', fecha: hoyStr(), hora: '08:00', inicio: Date.now() - 10 * H, equipo: [{ id: 'u9', nombre: 'Sup Uno', cargo: 'supervisor' }, { id: 'o9', nombre: 'Op Uno', cargo: 'operador' }], hpPorPersona: 8, horasProd: 16 };
+    S.tareasActivas = []; window.finJornada = () => Date.now() - 45 * 60000; SRV.push = []; _avisados.clear(); _avisosApp = [];
+    const ij0 = window.inicioJornadaTs; window.inicioJornadaTs = () => 0; S.config.alertaLibreMin = 0.001; revisarAlertas(); S.config.alertaLibreMin = 15; window.inicioJornadaTs = ij0;
+    r.sinCerrar = SRV.push.some(x => x.body.evento === 'tur_sin_cerrar') && _avisosApp.some(a => a.data && a.data.accion === 'cerrar');
+    r.supSinTarea = !_avisosApp.some(a => a.data && a.data.accion === 'libre' && a.data.pid === 'u9') && _avisosApp.some(a => a.data && a.data.accion === 'libre' && a.data.pid === 'o9');
+    S.turno = orig.turno; S.tareasActivas = orig.act; window.finJornada = fj0; _avisosApp = []; pintarAvisosApp(); return r; });
+  ok(hb.antes && hb.motor, 'horario: lo marcado antes de las 8:00 no cuenta en horas ni en el pago (7:30–17:00 con almuerzo = 8 h)');
+  ok(hb.oblig && hb.switch && hb.avisoOn, 'avisos obligatorios para admin y supervisores (sin turno, sin tarea, tareas largas, pendientes, fin de jornada, turno sin cerrar)');
+  ok(hb.sinCerrar && hb.supSinTarea, 'turno abierto después de la salida avisa para cerrarlo; «sin tarea» no aplica a supervisores');
 
   // 9i) El turno solo se inicia con personal que marcó entrada
   const tm = await page.evaluate(async () => {
