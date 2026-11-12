@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
     if (!m || m.anulado || m.push_enviado || !evento) return json({ ok: true, enviados: 0 });
     const { data: dia } = await sb.from('ch_marcajes').select('tipo, ts').eq('key', body.key).eq('persona_id', m.persona_id).eq('fecha', m.fecha)
       .eq('anulado', false).lte('ts', m.ts).order('ts', { ascending: true });
-    const puesto = PUESTOS[m.puesto] || '';
+    const puesto = (PUESTOS[m.puesto] || '') + (m.bodega ? ' · ' + m.bodega : '');
     let title = '', cuerpo = '', tarde = 0;
     const { data: kv } = await sb.from('kv_store').select('value').eq('key', body.key).maybeSingle();
     let cfgApp: any = {}; try { cfgApp = (JSON.parse(kv?.value || '{}').config) || {}; } catch (_) { /* sin configuración */ }
