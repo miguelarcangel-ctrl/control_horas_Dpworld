@@ -1877,6 +1877,8 @@ const AVISOS_CAT=[
     ['lin_riesgo','Productividad en riesgo','A este ritmo la línea no llega a la meta del día'],
     ['lin_paro','Paro de línea largo',()=>'Más de '+(getConfig().alertaParoMin||15)+' min en paro'],
     ['lin_insumo','Insumo por agotarse','Alcanza para menos de 1 pallet'],
+    ['lin_sin_registro','Línea sin registrar pallets',()=>'En marcha y sin paro, '+(getConfig().alertaPalletMin||30)+' min sin sumar pallets'],
+    ['lin_sin_cerrar','Línea abierta más allá de sus horas','30 min después de sus horas planificadas; se repite cada 30 min'],
     ['lin_cierre','Línea cerrada','Resumen: pallets, cumplimiento y paros'],
   ]},
   {g:'Turno regular',items:[
@@ -1897,9 +1899,13 @@ const AVISOS_DEF={
   responsable:['ent_resp','ent_lin','alm_reg','tur_sin_abrir','lin_arranca','lin_mitad','lin_meta','lin_riesgo','lin_paro','lin_insumo'],
 };
 // Avisos obligatorios por perfil: los del uso correcto del turno (no se pueden apagar)
+// El uso correcto de la app depende de supervisores y del encargado de la línea: sus avisos de operación no se apagan.
+const OBLIG_TURNO=['tur_sin_abrir','tur_libre','tur_larga','tur_pend','tur_sobre_fin','tur_sin_cerrar'];
+const OBLIG_LINEA=['tur_sin_abrir','lin_paro','lin_insumo','lin_riesgo','lin_sin_registro','lin_sin_cerrar'];
 const AVISOS_OBLIG={
-  admin:['tur_sin_abrir','tur_libre','tur_larga','tur_pend','tur_sobre_fin','tur_sin_cerrar'],
-  supervisor:['tur_sin_abrir','tur_libre','tur_larga','tur_pend','tur_sobre_fin','tur_sin_cerrar'],
+  admin:[...new Set([...OBLIG_TURNO,...OBLIG_LINEA])],
+  supervisor:[...new Set([...OBLIG_TURNO,...OBLIG_LINEA])],
+  responsable:[...OBLIG_LINEA],
 };
 const avisoObligatorio=(rol,ev)=>(AVISOS_OBLIG[rol]||[]).includes(ev);
 const avisosDeRol=rol=>{ const o={}; AVISOS_CAT.forEach(g=>g.items.forEach(([id])=>o[id]=(AVISOS_DEF[rol]||[]).includes(id)||avisoObligatorio(rol,id))); return o; };
@@ -2043,14 +2049,39 @@ function revisarAlertasLineas(){
   const lim=(getConfig().alertaParoMin||15)/60;
   // Quita tarjetas de líneas que ya no aplican (aunque no haya turno regular abierto)
   const n0=_avisosApp.length;
-  _avisosApp=_avisosApp.filter(a=>{ const d=a.data||{}; if(d.accion!=='linea') return true; const l=lineaDe(d.lid);
-    return !!l&&l.estado==='corriendo'&&(a.key.startsWith('paro|')?!!(l.paroActivo&&a.key==='paro|'+l.paroActivo.id):insumosPorAgotar(l).length>0); });
+  _avisosApp=_avisosApp.filter(a=>{ const d=a.data||{}; return d.accion!=='linea'||tarjetaLineaVigente(a); });
   if(_avisosApp.length!==n0) pintarAvisosApp();
   (S.lineas||[]).filter(l=>l.estado==='corriendo').forEach(l=>{
     if(l.paroActivo&&paroDur(l.paroActivo)>=lim) avisarUnaVez('paro|'+l.paroActivo.id,'Línea en paro','Línea '+l.nombre+' lleva '+fmtH(paroDur(l.paroActivo))+' en paro: '+l.paroActivo.causa,{accion:'linea',lid:l.id},'lin_paro');
     insumosPorAgotar(l).forEach(i=>avisarUnaVez('insumo|'+l.id+'|'+i.id+'|'+entregado(i),'Insumo por agotarse','Línea '+l.nombre+': '+i.nombre+' alcanza para menos de 1 pallet',{accion:'linea',lid:l.id},'lin_insumo'));
+    // Uso correcto de la línea: pallets sin registrar y línea abierta más allá de sus horas
+    const ks=claveSinRegistro(l);
+    if(ks) avisarUnaVez(ks,'Línea '+l.nombre+' sin registrar pallets','Lleva '+fmtH(msH(Date.now()-ultimoRegistro(l)))+' sin sumar pallets y no está en paro. Si siguen produciendo, registra los pallets; si se detuvo, registra el paro.',{accion:'linea',lid:l.id},'lin_sin_registro');
+    const kc=claveLineaSinCerrar(l);
+    if(kc) avisarUnaVez(kc,'Línea '+l.nombre+' pasó sus horas','Planificada para '+fmtN(l.horas)+' h y sigue abierta desde las '+horaHM(l.inicio)+'. Si ya terminó, ciérrala con sus pallets e insumos.',{accion:'linea',lid:l.id},'lin_sin_cerrar');
     revisarProduccion(l);
   });
+}
+// Tarjetas de línea: siguen mientras su condición se cumpla
+function tarjetaLineaVigente(a){
+  const l=lineaDe((a.data||{}).lid); if(!l||l.estado!=='corriendo') return false;
+  if(a.key.startsWith('paro|')) return !!(l.paroActivo&&a.key==='paro|'+l.paroActivo.id);
+  if(a.key.startsWith('sinreg|')) return a.key===claveSinRegistro(l);
+  if(a.key.startsWith('lcierre|')) return a.key===claveLineaSinCerrar(l);
+  return insumosPorAgotar(l).length>0;
+}
+const ultimoRegistro=l=>Math.max(l.inicio||0,...((l.pallets||[]).slice(-1)),l.paroActivo?0:Math.max(0,...(l.paros||[]).map(p=>p.fin||0)));
+// Sin pallets registrados por más de N min (30 por omisión), con la línea en marcha y sin paro; se repite por tramo
+function claveSinRegistro(l, now){
+  now=now||Date.now(); if(l.estado!=='corriendo'||l.paroActivo||!l.inicio) return null;
+  const lim=(getConfig().alertaPalletMin||30)*60000, t=ultimoRegistro(l);
+  return now-t>=lim?'sinreg|'+l.id+'|'+t+'|'+Math.floor((now-t-lim)/lim):null;
+}
+// Abierta 30 min más allá de sus horas planificadas (más el tiempo en paro); se repite cada 30 min
+function claveLineaSinCerrar(l, now){
+  now=now||Date.now(); if(l.estado!=='corriendo'||!l.inicio||!(l.horas>0)) return null;
+  const fin=l.inicio+(l.horas+horasParo(l,now))*3600000+30*60000;
+  return now>=fin?'lcierre|'+l.id+'|'+Math.floor((now-fin)/(30*60000)):null;
 }
 function claveSinCerrar(now){
   now=now||Date.now(); if(!S.turno||S.turno.fin) return null;
@@ -2078,7 +2109,7 @@ function revisarAlertas(){
     if(d.accion==='sobre') return a.key===claveFinSobre();
     if(d.accion==='avisos') return !_pushOk;
     if(d.accion==='cerrar') return a.key===claveSinCerrar();
-    if(d.accion==='linea'){ const l=lineaDe(d.lid); return !!l&&l.estado==='corriendo'&&(a.key.startsWith('paro|')?!!(l.paroActivo&&a.key==='paro|'+l.paroActivo.id):insumosPorAgotar(l).length>0); }
+    if(d.accion==='linea') return tarjetaLineaVigente(a);
     return true; });
   if(_avisosApp.length!==antes) pintarAvisosApp();
   const iniJ=inicioJornadaTs(S.turno.fecha);
