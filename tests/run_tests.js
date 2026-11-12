@@ -381,7 +381,7 @@ async function newPage(browser, opts = {}) {
     // tablet en modo quiosco
     await activarKiosco();
     r.kiosco = document.body.classList.contains('en-kiosco') && !document.getElementById('viewMarcaje').classList.contains('hidden') && document.querySelectorAll('#kiGrid .ki-p').length === 3;
-    const marcar = async (pid, ced, tipo, puesto) => { abrirMarca(pid); if (tipo) _marca.tipo = tipo; if (puesto) _marca.puesto = puesto; document.getElementById('mmCedula').value = ced; await confirmarMarca(); await new Promise(res => setTimeout(res, 20)); };
+    const marcar = async (pid, ced, tipo, puesto, bodega) => { abrirMarca(pid); if (tipo) _marca.tipo = tipo; if (puesto) _marca.puesto = puesto; _marca.bodega = bodega || _marca.bodega || bodegas()[0]; document.getElementById('mmCedula').value = ced; await confirmarMarca(); await new Promise(res => setTimeout(res, 20)); };
     abrirMarca('c1'); r.soloEntrada = [...document.querySelectorAll('#mmAcciones button')].map(b => b.dataset.t).join() === 'entrada' && _marca.puesto === 'operador';
     await marcar('c1', '0000', 'entrada'); r.cedulaMala = /Cédula incorrecta/.test(document.getElementById('mmErr').textContent) && window.__SRV.marcas.length === 0;
     hideModal('modalMarca');
@@ -436,7 +436,7 @@ async function newPage(browser, opts = {}) {
     const r = {}, c0 = window.confirm; window.confirm = () => true; const SRV = window.__SRV;
     SRV.push = []; await activarKiosco();
     const ivan = 'p_push'; await rpc('ch_personal_upsert', { p_token: SESSION.token, p_key: STATE_KEY, p_id: ivan, p_nombre: 'Iván Push', p_cedula: '8-999-0001', p_puesto: 'operador', p_activo: true }); await cargarPersonal();
-    abrirMarca(ivan); document.getElementById('mmCedula').value = '8-999-0001'; await confirmarMarca(); await new Promise(res => setTimeout(res, 30));
+    abrirMarca(ivan); _marca.bodega = bodegas()[1]; document.getElementById('mmCedula').value = '8-999-0001'; await confirmarMarca(); await new Promise(res => setTimeout(res, 30));
     const m = SRV.marcas.find(x => x.persona_id === ivan && x.tipo === 'entrada');
     r.pide = SRV.push.some(x => x.name === 'push-marcaje' && x.body.accion === 'marca' && x.body.marcaId === m.id) && m.push_enviado;
     const n = SRV.push.length; abrirMarca(ivan); _marca.tipo = 'salida_almuerzo'; document.getElementById('mmCedula').value = '8-999-0001'; await confirmarMarca(); await new Promise(res => setTimeout(res, 30));
@@ -727,6 +727,54 @@ async function newPage(browser, opts = {}) {
     S.lineas = orig; _avisosApp = []; pintarAvisosApp(); return r; });
   ok(ul.sinReg && ul.seQuita && ul.paroNo, 'línea: 30 min sin registrar pallets (sin paro) avisa; se quita al registrar; en paro no');
   ok(ul.sinCerrar && ul.oblig, 'línea: abierta más allá de sus horas avisa; avisos de línea obligatorios para supervisor y encargado de línea');
+
+  // 9r) Bodegas: se eligen al marcar; el turno, las tareas, el filtro del supervisor, las líneas y los reportes las muestran
+  const bod = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, c0 = window.confirm; window.confirm = () => true;
+    document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
+    r.config = bodegas().join('|') === 'Bodega 1 CLP|Bodega 2 MSL';
+    await rpc('ch_personal_upsert', { p_token: SESSION.token, p_key: STATE_KEY, p_id: 'tmp_b1', p_nombre: 'Bea Bodega', p_cedula: '8-555-0001', p_puesto: 'operador', p_activo: true });
+    await rpc('ch_personal_upsert', { p_token: SESSION.token, p_key: STATE_KEY, p_id: 'tmp_b2', p_nombre: 'Beto Bodega', p_cedula: '8-555-0002', p_puesto: 'operador', p_activo: true });
+    await cargarPersonal(); await activarKiosco();
+    // al marcar la entrada pide la bodega
+    abrirMarca('tmp_b1'); r.pide = !document.getElementById('mmBodegaField').classList.contains('hidden') && document.querySelectorAll('#mmBodegas .chip').length === 2;
+    _marca.bodega = ''; document.getElementById('mmCedula').value = '8-555-0001'; await confirmarMarca();
+    r.obliga = /Elige en qué bodega/.test(document.getElementById('mmErr').textContent) && !SRV.marcas.some(m => m.persona_id === 'tmp_b1');
+    setMarcaBodega('Bodega 2 MSL'); await confirmarMarca(); await new Promise(res => setTimeout(res, 30));
+    const mk = SRV.marcas.find(m => m.persona_id === 'tmp_b1'); r.guarda = mk && mk.bodega === 'Bodega 2 MSL' && /Bodega 2 MSL/.test(document.getElementById('kiOkSub').textContent);
+    abrirMarca('tmp_b2'); setMarcaBodega('Bodega 1 CLP'); document.getElementById('mmCedula').value = '8-555-0002'; await confirmarMarca(); await new Promise(res => setTimeout(res, 30));
+    // la próxima vez propone la última bodega
+    await cargarMarcas(); abrirMarca('tmp_b1'); hideModal('modalMarca');
+    kioscoAdmin('salir'); document.getElementById('apPass').value = 'secreto1'; await confirmarAdminPass();
+    // en el turno: cada persona con su bodega; filtro del supervisor
+    await cargarMarcas(); setNav('supervisor'); renderEquipo();
+    const e1 = S.turno.equipo.find(c => c.id === 'tmp_b1'), e2 = S.turno.equipo.find(c => c.id === 'tmp_b2');
+    r.equipo = e1 && e1.bodega === 'Bodega 2 MSL' && e2 && e2.bodega === 'Bodega 1 CLP' && /Bodega 2 MSL/.test(document.querySelector('.pc[data-pid="tmp_b1"]').textContent);
+    r.filtroUI = /Todas/.test(document.getElementById('bodegaFiltro').textContent) && /Bodega 1 CLP/.test(document.getElementById('bodegaFiltro').textContent);
+    setBodegaFiltro('Bodega 2 MSL');
+    r.filtra = !!document.querySelector('.pc[data-pid="tmp_b1"]') && !document.querySelector('.pc[data-pid="tmp_b2"]');
+    selLibres(); r.selFiltro = _sel.has('tmp_b1') && !_sel.has('tmp_b2');
+    // la tarea toma la bodega de la persona; se puede mandar a la otra
+    _sel = new Set(['tmp_b1']); abrirAsignar(); r.asigBodega = _asig.bodega === 'Bodega 2 MSL' && !document.getElementById('asigBodegaField').classList.contains('hidden');
+    setAsigBodega('Bodega 1 CLP'); elegirTarea('t1'); await new Promise(res => setTimeout(res, 50));
+    const ta = S.tareasActivas.find(t => t.colaboradores.some(c => c.id === 'tmp_b1'));
+    r.tarea = ta && ta.bodega === 'Bodega 1 CLP';
+    // con el filtro en Bodega 2, Bea ya no aparece: está trabajando en Bodega 1
+    renderEquipo(); r.mueve = !document.querySelector('.pc[data-pid="tmp_b1"]');
+    setBodegaFiltro('Bodega 1 CLP'); r.mueve = r.mueve && !!document.querySelector('.pc[data-pid="tmp_b1"]') && /en Bodega 1 CLP/.test(document.querySelector('.pc[data-pid="tmp_b1"]').textContent);
+    setBodegaFiltro('');
+    // reportes
+    await liberar(['tmp_b1']); hideModal('modalCantidad'); S.historial.forEach(h => h.cantPend = false);
+    exportExcel(null); const det = window.__xlsx.w.s.find(x => x[0] === 'Detalle Tareas')[1]; const ib = det[0].indexOf('Bodega');
+    r.excel = ib >= 0 && det.some(x => x[ib] === 'Bodega 1 CLP');
+    await cargarAsistencia(hoyStr(), hoyStr()); exportarAsistencia(); const dia = window.__xlsx.w.s.find(x => x[0] === 'Asistencia diaria')[1];
+    r.asist = dia[0].includes('Bodega') && dia.some(x => x[1] === 'Bea Bodega' && x[dia[0].indexOf('Bodega')] === 'Bodega 2 MSL');
+    S.turno.equipo = S.turno.equipo.filter(c => !c.id.startsWith('tmp_')); SRV.personal = SRV.personal.filter(x => !x.id.startsWith('tmp_')); SRV.marcas = SRV.marcas.filter(x => !x.persona_id.startsWith('tmp_'));
+    await cargarPersonal(); await cargarMarcas(); setNav('supervisor'); window.confirm = c0; await save(); return r; });
+  ok(bod.config && bod.pide && bod.obliga && bod.guarda, 'bodega: al marcar la entrada se elige la bodega (obligatoria) y queda en el marcaje');
+  ok(bod.equipo && bod.filtroUI && bod.filtra && bod.selFiltro, 'bodega: en el turno cada persona muestra su bodega; el supervisor filtra el tablero por bodega');
+  ok(bod.asigBodega && bod.tarea && bod.mueve, 'bodega: la tarea toma la bodega de la persona y se puede ejecutar en otra; el filtro la sigue');
+  ok(bod.excel && bod.asist, 'bodega: Excel de tareas y de asistencia con la bodega');
 
   // 9i) El turno solo se inicia con personal que marcó entrada
   const tm = await page.evaluate(async () => {
