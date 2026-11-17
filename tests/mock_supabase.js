@@ -33,7 +33,7 @@
     ch_logout:a=>{delete SRV.sessions[a.p_token];return{data:null};},
     ch_get_state:a=>{if(!user(a.p_token))return err('SESION','28000');const r=SRV.rows[a.p_key];return{data:r?{value:strip(r.value),version:r.version}:{value:null,version:0}};},
     ch_version:a=>{if(!user(a.p_token))return err('SESION','28000');return{data:(SRV.rows[a.p_key]||{version:0}).version};},
-    ch_save_state:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');const r=SRV.rows[a.p_key];if(r.version!==a.p_version)return err('CONFLICT','40001');r.value=strip(a.p_value);r.version++;return{data:r.version};},
+    ch_save_state:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');const r=SRV.rows[a.p_key];if(r.version!==a.p_version)return err('CONFLICT','P0001');r.value=strip(a.p_value);r.version++;return{data:r.version};},
     ch_list_users:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(u.rol!=='admin')return err('PERMISO','42501');return{data:SRV.users.filter(x=>x.activo).map(x=>({id:x.id,username:x.username,nombre:x.nombre,rol:x.rol}))};},
     ch_upsert_user:a=>{const u=user(a.p_token);if(u.rol!=='admin')return err('PERMISO');if(a.p_pass&&a.p_pass.length<6)return err('CLAVE_CORTA');
       if(SRV.users.some(x=>x.username===a.p_username&&x.id!==a.p_id&&x.activo))return err('USUARIO_EXISTE');
