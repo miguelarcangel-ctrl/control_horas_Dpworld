@@ -658,7 +658,7 @@ body.con-sel .toast{bottom:96px}
       <button type="button" class="dpw-hbtn dpw-install dpw-hide-sm" data-dpw="instalar" hidden title="Instalar la app en este equipo">Instalar</button>
       <button type="button" class="dpw-hbtn" data-dpw="tema">Oscuro</button>
       <span class="dpw-role dpw-hide-sm" id="hdrUser"></span>
-      <button type="button" class="dpw-salir" onclick="doLogout()">Salir</button>
+      <button type="button" class="dpw-salir" onclick="pedirSalir()">Salir</button>
     </div>
   </header>
   <div class="dpw-ov" id="dpwOv" data-dpw="menu-close" hidden></div>
@@ -666,7 +666,7 @@ body.con-sel .toast{bottom:96px}
     <div class="dpw-drawer-h"><div class="dpw-logo"><img src="dpw/assets/dpworld-logo-fondo-claro.png" alt="DP World"></div><div><div class="dpw-title">DP WORLD</div><div class="dpw-sub">Control de Horas</div></div><button type="button" class="dpw-close" data-dpw="menu-close" aria-label="Cerrar menú">×</button></div>
     <div class="dpw-who" id="dpwWho"></div>
     <div class="dpw-items" id="dpwItems"></div>
-    <div class="dpw-drawer-f"><span></span><button type="button" class="dpw-salir" onclick="DPW.cerrarMenu();doLogout()">Salir</button></div>
+    <div class="dpw-drawer-f"><span></span><button type="button" class="dpw-salir" onclick="DPW.cerrarMenu();pedirSalir()">Salir</button></div>
   </nav>
 
   <div class="modo-prueba-bar hidden" id="modoPruebaBar">MODO PRUEBA · datos de ensayo</div>
@@ -1667,6 +1667,12 @@ async function doLogin(){
   }finally{
     if(btn){btn.textContent='Iniciar sesión';btn.disabled=false;}
   }
+}
+// Cerrar sesión le quita a este teléfono los avisos: se pide confirmar (la sesión no vence sola mientras se use la app)
+function pedirSalir(){
+  const conAvisos=currentUser&&['admin','supervisor','responsable'].includes(currentUser.rol)&&!enKiosco();
+  if(conAvisos&&!confirm('Si cierras sesión, este teléfono deja de recibir los avisos (marcajes, turno y líneas) hasta que vuelvas a entrar.\n\nNo hace falta salir: la sesión se mantiene abierta mientras uses la app. ¿Cerrar sesión de todas formas?')) return;
+  doLogout();
 }
 async function doLogout(){
   await desuscribirPush();   // este equipo deja de recibir avisos de llegada

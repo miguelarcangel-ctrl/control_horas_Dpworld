@@ -847,6 +847,8 @@ async function newPage(browser, opts = {}) {
   ok(errors.length === 0, 'sin errores JS (' + errors.join(' | ') + ')');
 
   // 11) Supervisor no ve Insights
+  const salir = await page.evaluate(() => { const c0 = window.confirm; let pregunto = ''; window.confirm = m => { pregunto = m; return false; }; pedirSalir(); const sigue = !!SESSION; window.confirm = c0; return { pregunto: /deja de recibir los avisos/.test(pregunto), sigue }; });
+  ok(salir.pregunto && salir.sigue, 'salir: avisa que el teléfono deja de recibir avisos y no cierra si se cancela');
   await page.evaluate(() => doLogout()); await page.waitForTimeout(300);
   await page.fill('#loginUser', 'super'); await page.fill('#loginPass', 'secreto2');
   await page.click('#loginBtn'); await page.waitForTimeout(600);
