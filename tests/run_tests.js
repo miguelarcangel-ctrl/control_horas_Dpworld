@@ -445,7 +445,7 @@ async function newPage(browser, opts = {}) {
     const rg = SRV.marcas.find(x => x.persona_id === ivan && x.tipo === 'regreso_almuerzo');
     r.regreso = SRV.push.length === n + 2 && SRV.push[n + 1].body.marcaId === rg.id && rg.push_enviado;
     r.unaVez = (await funcionPush({ accion: 'marca', token: SESSION.token, key: STATE_KEY, marcaId: m.id })).enviados === 0;
-    r.tabletNoRecibe = !(await suscribirPush());
+    r.tabletNoRecibe = avisosEstado() !== 'granted' ? !(await suscribirPush()) : true;   // sin permiso no se registra (en modo marcaje sí, si hay permiso)
     kioscoAdmin('salir'); document.getElementById('apPass').value = 'secreto1'; await confirmarAdminPass();
     r.sinPermiso = avisosEstado() !== 'granted' ? !(await suscribirPush()) : true;
     r.sw = /addEventListener\('push'/.test(await (await fetch('sw.js')).text());
@@ -456,7 +456,7 @@ async function newPage(browser, opts = {}) {
     SRV.users.find(x => x.id === u.id).rol = 'admin'; currentUser = u;
     window.confirm = c0; return r; });
   ok(pu.pide && pu.soloEntrada && pu.unaVez && pu.regreso, 'push: la tablet pide el aviso en cada marcaje (el servidor decide a quién según sus interruptores) y no se repite');
-  ok(pu.tabletNoRecibe && pu.sinPermiso, 'push: la tablet de marcaje y los equipos sin permiso no se registran');
+  ok(pu.tabletNoRecibe && pu.sinPermiso, 'push: los equipos sin permiso no se registran');
   ok(pu.sw && pu.permiso, 'push: el service worker muestra el aviso con la app cerrada; admin, supervisor y responsable registran su celular');
 
   // 9j) Avisos a elección: interruptores por usuario y avisos de producción
