@@ -198,7 +198,8 @@ async function newPage(browser, opts = {}) {
   const av = await page.evaluate(() => { const f0 = S.turno.fecha; S.turno.fecha = '2026-10-20';   // fecha pasada: la hora de inicio no limita el aviso
     _avisados.clear(); _avisosApp = []; pintarAvisosApp(); const ok15 = (revisarAlertas(), [..._avisados].some(k => k.startsWith('libre|'))); S.config.alertaLibreMin = 0.001; revisarAlertas(); S.config.alertaLibreMin = 15; S.turno.fecha = f0; if (ok15) return {}; return { libre: [..._avisados].some(k => k.startsWith('libre|')), toast: document.getElementById('avisosApp').textContent }; });
   ok(av.libre && /sin tarea/i.test(av.toast), 'aviso: persona sin tarea pasado el umbral (y no antes)');
-  ok(await page.evaluate(() => { const n = _avisados.size; revisarAlertas(); return _avisados.size === n; }), 'aviso: no se repite el mismo aviso');
+  const _rep = await page.evaluate(() => { revisarAlertas(); const a = new Set(_avisados); revisarAlertas(); return [..._avisados].filter(k => !a.has(k)); });
+  ok(_rep.length === 0, 'aviso: no se repite el mismo aviso');
   const acc = await page.evaluate(async () => {
     const r = { tarjeta: document.querySelectorAll('#avisosApp .aviso-card').length > 0 };
     const pid = _avisosApp.find(a => a.data && a.data.accion === 'libre').data.pid;
