@@ -1684,7 +1684,7 @@ async function startApp(){
   document.getElementById('hdrUser').textContent=currentUser.nombre;
   DPW.quien('Sesión',currentUser.nombre+' · '+(ROL_NOMBRE[currentUser.rol]||currentUser.rol));
   setNav(esResponsable()?'lineas':'supervisor');
-  cargarMisAvisos(); cargarPersonal().then(cargarMarcas).then(()=>{ if(!enKiosco()) suscribirPush().then(revisarRegistroAvisos); if(enKiosco()){ if(currentUser.rol==='admin') entrarKiosco(); else try{ localStorage.removeItem(KIOSCO_KEY); }catch(e){} } });
+  cargarMisAvisos(); cargarPersonal().then(cargarMarcas).then(()=>{ suscribirPush().then(revisarRegistroAvisos); if(enKiosco()){ if(currentUser.rol==='admin') entrarKiosco(); else try{ localStorage.removeItem(KIOSCO_KEY); }catch(e){} } });
   if(_lineasMigradas){ _lineasMigradas=false; save(); }
   const now=new Date();
   document.getElementById('tFecha').value=fechaLocal(now);
@@ -1818,7 +1818,8 @@ const b64aBytes=s=>{ const p='='.repeat((4-s.length%4)%4), b=atob((s+p).replace(
 async function funcionPush(body){ const {data,error}=await db.functions.invoke('push-marcaje',{body}); if(error) throw error; return data; }
 // Registra este celular para recibir las llegadas (admin y supervisor; nunca la tablet de marcaje)
 async function suscribirPush(){
-  if(!pushSoportado()||avisosEstado()!=='granted'||!SESSION||!currentUser||enKiosco()||!['admin','supervisor','responsable'].includes(currentUser.rol)) return false;
+  // También en modo marcaje: si el kiosco es el celular del administrador, debe seguir recibiendo los avisos
+  if(!pushSoportado()||avisosEstado()!=='granted'||!SESSION||!currentUser||!['admin','supervisor','responsable'].includes(currentUser.rol)) return false;
   try{
     const reg=await navigator.serviceWorker.ready;
     let sub=await reg.pushManager.getSubscription();
@@ -3030,6 +3031,7 @@ async function activarKiosco(){
 }
 async function entrarKiosco(){
   // El registro de avisos del equipo se mantiene: si el kiosco es el celular del administrador, debe seguir recibiéndolos
+  suscribirPush();
   document.body.classList.add('en-kiosco'); DPW.cerrarMenu&&DPW.cerrarMenu();
   document.getElementById('viewMarcaje').classList.remove('hidden');
   await cargarPersonal(); await cargarMarcas(); renderKiosco();
