@@ -848,6 +848,9 @@ async function newPage(browser, opts = {}) {
 
   // 11) Supervisor no ve Insights
   const salir = await page.evaluate(() => { const c0 = window.confirm; let pregunto = ''; window.confirm = m => { pregunto = m; return false; }; pedirSalir(); const sigue = !!SESSION; window.confirm = c0; return { pregunto: /deja de recibir los avisos/.test(pregunto), sigue }; });
+  const sup = await page.evaluate(() => { const tc = { id: 'tsup', nombre: 'Supervisión', prod: 2, unidad: 'pallet', efic: 85 }; S.tareasCat.push(tc); normalizeS();
+    const r = !pideCantidad({ tareaId: 'tsup', tarea: 'Supervisión' }) && tc.sinProd === true && tc.prod === 0; S.tareasCat = S.tareasCat.filter(t => t.id !== 'tsup'); return r; });
+  ok(sup, 'supervisión: nunca pide cantidad esperada (aunque esté configurada con productividad)');
   ok(salir.pregunto && salir.sigue, 'salir: avisa que el teléfono deja de recibir avisos y no cierra si se cancela');
   await page.evaluate(() => doLogout()); await page.waitForTimeout(300);
   await page.fill('#loginUser', 'super'); await page.fill('#loginPass', 'secreto2');
