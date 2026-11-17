@@ -1585,7 +1585,7 @@ function normalizeS(){
     .forEach(k=>{ if(!Array.isArray(S[k])) S[k]=[]; });
   S.config=getConfig();
   migrarLineas();
-  S.tareasCat.forEach(t=>{if(!t.efic)t.efic=85; if(!t.clase) t.clase=/supervis|limpiez|capacitac|toolbox|reuni|acomodo|gestion de almacen/i.test(normTxt(t.nombre))?'apoyo':'productiva';});
+  S.tareasCat.forEach(t=>{if(!t.efic)t.efic=85; if(esSupervision(t.nombre)){ t.sinProd=true; t.prod=0; t.clase='apoyo'; } if(!t.clase) t.clase=/supervis|limpiez|capacitac|toolbox|reuni|acomodo|gestion de almacen/i.test(normTxt(t.nombre))?'apoyo':'productiva';});
   if(S.turno&&!S.turno.tareasDia) S.turno.tareasDia=[];
 }
 function applyRemote(value){
@@ -3263,7 +3263,9 @@ const quien=()=>currentUser?currentUser.username:'';
 const iniciales=n=>String(n||'').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
 const actDe=pid=>S.tareasActivas.find(t=>(t.colaboradores||[]).some(x=>x.id===pid));
 // Pide cantidad si la tarea del catálogo mide productividad
-function pideCantidad(t){ if(!t||t.isEspecial||t.isToolbox||esAlmuerzo(t)) return false; const tc=S.tareasCat.find(x=>x.id===t.tareaId); return !!(tc&&!tc.sinProd&&(tc.prod||0)>0); }
+// La supervisión nunca pide cantidad (es tiempo de apoyo, no produce unidades)
+const esSupervision=nombre=>/supervis/.test(normTxt(nombre||''));
+function pideCantidad(t){ if(!t||t.isEspecial||t.isToolbox||esAlmuerzo(t)||esSupervision(t.tarea)) return false; const tc=S.tareasCat.find(x=>x.id===t.tareaId); return !!(tc&&!tc.sinProd&&(tc.prod||0)>0&&!esSupervision(tc.nombre)); }
 // Desde cuándo está libre una persona (fin de su última actividad, toolbox o inicio del turno)
 function libreDesde(pid){
   let d=S.turno?(S.turno.toolboxFin||S.turno.inicio):Date.now();
