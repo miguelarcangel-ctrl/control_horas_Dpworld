@@ -2679,7 +2679,8 @@ function renderLineaModal(foco){
     <div class="asig-ttl">Cuadrilla · ${n} persona${n===1?'':'s'}</div><div class="chip-wrap">${chips||'<span class="li-sub">Sin personas</span>'}</div>`;
     h+=htmlAlmLinea(l)+htmlInsumosLinea(l)+htmlParosLinea(l);
     if(corre) h+=`<div class="field"><label>Se suma alguien a la línea</label>${agregar}</div>
-      <button class="btn btn-indigo btn-full" onclick="cerrarLinea()">Cerrar línea</button>`;
+      <button class="btn btn-indigo btn-full" onclick="cerrarLinea()">Cerrar línea</button>
+      ${sePuedeQuitar(l)?`<button class="btn btn-ghost btn-sm" style="align-self:center" id="lmQuitar" onclick="eliminarLinea()">Quitar esta línea (se arrancó por error)</button>`:''}`;
   }
   document.getElementById('lineaBody').innerHTML=h;
 }
@@ -2812,15 +2813,20 @@ async function cerrarLinea(){
   // Quienes de la cuadrilla siguen con la entrada abierta y no están en otra línea en marcha: salida por cierre
   const otras=new Set((S.lineas||[]).filter(x=>x.id!==l.id&&x.estado==='corriendo').flatMap(x=>(x.personas||[]).map(p=>p.personaId)));
   const sinSal=(l.personas||[]).filter(p=>p.personaId&&!otras.has(p.personaId)&&['presente','almuerzo'].includes(estadoMarca(p.personaId).estado));
-  if(!confirm('¿Cerrar la línea '+l.nombre+' con '+totalPallets(l)+' de '+l.meta+' pallets?'+(sinSal.length?'\n\n'+sinSal.length+' persona(s) no han marcado salida: '+sinSal.map(p=>p.nombre).join(', ')+'.\nSe retiran: se registrará su salida a esta hora como «Salida por cierre de línea sin marcaje».':'')+(l.paroActivo?'\nEl paro en curso se cerrará ahora.':'')+(l.almuerzoActivo?'\nEl almuerzo en curso se cerrará ahora.':'')+(sinSob.length?'\nFalta el sobrante de: '+sinSob.map(i=>i.nombre).join(', ')+' (puedes ponerlo después).':''))) return;
+  if(!confirm('¿Cerrar la línea '+l.nombre+' con '+totalPallets(l)+' de '+l.meta+' pallets?'+(sinSal.length?'\n\nCERRAR LA LÍNEA LES MARCA LA SALIDA: '+sinSal.length+' persona(s) quedan fuera a esta hora como «Salida por cierre de línea sin marcaje»: '+sinSal.map(p=>p.nombre).join(', ')+'.':'')+(totalPallets(l)===0?'\n\nNo tiene pallets: si se arrancó por error, cancela y usa «Quitar esta línea», que no marca salidas.':'')+(l.paroActivo?'\nEl paro en curso se cerrará ahora.':'')+(l.almuerzoActivo?'\nEl almuerzo en curso se cerrará ahora.':'')+(sinSob.length?'\nFalta el sobrante de: '+sinSob.map(i=>i.nombre).join(', ')+' (puedes ponerlo después).':''))) return;
   terminarParo(l,Date.now()); cerrarAlmuerzoLinea(l,Date.now());
   l.estado='cerrada'; l.fin=Date.now(); l.porFin=quien();
   if(sinSal.length) await salidasPorCierre(sinSal,l.fin,'Salida por cierre de línea sin marcaje','cierrelsm|'+l.id,'Línea '+l.nombre+' cerrada con {n} sin marcar salida');
   renderLineaModal(); renderLineas(); await save(); showToast('Línea cerrada'); revisarProduccion(l);
 }
+// Se puede quitar una línea pendiente, o una en marcha que aún no tiene pallets (se arrancó por error).
+// Quitarla no registra salidas: la cuadrilla sigue trabajando y queda disponible para otra línea.
+const sePuedeQuitar=l=>!!l&&(l.estado==='pendiente'||(l.estado==='corriendo'&&totalPallets(l)===0));
 async function eliminarLinea(){
-  const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='pendiente') return;
-  if(!confirm('¿Quitar la línea '+l.nombre+' ('+etiquetaDia(l.fecha).toLowerCase()+')?')) return;
+  const l=lineaDe(_lineaAbierta); if(!sePuedeQuitar(l)) return;
+  const msg=l.estado==='pendiente'?'¿Quitar la línea '+l.nombre+' ('+etiquetaDia(l.fecha).toLowerCase()+')?'
+    :'¿Quitar la línea '+l.nombre+'? Está en marcha desde las '+horaHM(l.inicio)+' y no tiene pallets.\n\nSe borra como si no se hubiera arrancado: no se registra la salida de nadie y la cuadrilla ('+(l.personas||[]).length+') queda disponible para otra línea.'+(l.paros&&l.paros.length||l.paroActivo?'\nSus paros también se borran.':'')+((l.insumos||[]).some(i=>(i.entregas||[]).length)?'\nLas entregas de insumos registradas también se borran.':'');
+  if(!confirm(msg)) return;
   S.lineas=S.lineas.filter(x=>x.id!==l.id); hideModal('modalLinea'); renderLineas(); await save();
 }
 

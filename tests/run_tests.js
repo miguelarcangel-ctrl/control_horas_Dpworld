@@ -300,6 +300,14 @@ async function newPage(browser, opts = {}) {
       r.lineaReg = !l.almuerzoActivo && l.almuerzos.length === 1 && SRV.marcas.slice(n0).filter(m => m.tipo === 'regreso_almuerzo').length === 4
         && l.personas.every(p => estadoMarca(p.personaId).estado === 'presente') && /sumarPallet\(1\)/.test(lb()) && /Almuerzo: /.test(lb());
       window.confirm = c0; }
+    // una línea en marcha sin pallets (arrancada por error) se puede quitar sin marcar salidas
+    { const c0 = window.confirm, SRV = window.__SRV; window.confirm = () => true;
+      const l2 = JSON.parse(JSON.stringify(l)); l2.id = 'tmpq'; l2.pallets = []; l2.paros = []; l2.almuerzos = []; S.lineas.push(l2);
+      _lineaAbierta = 'tmpq'; renderLineaModal(); r.btnQuitar = !!document.getElementById('lmQuitar');
+      _lineaAbierta = l.id; renderLineaModal(); r.sinBtnConPallets = !document.getElementById('lmQuitar');
+      _lineaAbierta = 'tmpq'; const n0 = SRV.marcas.length; await eliminarLinea();
+      r.quitada = !S.lineas.some(x => x.id === 'tmpq') && SRV.marcas.length === n0 && S.lineas.some(x => x.id === l.id);
+      _lineaAbierta = l.id; window.confirm = c0; }
     hideModal('modalLinea');
     // vuelve el turno regular: la línea sigue en marcha, se ve en el resumen y los operadores pueden apoyarla
     S.turno = turnoGuardado; S.tareasActivas = []; renderAll();
@@ -329,6 +337,7 @@ async function newPage(browser, opts = {}) {
   ok(ln.btnAlm && ln.lineaAlm, 'línea: «Almuerzo de la línea» manda a almuerzo a toda la cuadrilla y lo registra en el marcaje de cada uno');
   ok(ln.almSinPallet, 'línea: en almuerzo no se suman pallets, no avisa «sin registrar» y no cuenta como paro');
   ok(ln.lineaReg, 'línea: «Terminar almuerzo» registra el regreso de todos y vuelve a sumar pallets');
+  ok(ln.btnQuitar && ln.sinBtnConPallets && ln.quitada, 'línea: en marcha y sin pallets se puede quitar, sin marcar la salida de nadie (con pallets, no)');
   ok(ln.pallets && ln.bloque, 'línea: un solo contador de pallets por línea (+1 / +5 / −1); el bloque muestra cuántas personas');
   ok(ln.resumen && ln.chipLinea && ln.apoyoOp, 'línea: resumen en el turno; tarea de operador marcada como apoyo a la línea (2 h)');
   ok(ln.independiente && ln.cierre, 'línea: su ciclo es propio (se cierra con su botón, no con el turno)');
