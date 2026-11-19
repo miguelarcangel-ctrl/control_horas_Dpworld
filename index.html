@@ -447,6 +447,7 @@ body.con-sel .avisos-app{bottom:90px}
 .lb-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .lb-name{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1rem;letter-spacing:.4px;text-transform:uppercase;color:var(--t)}
 .lb-cli{font-size:.72rem;color:var(--t3)}
+.lb-names{font-size:.74rem;color:var(--t2);margin-top:2px;line-height:1.35}
 .lb-num{font-family:'Barlow Condensed',sans-serif;font-size:.9rem;color:var(--t2)}
 .lb-num b{font-size:1.9rem;font-weight:800;color:var(--t);font-variant-numeric:tabular-nums}
 .lb-sub{font-size:.72rem;color:var(--t2)}
@@ -1983,14 +1984,14 @@ function revisarProduccion(l){
   if(!l||l.estado==='pendiente') return;
   const r=ritmoLinea(l), d={accion:'linea',lid:l.id};
   if(l.estado==='corriendo'&&l.meta>0){
-    if(r.tot>=l.meta) emitirAviso('lin_meta','meta|'+l.id,'Meta cumplida: línea '+l.nombre,r.tot+' de '+l.meta+' pallets en '+fmtH(r.h),d);
-    else if(r.tot>=l.meta/2) emitirAviso('lin_mitad','mitad|'+l.id,'Mitad de la meta: línea '+l.nombre,r.tot+' de '+l.meta+' pallets en '+fmtH(r.h)+' · a este ritmo cierra en '+r.proy,d);
+    if(r.tot>=l.meta) emitirAviso('lin_meta','meta|'+l.id,'Meta cumplida: línea '+lin(l),r.tot+' de '+l.meta+' pallets en '+fmtH(r.h),d);
+    else if(r.tot>=l.meta/2) emitirAviso('lin_mitad','mitad|'+l.id,'Mitad de la meta: línea '+lin(l),r.tot+' de '+l.meta+' pallets en '+fmtH(r.h)+' · a este ritmo cierra en '+r.proy,d);
     const enRiesgo=!l.almuerzoActivo&&r.tot<l.meta&&r.hTrab>=Math.max(1,l.horas*0.25)&&r.proy<l.meta*0.95;
     if(enRiesgo){ const falta=Math.max(0.1,l.horas-r.hTrab), nec=(l.meta-r.tot)/falta;
-      emitirAviso('lin_riesgo','riesgo|'+l.id,'Productividad en riesgo: línea '+l.nombre,'A este ritmo cierra en '+r.proy+' de '+l.meta+' pallets. Va a '+fmtN(r.ritmo)+'/h y necesita '+fmtN(nec)+'/h en lo que queda',d); }
+      emitirAviso('lin_riesgo','riesgo|'+l.id,'Productividad en riesgo: línea '+lin(l),'A este ritmo cierra en '+r.proy+' de '+l.meta+' pallets. Va a '+fmtN(r.ritmo)+'/h y necesita '+fmtN(nec)+'/h en lo que queda',d); }
   }
   if(l.estado==='cerrada'&&l.fin&&Date.now()-l.fin<6*3600000){ const pct=l.meta?Math.round(r.tot/l.meta*100):0;
-    emitirAviso('lin_cierre','cierre|'+l.id,'Línea '+l.nombre+' cerrada',r.tot+' de '+l.meta+' pallets ('+pct+'%) en '+fmtH(r.h)+(r.paroH>0.01?' · paros '+fmtH(r.paroH):''),d); }
+    emitirAviso('lin_cierre','cierre|'+l.id,'Línea '+lin(l)+' cerrada',r.tot+' de '+l.meta+' pallets ('+pct+'%) en '+fmtH(r.h)+(r.paroH>0.01?' · paros '+fmtH(r.paroH):''),d); }
 }
 // Aviso del sistema (con permiso) + tarjeta en la app. "data" dice qué abrir al tocarlo.
 async function notificar(titulo, cuerpo, tag, data){
@@ -2071,13 +2072,13 @@ function revisarAlertasLineas(){
   _avisosApp=_avisosApp.filter(a=>{ const d=a.data||{}; return d.accion!=='linea'||tarjetaLineaVigente(a); });
   if(_avisosApp.length!==n0) pintarAvisosApp();
   (S.lineas||[]).filter(l=>l.estado==='corriendo').forEach(l=>{
-    if(l.paroActivo&&paroDur(l.paroActivo)>=lim) avisarUnaVez('paro|'+l.paroActivo.id,'Línea en paro','Línea '+l.nombre+' lleva '+fmtH(paroDur(l.paroActivo))+' en paro: '+l.paroActivo.causa,{accion:'linea',lid:l.id},'lin_paro');
-    insumosPorAgotar(l).forEach(i=>avisarUnaVez('insumo|'+l.id+'|'+i.id+'|'+entregado(i),'Insumo por agotarse','Línea '+l.nombre+': '+i.nombre+' alcanza para menos de 1 pallet',{accion:'linea',lid:l.id},'lin_insumo'));
+    if(l.paroActivo&&paroDur(l.paroActivo)>=lim) avisarUnaVez('paro|'+l.paroActivo.id,'Línea en paro','Línea '+lin(l)+' lleva '+fmtH(paroDur(l.paroActivo))+' en paro: '+l.paroActivo.causa,{accion:'linea',lid:l.id},'lin_paro');
+    insumosPorAgotar(l).forEach(i=>avisarUnaVez('insumo|'+l.id+'|'+i.id+'|'+entregado(i),'Insumo por agotarse','Línea '+lin(l)+': '+i.nombre+' alcanza para menos de 1 pallet',{accion:'linea',lid:l.id},'lin_insumo'));
     // Uso correcto de la línea: pallets sin registrar y línea abierta más allá de sus horas
     const ks=claveSinRegistro(l);
-    if(ks) avisarUnaVez(ks,'Línea '+l.nombre+' sin registrar pallets','Lleva '+fmtH(msH(Date.now()-ultimoRegistro(l)))+' sin sumar pallets y no está en paro. Si siguen produciendo, registra los pallets; si se detuvo, registra el paro.',{accion:'linea',lid:l.id},'lin_sin_registro');
+    if(ks) avisarUnaVez(ks,'Línea '+lin(l)+' sin registrar pallets','Lleva '+fmtH(msH(Date.now()-ultimoRegistro(l)))+' sin sumar pallets y no está en paro. Si siguen produciendo, registra los pallets; si se detuvo, registra el paro.',{accion:'linea',lid:l.id},'lin_sin_registro');
     const kc=claveLineaSinCerrar(l);
-    if(kc) avisarUnaVez(kc,'Línea '+l.nombre+' pasó sus horas','Planificada para '+fmtN(l.horas)+' h y sigue abierta desde las '+horaHM(l.inicio)+'. Si ya terminó, ciérrala con sus pallets e insumos.',{accion:'linea',lid:l.id},'lin_sin_cerrar');
+    if(kc) avisarUnaVez(kc,'Línea '+lin(l)+' pasó sus horas','Planificada para '+fmtN(l.horas)+' h y sigue abierta desde las '+horaHM(l.inicio)+'. Si ya terminó, ciérrala con sus pallets e insumos.',{accion:'linea',lid:l.id},'lin_sin_cerrar');
     revisarProduccion(l);
   });
 }
@@ -2503,6 +2504,25 @@ function nuevaLinea(t, meta, horas, fecha){
   fecha=fecha||hoyStr();
   return {id:uid(),fecha,...datosDeTipo(t),meta:+meta||0,horas:+horas||horasLinea(fecha),excel:null,estado:'pendiente',personas:[],pallets:[],inicio:null,fin:null,por:quien()};
 }
+// ── Letra de cada línea: A, B, C… por día, en el orden en que se crean (o se arrancan, si se planificaron para otro día).
+// Sirve para distinguir líneas iguales («A · 6 Pack Botella», «B · 6 Pack Botella») en tarjetas, TV, avisos y reportes.
+const letraN=n=>{ let t=''; n++; while(n>0){ const r=(n-1)%26; t=String.fromCharCode(65+r)+t; n=Math.floor((n-1)/26); } return t; };
+const lin=l=>l?(l.letra?l.letra+' · ':'')+l.nombre:'';
+function asignarLetras(){
+  let cambio=false; const usadas={};
+  (S.lineas||[]).forEach(l=>{ const u=usadas[l.fecha]||(usadas[l.fecha]=new Set());
+    if(l.letra&&!u.has(l.letra)){ u.add(l.letra); return; }
+    if(l.letra){ delete l.letra; cambio=true; } });                       // repetida (dos equipos la crearon a la vez): se reasigna
+  (S.lineas||[]).forEach(l=>{ if(l.letra) return; const u=usadas[l.fecha]||(usadas[l.fecha]=new Set());
+    let n=0; while(u.has(letraN(n))) n++; l.letra=letraN(n); u.add(l.letra); cambio=true; });
+  return cambio;
+}
+// Primer nombre de cada persona de la cuadrilla; si dos se llaman igual, con la inicial del apellido
+function nombresCortos(P){
+  const pn=x=>String(x.nombre||'').trim().split(/\s+/)[0], cnt={};
+  P.forEach(x=>{ const k=normTxt(pn(x)); cnt[k]=(cnt[k]||0)+1; });
+  return P.map(x=>{ const parts=String(x.nombre||'').trim().split(/\s+/); return cnt[normTxt(parts[0])]>1&&parts[1]?parts[0]+' '+parts[1][0]+'.':parts[0]; });
+}
 // Una sola vez: las líneas que vivían dentro de los turnos y los planes pasan a S.lineas
 let _lineasMigradas=false;
 function migrarLineas(){
@@ -2519,6 +2539,7 @@ function migrarLineas(){
   // Pallets que estaban a nombre de cada persona pasan al total de la línea
   S.lineas.forEach(l=>{ if(!Array.isArray(l.pallets)){ l.pallets=(l.personas||[]).flatMap(p=>p.pallets||[]).sort((a,b)=>a-b); (l.personas||[]).forEach(p=>{ delete p.pallets; delete p.puesto; }); _lineasMigradas=true; } });
   if(antes!==S.lineas.length) _lineasMigradas=true;
+  if(asignarLetras()) _lineasMigradas=true;
 }
 function ritmoLinea(l, now){
   now=now||Date.now();
@@ -2548,12 +2569,12 @@ async function almuerzoGrupo(pids, tipo, ts, motivo){
 async function iniciarAlmuerzoLinea(){
   const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='corriendo'||l.paroActivo||l.almuerzoActivo) return;
   const pids=(l.personas||[]).filter(p=>p.personaId&&estadoMarca(p.personaId).estado==='presente').map(p=>p.personaId);
-  if(!confirm('¿Enviar a almuerzo a toda la línea '+l.nombre+'?\n\n'+pids.length+' persona(s) quedan en almuerzo desde ahora. Al volver, toca «Terminar almuerzo».')) return;
+  if(!confirm('¿Enviar a almuerzo a toda la línea '+lin(l)+'?\n\n'+pids.length+' persona(s) quedan en almuerzo desde ahora. Al volver, toca «Terminar almuerzo».')) return;
   l.almuerzoActivo={id:uid(),inicio:Date.now(),por:quien(),personas:pids};
   renderLineaModal(); renderLineas(); await save();
-  await almuerzoGrupo(pids,'salida_almuerzo',l.almuerzoActivo.inicio,'Almuerzo de la línea '+l.nombre);
-  renderLineaModal(); renderLineas(); showToast('Línea '+l.nombre+' en almuerzo');
-  emitirAviso('alm_sal','almlin|'+l.almuerzoActivo.id,'Almuerzo de la línea '+l.nombre,pids.length+' persona(s) desde las '+horaHM(l.almuerzoActivo.inicio),{accion:'linea',lid:l.id});
+  await almuerzoGrupo(pids,'salida_almuerzo',l.almuerzoActivo.inicio,'Almuerzo de la línea '+lin(l));
+  renderLineaModal(); renderLineas(); showToast('Línea '+lin(l)+' en almuerzo');
+  emitirAviso('alm_sal','almlin|'+l.almuerzoActivo.id,'Almuerzo de la línea '+lin(l),pids.length+' persona(s) desde las '+horaHM(l.almuerzoActivo.inicio),{accion:'linea',lid:l.id});
 }
 function cerrarAlmuerzoLinea(l, ts){
   if(!l.almuerzoActivo) return null;
@@ -2565,10 +2586,10 @@ async function terminarAlmuerzoLinea(){
   const a=cerrarAlmuerzoLinea(l,Date.now());
   const pids=(l.personas||[]).filter(p=>p.personaId&&estadoMarca(p.personaId).estado==='almuerzo').map(p=>p.personaId);
   renderLineaModal(); renderLineas(); await save();
-  await almuerzoGrupo(pids,'regreso_almuerzo',a.fin,'Regreso del almuerzo de la línea '+l.nombre);
+  await almuerzoGrupo(pids,'regreso_almuerzo',a.fin,'Regreso del almuerzo de la línea '+lin(l));
   const min=Math.round(almDur(a)*60);
-  renderLineaModal(); renderLineas(); showToast('Línea '+l.nombre+' de vuelta · almuerzo de '+min+' min');
-  emitirAviso('alm_reg','almlinr|'+a.id,'La línea '+l.nombre+' volvió de almuerzo','Almuerzo de '+min+' min · '+horaHM(a.inicio)+'–'+horaHM(a.fin),{accion:'linea',lid:l.id});
+  renderLineaModal(); renderLineas(); showToast('Línea '+lin(l)+' de vuelta · almuerzo de '+min+' min');
+  emitirAviso('alm_reg','almlinr|'+a.id,'La línea '+lin(l)+' volvió de almuerzo','Almuerzo de '+min+' min · '+horaHM(a.inicio)+'–'+horaHM(a.fin),{accion:'linea',lid:l.id});
 }
 function htmlAlmLinea(l){
   const A=l.almuerzos||[]; if(!A.length) return '';
@@ -2605,8 +2626,9 @@ function htmlBloques(L, vacio){
       :l.estado==='corriendo'?`${fmtN(r.ritmo)} pallets/h · a este ritmo cierras en <b>${r.proy}</b> de ${l.meta}${agota.length?` · <b style="color:var(--amber)">por agotarse: ${agota.map(i=>esc(i.nombre.toLowerCase())).join(', ')}</b>`:''}`
       :`Cumplimiento ${l.meta?Math.round(r.tot/l.meta*100):0}%${r.paroH>0.01?' · paros '+fmtH(r.paroH):''}`;
     return `<div class="lb lb-${l.paroActivo?'paro':l.estado}" onclick="abrirLinea('${l.id}')">
-      <div class="lb-top"><span class="lb-name">Línea ${esc(l.nombre)}</span><span class="badge ${l.paroActivo?'br':est[0]}">${l.paroActivo?'En paro':est[1]}</span></div>
+      <div class="lb-top"><span class="lb-name">Línea ${esc(lin(l))}</span><span class="badge ${l.paroActivo?'br':est[0]}">${l.paroActivo?'En paro':est[1]}</span></div>
       <div class="lb-cli">${esc(l.cliente||'')}${l.bodega&&hayBodegas()?' · '+esc(l.bodega):''}${nP?` · ${nP} persona${nP===1?'':'s'}`:''}${l.fecha!==hoyStr()?' · desde '+etiquetaDia(l.fecha).toLowerCase():''}${l.responsable?' · '+esc(l.responsable):''}</div>
+      ${nP?`<div class="lb-names">${nombresCortos(l.personas).map(esc).join(' · ')}</div>`:''}
       <div class="lb-num"><b>${r.tot}</b> / ${l.meta} pallets</div>
       <div class="pbar-wrap"><div class="pbar-fill ${pct>=100||r.proy>=l.meta?'pg':'pa'}" style="width:${pct}%"></div></div>
       <div class="lb-sub">${sub}</div></div>`;
@@ -2630,7 +2652,7 @@ function renderPlanesLinea(){
   const el=document.getElementById('lineasPlanList'); if(!el) return;
   const P=(S.lineas||[]).filter(l=>l.estado==='pendiente'&&l.fecha>hoyStr()).sort((a,b)=>a.fecha.localeCompare(b.fecha));
   el.innerHTML=P.length?P.map(l=>{ const c=cuadrilla(l.meta,l.prod,l.horas);
-    return `<div class="plan-linea"><span><b>${etiquetaDia(l.fecha)}</b> · Línea ${esc(l.nombre)} · ${l.meta} pallets · ${c.total} personas</span>
+    return `<div class="plan-linea"><span><b>${etiquetaDia(l.fecha)}</b> · Línea ${esc(lin(l))} · ${l.meta} pallets · ${c.total} personas</span>
     <span class="btn-row"><button class="btn btn-ghost btn-sm" onclick="abrirPlanLinea(null,'${l.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarPlanLinea('${l.id}')" aria-label="Eliminar plan">×</button></span></div>`; }).join('')
     :'<div class="empty-text">Nada planificado para los próximos días.</div>';
 }
@@ -2641,7 +2663,7 @@ function abrirLinea(id){ _lineaAbierta=id; renderLineaModal(); showModal('modalL
 function renderLineaModal(foco){
   const l=lineaDe(_lineaAbierta); if(!l) return;
   const r=ritmoLinea(l), c=cuadrilla(l.meta,l.prod,l.horas), n=(l.personas||[]).length;
-  document.getElementById('lineaTitulo').textContent='Línea '+l.nombre;
+  document.getElementById('lineaTitulo').textContent='Línea '+lin(l);
   const agregar=htmlCuadrillaMarcada(l);
   const chips=(l.personas||[]).map(p=>{ const e=estadoEnLinea(p), quitar=l.estado==='pendiente';
     return `<span class="chip selected${e.bloqueo?' chip-off':''}" ${quitar?`onclick="quitarPersonaLinea('${p.id}')" title="Quitar"`:''}>${esc(p.nombre)}${e.bloqueo?' · '+e.texto:''}${quitar?' ×':''}</span>`; }).join('');
@@ -2751,12 +2773,13 @@ async function arrancarLinea(){
   await cargarMarcas(); const falta=faltaParaArrancar(l);
   if(falta){ showToast(falta.replace(/<[^>]+>/g,''),'error'); renderLineaModal(); return; }
   const t=tipoLinea(l.tipoId)||{}, mk=t.excel&&maestroRow(t.excel);
+  if(l.fecha!==hoyStr()) delete l.letra;
   Object.assign(l,{estado:'corriendo',fecha:hoyStr(),inicio:Date.now(),prod:t.prod||l.prod,
     excel:mk?{actividad:mk.actividad,categoria:mk.categoria,tipoActividad:mk.tipoActividad,subActividad:mk.subActividad}:null,
     porInicio:quien(),responsable:currentUser?currentUser.nombre:''});
-  l.personas.forEach(p=>p.desde=l.inicio);
-  renderLineaModal(); renderLineas(); await save(); showToast('Línea '+l.nombre+' en marcha');
-  emitirAviso('lin_arranca','arranca|'+l.id,'Arrancó la línea '+l.nombre,'Meta '+l.meta+' pallets · '+l.personas.length+' personas'+(l.responsable?' · a cargo '+l.responsable:''),{accion:'linea',lid:l.id});
+  l.personas.forEach(p=>p.desde=l.inicio); asignarLetras();
+  renderLineaModal(); renderLineas(); await save(); showToast('Línea '+lin(l)+' en marcha');
+  emitirAviso('lin_arranca','arranca|'+l.id,'Arrancó la línea '+lin(l),'Meta '+l.meta+' pallets · '+l.personas.length+' personas'+(l.responsable?' · a cargo '+l.responsable:''),{accion:'linea',lid:l.id});
 }
 // Suma o resta pallets al total de la línea
 async function sumarPallet(n){
@@ -2813,10 +2836,10 @@ async function cerrarLinea(){
   // Quienes de la cuadrilla siguen con la entrada abierta y no están en otra línea en marcha: salida por cierre
   const otras=new Set((S.lineas||[]).filter(x=>x.id!==l.id&&x.estado==='corriendo').flatMap(x=>(x.personas||[]).map(p=>p.personaId)));
   const sinSal=(l.personas||[]).filter(p=>p.personaId&&!otras.has(p.personaId)&&['presente','almuerzo'].includes(estadoMarca(p.personaId).estado));
-  if(!confirm('¿Cerrar la línea '+l.nombre+' con '+totalPallets(l)+' de '+l.meta+' pallets?'+(sinSal.length?'\n\nCERRAR LA LÍNEA LES MARCA LA SALIDA: '+sinSal.length+' persona(s) quedan fuera a esta hora como «Salida por cierre de línea sin marcaje»: '+sinSal.map(p=>p.nombre).join(', ')+'.':'')+(totalPallets(l)===0?'\n\nNo tiene pallets: si se arrancó por error, cancela y usa «Quitar esta línea», que no marca salidas.':'')+(l.paroActivo?'\nEl paro en curso se cerrará ahora.':'')+(l.almuerzoActivo?'\nEl almuerzo en curso se cerrará ahora.':'')+(sinSob.length?'\nFalta el sobrante de: '+sinSob.map(i=>i.nombre).join(', ')+' (puedes ponerlo después).':''))) return;
+  if(!confirm('¿Cerrar la línea '+lin(l)+' con '+totalPallets(l)+' de '+l.meta+' pallets?'+(sinSal.length?'\n\nCERRAR LA LÍNEA LES MARCA LA SALIDA: '+sinSal.length+' persona(s) quedan fuera a esta hora como «Salida por cierre de línea sin marcaje»: '+sinSal.map(p=>p.nombre).join(', ')+'.':'')+(totalPallets(l)===0?'\n\nNo tiene pallets: si se arrancó por error, cancela y usa «Quitar esta línea», que no marca salidas.':'')+(l.paroActivo?'\nEl paro en curso se cerrará ahora.':'')+(l.almuerzoActivo?'\nEl almuerzo en curso se cerrará ahora.':'')+(sinSob.length?'\nFalta el sobrante de: '+sinSob.map(i=>i.nombre).join(', ')+' (puedes ponerlo después).':''))) return;
   terminarParo(l,Date.now()); cerrarAlmuerzoLinea(l,Date.now());
   l.estado='cerrada'; l.fin=Date.now(); l.porFin=quien();
-  if(sinSal.length) await salidasPorCierre(sinSal,l.fin,'Salida por cierre de línea sin marcaje','cierrelsm|'+l.id,'Línea '+l.nombre+' cerrada con {n} sin marcar salida');
+  if(sinSal.length) await salidasPorCierre(sinSal,l.fin,'Salida por cierre de línea sin marcaje','cierrelsm|'+l.id,'Línea '+lin(l)+' cerrada con {n} sin marcar salida');
   renderLineaModal(); renderLineas(); await save(); showToast('Línea cerrada'); revisarProduccion(l);
 }
 // Se puede quitar una línea pendiente, o una en marcha que aún no tiene pallets (se arrancó por error).
@@ -2824,8 +2847,8 @@ async function cerrarLinea(){
 const sePuedeQuitar=l=>!!l&&(l.estado==='pendiente'||(l.estado==='corriendo'&&totalPallets(l)===0));
 async function eliminarLinea(){
   const l=lineaDe(_lineaAbierta); if(!sePuedeQuitar(l)) return;
-  const msg=l.estado==='pendiente'?'¿Quitar la línea '+l.nombre+' ('+etiquetaDia(l.fecha).toLowerCase()+')?'
-    :'¿Quitar la línea '+l.nombre+'? Está en marcha desde las '+horaHM(l.inicio)+' y no tiene pallets.\n\nSe borra como si no se hubiera arrancado: no se registra la salida de nadie y la cuadrilla ('+(l.personas||[]).length+') queda disponible para otra línea.'+(l.paros&&l.paros.length||l.paroActivo?'\nSus paros también se borran.':'')+((l.insumos||[]).some(i=>(i.entregas||[]).length)?'\nLas entregas de insumos registradas también se borran.':'');
+  const msg=l.estado==='pendiente'?'¿Quitar la línea '+lin(l)+' ('+etiquetaDia(l.fecha).toLowerCase()+')?'
+    :'¿Quitar la línea '+lin(l)+'? Está en marcha desde las '+horaHM(l.inicio)+' y no tiene pallets.\n\nSe borra como si no se hubiera arrancado: no se registra la salida de nadie y la cuadrilla ('+(l.personas||[]).length+') queda disponible para otra línea.'+(l.paros&&l.paros.length||l.paroActivo?'\nSus paros también se borran.':'')+((l.insumos||[]).some(i=>(i.entregas||[]).length)?'\nLas entregas de insumos registradas también se borran.':'');
   if(!confirm(msg)) return;
   S.lineas=S.lineas.filter(x=>x.id!==l.id); hideModal('modalLinea'); renderLineas(); await save();
 }
@@ -2870,8 +2893,9 @@ async function guardarPlanLinea(){
   const t=tipoLinea(tipoId); if(!t) return;
   S.lineas=S.lineas||[];
   const bodega=document.getElementById('plBodega').value||'';
-  if(_planEdit){ const l=lineaDe(_planEdit); if(l&&l.estado==='pendiente') Object.assign(l,{fecha,meta,horas,bodega},l.tipoId!==tipoId?datosDeTipo(t):{}); }
+  if(_planEdit){ const l=lineaDe(_planEdit); if(l&&l.estado==='pendiente'){ if(l.fecha!==fecha) delete l.letra; Object.assign(l,{fecha,meta,horas,bodega},l.tipoId!==tipoId?datosDeTipo(t):{}); } }
   else S.lineas.push({...nuevaLinea(t,meta,horas,fecha),bodega});
+  asignarLetras();
   hideModal('modalPlanLinea'); renderLineas(); await save();
   showToast(fecha===hoyStr()?'Línea agregada a las de hoy':'Línea planificada para '+etiquetaDia(fecha).toLowerCase());
 }
@@ -3426,7 +3450,7 @@ function renderEquipo(){
     if(est==='fuera') info=`<span class="muted">Salió a las ${horaHM(fuera.ts)}</span>`;
     else if(est==='libre') info=`<span style="color:var(--red-t);font-weight:700">Sin tarea</span> <span class="muted">desde ${new Date(libreDesde(c.id)).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit',hour12:false})}</span>`;
     else if(est==='pausa') info=`${(PAUSAS[a.causa]||{}).i||''} <b>${esc(a.tarea)}</b>`;
-    else info=`<b>${esc(a.tarea)}</b> · ${esc(a.cliente)}${a.colaboradores.length>1?` · ${a.colaboradores.length} pers.`:''}${a.lineaId&&lineaDe(a.lineaId)?` · línea ${esc(lineaDe(a.lineaId).nombre)}`:''}${a.bodega&&hayBodegas()&&a.bodega!==c.bodega?` · <b>en ${esc(a.bodega)}</b>`:''}`;
+    else info=`<b>${esc(a.tarea)}</b> · ${esc(a.cliente)}${a.colaboradores.length>1?` · ${a.colaboradores.length} pers.`:''}${a.lineaId&&lineaDe(a.lineaId)?` · línea ${esc(lin(lineaDe(a.lineaId)))}`:''}${a.bodega&&hayBodegas()&&a.bodega!==c.bodega?` · <b>en ${esc(a.bodega)}</b>`:''}`;
     const cnt=est==='tarea'&&pideCantidad(a)?`<div class="pc-cnt" onclick="event.stopPropagation()">
       <button onclick="sumarCant('${a.id}',-1)" aria-label="Restar 1">−</button>
       <div class="pc-val" onclick="editarCantActiva('${a.id}')">${a.cantAcum||0}<small>${esc(a.unidad||'unid')}s</small></div>
@@ -3478,7 +3502,7 @@ function renderAsigCli(){ document.getElementById('asigClientes').innerHTML=S.cl
 function renderAsigLineas(){
   const enMarcha=(S.lineas||[]).filter(l=>l.estado==='corriendo');
   document.getElementById('asigLineas').innerHTML=`<div class="chip${!_asig.linea?' selected':''}" onclick="setAsigLinea('')">Ninguna</div>`+
-    enMarcha.map(l=>`<div class="chip${_asig.linea===l.id?' selected':''}" onclick="setAsigLinea('${l.id}')">Línea ${esc(l.nombre)}</div>`).join('');
+    enMarcha.map(l=>`<div class="chip${_asig.linea===l.id?' selected':''}" onclick="setAsigLinea('${l.id}')">Línea ${esc(lin(l))}</div>`).join('');
 }
 function setAsigLinea(id){ _asig.linea=id; try{ sessionStorage.setItem('ch_asig_linea',id); }catch(e){} const l=lineaDe(id); if(l&&l.clienteId) _asig.cli=l.clienteId; renderAsigLineas(); renderAsigCli(); }
 function renderAsigBodegas(){ document.getElementById('asigBodegas').innerHTML=chipsBodega(_asig.bodega,'setAsigBodega'); }
@@ -3740,7 +3764,7 @@ function prepCerrarTurno(){
     'Horas disponibles: <b>'+k.disp.toFixed(1)+' h</b> ('+k.hp+' h × '+S.turno.equipo.length+' personas)<br>'+
     'Productivas: <b>'+k.prodH.toFixed(1)+' h</b> · Apoyo: <b>'+k.apoyoH.toFixed(1)+' h</b> · No productivas: <b>'+k.noprodH.toFixed(1)+' h</b> · Sin registrar: <b>'+k.libres.toFixed(1)+' h</b>'+(k.extra>0.05?' · Sobretiempo: <b>'+k.extra.toFixed(1)+' h</b>':'')+'<br>'+
     'Tareas completadas: <b>'+S.historial.length+'</b>'+
-    (lineasDeFecha(S.turno.fecha).filter(l=>l.estado!=='pendiente').length?'<br>Líneas: '+lineasDeFecha(S.turno.fecha).filter(l=>l.estado!=='pendiente').map(l=>'<b>'+esc(l.nombre)+'</b> '+totalPallets(l)+' / '+l.meta+' pallets').join(' · '):'')+
+    (lineasDeFecha(S.turno.fecha).filter(l=>l.estado!=='pendiente').length?'<br>Líneas: '+lineasDeFecha(S.turno.fecha).filter(l=>l.estado!=='pendiente').map(l=>'<b>'+esc(lin(l))+'</b> '+totalPallets(l)+' / '+l.meta+' pallets').join(' · '):'')+
     (isAdminView?'<br>Costo pagado: <b>$'+k.pagado.toFixed(2)+'</b> · Productivo: <b>$'+k.productivo.toFixed(2)+'</b> · Perdido: <b style="color:var(--red)">$'+k.perdido.toFixed(2)+'</b>':'');
   const jw=document.getElementById('justWrap');jw.style.display=k.libres>0.5?'flex':'none';
   // Personal que sigue con su entrada abierta: al cerrar el turno se retira con «salida por cierre»
@@ -4148,14 +4172,14 @@ function exportExcel(turnoId){
   const fechasT=new Set(turnos.map(t=>t.fecha));
   (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(!turnoId||fechasT.has(l.fecha))).forEach(l=>{ const t={fecha:l.fecha};
     const r=ritmoLinea(l), fin=l.fin||Date.now();
-    linRows.push([t.fecha,l.nombre,l.cliente||'',l.bodega||'',(l.excel||{}).actividad||'',l.meta,r.tot,l.meta?Math.round(r.tot/l.meta*100):'',l.personas.length,r2(r.h),r.hTot?r2(r.porPersona):'',l.prod||'',r2(apoyoOperadores(l.id).total),Math.round(r.paroH*60),Math.round(r.disponibilidad*100),l.responsable||'',hora(l.inicio),l.fin?hora(l.fin):'En marcha',l.estado==='cerrada'?'Cerrada':'En marcha']);
-    l.personas.forEach(p=>perRows.push([t.fecha,l.nombre,l.cliente||'',p.nombre,hora(p.desde||l.inicio),r2(horasEnLinea(p,l,fin))]));
+    linRows.push([t.fecha,lin(l),l.cliente||'',l.bodega||'',(l.excel||{}).actividad||'',l.meta,r.tot,l.meta?Math.round(r.tot/l.meta*100):'',l.personas.length,r2(r.h),r.hTot?r2(r.porPersona):'',l.prod||'',r2(apoyoOperadores(l.id).total),Math.round(r.paroH*60),Math.round(r.disponibilidad*100),l.responsable||'',hora(l.inicio),l.fin?hora(l.fin):'En marcha',l.estado==='cerrada'?'Cerrada':'En marcha']);
+    l.personas.forEach(p=>perRows.push([t.fecha,lin(l),l.cliente||'',p.nombre,hora(p.desde||l.inicio),r2(horasEnLinea(p,l,fin))]));
   });
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(linRows),'Líneas de producción');
   const parRows=[['Fecha','Línea','Causa','Inicio','Fin','Minutos','Nota','Registrado por']];
   const insRows=[['Fecha','Línea','Insumo','Unidad','Consumo por pallet','Pallets','Esperado','Entregado','Sobrante','Consumo real','Diferencia','Diferencia (%)']];
   (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(!turnoId||fechasT.has(l.fecha))).forEach(l=>{
-    [...(l.paros||[]),...(l.paroActivo?[l.paroActivo]:[])].forEach(p=>parRows.push([l.fecha,l.nombre,p.causa,hora(p.inicio),p.fin?hora(p.fin):'En curso',Math.round(paroDur(p)*60),p.nota||'',p.por||'']));
+    [...(l.paros||[]),...(l.paroActivo?[l.paroActivo]:[])].forEach(p=>parRows.push([l.fecha,lin(l),p.causa,hora(p.inicio),p.fin?hora(p.fin):'En curso',Math.round(paroDur(p)*60),p.nota||'',p.por||'']));
     (l.insumos||[]).forEach(i=>{ const e=estadoInsumo(i,l); insRows.push([l.fecha,l.nombre,i.nombre,i.unidad,i.porPallet,totalPallets(l),r2(e.esp),r2(e.ent),e.sob??'',e.real==null?'':r2(e.real),e.dif==null?'':r2(e.dif),e.difPct==null?'':Math.round(e.difPct)]); });
   });
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(perRows),'Cuadrilla de línea');
@@ -4607,10 +4631,10 @@ function tvLineasBody(){
     const estado=l.paroActivo?['tv-br','En paro']:{pendiente:['tv-ba','Por arrancar'],corriendo:[vaBien?'tv-bg':'tv-ba',vaBien?'En meta':'Bajo el ritmo'],cerrada:['tv-bgy','Cerrada']}[l.estado];
     const agota=insumosPorAgotar(l);
     if(l.estado==='pendiente'){ const c=cuadrilla(l.meta,l.prod,l.horas);
-      return `<div class="tvl"><div class="tvl-top"><div><div class="tvl-name">Línea ${esc(l.nombre)}</div><div class="tvl-cli">${esc(l.cliente||'')}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
+      return `<div class="tvl"><div class="tvl-top"><div><div class="tvl-name">Línea ${esc(lin(l))}</div><div class="tvl-cli">${esc(l.cliente||'')}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
         <div class="tvl-big"><b>0</b><span>/ ${l.meta} pallets</span></div><div class="tvl-sub">Meta del día ${l.meta} pallets · cuadrilla de ${c.total} personas</div></div>`; }
     return `<div class="tvl tvl-${l.estado}">
-      <div class="tvl-top"><div><div class="tvl-name">Línea ${esc(l.nombre)}</div><div class="tvl-cli">${esc(l.cliente||'')}${l.bodega&&hayBodegas()?' · '+esc(l.bodega):''} · ${nP} persona${nP===1?'':'s'}${l.responsable?' · '+esc(l.responsable):''}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
+      <div class="tvl-top"><div><div class="tvl-name">Línea ${esc(lin(l))}</div><div class="tvl-cli">${esc(l.cliente||'')}${l.bodega&&hayBodegas()?' · '+esc(l.bodega):''} · ${nP} persona${nP===1?'':'s'}${l.responsable?' · '+esc(l.responsable):''}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
       ${l.paroActivo?`<div class="tvl-paro">EN PARO · ${esc(l.paroActivo.causa)}<span>${fmtH(paroDur(l.paroActivo,now))}</span></div>`:''}
       ${agota.length?`<div class="tvl-agota">Por agotarse: ${agota.map(i=>esc(i.nombre)+' (alcanza para '+Math.max(0,estadoInsumo(i,l).alcanza)+')').join(' · ')}</div>`:''}
       <div class="tvl-big"><b>${r.tot}</b><span>/ ${l.meta} pallets</span><em>${Math.round(pct)}%</em></div>
