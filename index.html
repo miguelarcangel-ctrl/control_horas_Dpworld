@@ -467,6 +467,8 @@ body.con-sel .avisos-app{bottom:90px}
 .paro-on{display:flex;justify-content:space-between;align-items:center;gap:10px;background:rgba(232,0,61,.1);border:1.5px solid var(--red);border-radius:10px;padding:10px 12px;color:var(--t)}
 .paro-on b{color:var(--red-t);font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;text-transform:uppercase;letter-spacing:.5px}
 .paro-on small{display:block;font-size:.72rem;color:var(--t3)}
+.paro-on.alm-on{background:rgba(245,162,11,.1);border-color:#F59E0B}
+.paro-on.alm-on b{color:var(--amber)}
 .paro-pick{display:flex;flex-direction:column;gap:8px;border:1.5px solid var(--amber);border-radius:10px;padding:10px 12px}
 .ins-row{border:1px solid var(--b1);border-radius:9px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;background:rgba(var(--fg),.03)}
 .ins-name{font-weight:700;color:var(--t)}.ins-name small{font-weight:500;font-size:.68rem;color:var(--t3);margin-left:6px}
@@ -1724,7 +1726,7 @@ function pasosTutorial(){
     }
   }
   if(rol==='responsable'||(S.lineasTipo||[]).length||rol==='admin'){
-    P.push({nav:'lineas',sel:'#lineasList',t:'Líneas de producción',d:'Cada bloque es una línea del día: meta, pallets, ritmo y si llega. Ábrelo para armar la cuadrilla con quienes marcaron, sumar los pallets de la línea (+1 / +5), registrar paros e insumos.'});
+    P.push({nav:'lineas',sel:'#lineasList',t:'Líneas de producción',d:'Cada bloque es una línea del día: meta, pallets, ritmo y si llega. Ábrelo para armar la cuadrilla con quienes marcaron, sumar los pallets de la línea (+1 / +5), registrar paros e insumos. A la hora de comer, «Almuerzo de la línea» manda a toda la cuadrilla a almuerzo y «Terminar almuerzo» los regresa: nadie marca almuerzo en la tablet.'});
     P.push({nav:'lineas',sel:'button[onclick*="abrirPlanLinea(fechaManana())"]',t:'Planificar líneas',d:'Programa líneas para cualquier día con su meta: la app calcula cuántas personas hacen falta.'});
   }
   if(rol==='admin'){
@@ -1983,8 +1985,8 @@ function revisarProduccion(l){
   if(l.estado==='corriendo'&&l.meta>0){
     if(r.tot>=l.meta) emitirAviso('lin_meta','meta|'+l.id,'Meta cumplida: línea '+l.nombre,r.tot+' de '+l.meta+' pallets en '+fmtH(r.h),d);
     else if(r.tot>=l.meta/2) emitirAviso('lin_mitad','mitad|'+l.id,'Mitad de la meta: línea '+l.nombre,r.tot+' de '+l.meta+' pallets en '+fmtH(r.h)+' · a este ritmo cierra en '+r.proy,d);
-    const enRiesgo=r.tot<l.meta&&r.h>=Math.max(1,l.horas*0.25)&&r.proy<l.meta*0.95;
-    if(enRiesgo){ const falta=Math.max(0.1,l.horas-r.h), nec=(l.meta-r.tot)/falta;
+    const enRiesgo=!l.almuerzoActivo&&r.tot<l.meta&&r.hTrab>=Math.max(1,l.horas*0.25)&&r.proy<l.meta*0.95;
+    if(enRiesgo){ const falta=Math.max(0.1,l.horas-r.hTrab), nec=(l.meta-r.tot)/falta;
       emitirAviso('lin_riesgo','riesgo|'+l.id,'Productividad en riesgo: línea '+l.nombre,'A este ritmo cierra en '+r.proy+' de '+l.meta+' pallets. Va a '+fmtN(r.ritmo)+'/h y necesita '+fmtN(nec)+'/h en lo que queda',d); }
   }
   if(l.estado==='cerrada'&&l.fin&&Date.now()-l.fin<6*3600000){ const pct=l.meta?Math.round(r.tot/l.meta*100):0;
@@ -2087,17 +2089,17 @@ function tarjetaLineaVigente(a){
   if(a.key.startsWith('lcierre|')) return a.key===claveLineaSinCerrar(l);
   return insumosPorAgotar(l).length>0;
 }
-const ultimoRegistro=l=>Math.max(l.inicio||0,...((l.pallets||[]).slice(-1)),l.paroActivo?0:Math.max(0,...(l.paros||[]).map(p=>p.fin||0)));
+const ultimoRegistro=l=>Math.max(l.inicio||0,...((l.pallets||[]).slice(-1)),l.paroActivo?0:Math.max(0,...(l.paros||[]).map(p=>p.fin||0)),l.almuerzoActivo?0:Math.max(0,...(l.almuerzos||[]).map(a=>a.fin||0)));
 // Sin pallets registrados por más de N min (30 por omisión), con la línea en marcha y sin paro; se repite por tramo
 function claveSinRegistro(l, now){
-  now=now||Date.now(); if(l.estado!=='corriendo'||l.paroActivo||!l.inicio) return null;
+  now=now||Date.now(); if(l.estado!=='corriendo'||l.paroActivo||l.almuerzoActivo||!l.inicio) return null;
   const lim=(getConfig().alertaPalletMin||30)*60000, t=ultimoRegistro(l);
   return now-t>=lim?'sinreg|'+l.id+'|'+t+'|'+Math.floor((now-t-lim)/lim):null;
 }
 // Abierta 30 min más allá de sus horas planificadas (más el tiempo en paro); se repite cada 30 min
 function claveLineaSinCerrar(l, now){
   now=now||Date.now(); if(l.estado!=='corriendo'||!l.inicio||!(l.horas>0)) return null;
-  const fin=l.inicio+(l.horas+horasParo(l,now))*3600000+30*60000;
+  const fin=l.inicio+(l.horas+horasParo(l,now)+horasAlmLinea(l,now))*3600000+30*60000;
   return now>=fin?'lcierre|'+l.id+'|'+Math.floor((now-fin)/(30*60000)):null;
 }
 function claveSinCerrar(now){
@@ -2521,18 +2523,57 @@ function migrarLineas(){
 function ritmoLinea(l, now){
   now=now||Date.now();
   const h=l.inicio?Math.max(1/60,msH((l.fin||now)-l.inicio)):0, tot=totalPallets(l), ritmo=h?tot/h:0;
-  const paroH=horasParo(l,now), corriendoH=Math.max(1/60,h-paroH), ritmoEf=l.inicio?tot/corriendoH:0;
+  const paroH=horasParo(l,now), almH=horasAlmLinea(l,now), hTrab=Math.max(0,h-almH), corriendoH=Math.max(1/60,hTrab-paroH), ritmoEf=l.inicio?tot/corriendoH:0;
   // Proyección: al ritmo con la línea corriendo, por las horas que faltan (sin contar un paro en curso)
-  const proy=l.estado==='corriendo'?Math.round(tot+ritmoEf*Math.max(0,l.horas-h)):tot;
+  const proy=l.estado==='corriendo'?Math.round(tot+ritmoEf*Math.max(0,l.horas-hTrab)):tot;
   const fin=l.fin||now, hp=pp=>pp.reduce((a,p)=>a+horasEnLinea(p,l,fin),0);
   const hTot=l.inicio?hp(l.personas||[]):0, hPal=hTot;
-  return {h,tot,ritmo,ritmoEf,proy,paroH,disponibilidad:h?Math.max(0,(h-paroH)/h):1,porPaletizador:hPal?tot/hPal:0,porPersona:hTot?tot/hTot:0,hPal,hTot};
+  return {h,hTrab,almH,tot,ritmo,ritmoEf,proy,paroH,disponibilidad:hTrab>0?Math.max(0,(hTrab-paroH)/hTrab):1,porPaletizador:hPal?tot/hPal:0,porPersona:hTot?tot/hTot:0,hPal,hTot};
 }
 // ── Paros de línea
 const CAUSAS_PARO_INICIAL=['Falta de insumo','Falta de pallet o abastecimiento','Cambio de formato','Falla de equipo','Calidad o reproceso','Espera del cliente','Otro'];
 const causasParo=()=>(S.causasParo&&S.causasParo.length)?S.causasParo:CAUSAS_PARO_INICIAL;
 const paroDur=(p,now)=>msH((p.fin||now||Date.now())-p.inicio);
 function horasParo(l, now){ return (l.paros||[]).reduce((a,p)=>a+paroDur(p,now),0)+(l.paroActivo?paroDur(l.paroActivo,now):0); }
+// ── Almuerzo de la línea: el encargado lo pone a toda la cuadrilla. Queda como marcaje de salida y regreso de
+// almuerzo de cada persona (así lo descuentan las horas pagadas, la asistencia y la planilla) y no cuenta como paro.
+const almDur=(a,now)=>msH((a.fin||now||Date.now())-a.inicio);
+function horasAlmLinea(l, now){ return (l.almuerzos||[]).reduce((a,x)=>a+almDur(x,now),0)+(l.almuerzoActivo?almDur(l.almuerzoActivo,now):0); }
+async function almuerzoGrupo(pids, tipo, ts, motivo){
+  pids=[...new Set((pids||[]).filter(Boolean))]; if(!pids.length||!SESSION) return 0;
+  try{ const n=await rpc('ch_almuerzo_grupo',{p_token:SESSION.token,p_key:STATE_KEY,p_personas:pids,p_tipo:tipo,p_ts:new Date(ts||Date.now()).toISOString(),p_motivo:motivo||null});
+    await cargarMarcas(); return n||0; }
+  catch(e){ console.warn('Almuerzo:',e.message); showToast('No se pudo registrar el almuerzo en el marcaje: '+e.message,'error'); return 0; }
+}
+async function iniciarAlmuerzoLinea(){
+  const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='corriendo'||l.paroActivo||l.almuerzoActivo) return;
+  const pids=(l.personas||[]).filter(p=>p.personaId&&estadoMarca(p.personaId).estado==='presente').map(p=>p.personaId);
+  if(!confirm('¿Enviar a almuerzo a toda la línea '+l.nombre+'?\n\n'+pids.length+' persona(s) quedan en almuerzo desde ahora. Al volver, toca «Terminar almuerzo».')) return;
+  l.almuerzoActivo={id:uid(),inicio:Date.now(),por:quien(),personas:pids};
+  renderLineaModal(); renderLineas(); await save();
+  await almuerzoGrupo(pids,'salida_almuerzo',l.almuerzoActivo.inicio,'Almuerzo de la línea '+l.nombre);
+  renderLineaModal(); renderLineas(); showToast('Línea '+l.nombre+' en almuerzo');
+  emitirAviso('alm_sal','almlin|'+l.almuerzoActivo.id,'Almuerzo de la línea '+l.nombre,pids.length+' persona(s) desde las '+horaHM(l.almuerzoActivo.inicio),{accion:'linea',lid:l.id});
+}
+function cerrarAlmuerzoLinea(l, ts){
+  if(!l.almuerzoActivo) return null;
+  const a={...l.almuerzoActivo,fin:Math.max(ts,l.almuerzoActivo.inicio),porFin:quien()};
+  (l.almuerzos=l.almuerzos||[]).push(a); l.almuerzoActivo=null; return a;
+}
+async function terminarAlmuerzoLinea(){
+  const l=lineaDe(_lineaAbierta); if(!l||!l.almuerzoActivo) return;
+  const a=cerrarAlmuerzoLinea(l,Date.now());
+  const pids=(l.personas||[]).filter(p=>p.personaId&&estadoMarca(p.personaId).estado==='almuerzo').map(p=>p.personaId);
+  renderLineaModal(); renderLineas(); await save();
+  await almuerzoGrupo(pids,'regreso_almuerzo',a.fin,'Regreso del almuerzo de la línea '+l.nombre);
+  const min=Math.round(almDur(a)*60);
+  renderLineaModal(); renderLineas(); showToast('Línea '+l.nombre+' de vuelta · almuerzo de '+min+' min');
+  emitirAviso('alm_reg','almlinr|'+a.id,'La línea '+l.nombre+' volvió de almuerzo','Almuerzo de '+min+' min · '+horaHM(a.inicio)+'–'+horaHM(a.fin),{accion:'linea',lid:l.id});
+}
+function htmlAlmLinea(l){
+  const A=l.almuerzos||[]; if(!A.length) return '';
+  return `<div class="li-sub">Almuerzo: ${A.map(a=>horaHM(a.inicio)+'–'+horaHM(a.fin)+' ('+Math.round(almDur(a)*60)+' min)').join(' · ')}</div>`;
+}
 function parosPorCausa(L, now){ const o={}; L.forEach(l=>[...(l.paros||[]),...(l.paroActivo?[l.paroActivo]:[])].forEach(p=>{ o[p.causa]=(o[p.causa]||0)+paroDur(p,now); })); return o; }
 // ── Insumos: esperado = pallets × estándar; consumo real = entregado − sobrante; alcanza para N pallets
 const entregado=i=>(i.entregas||[]).reduce((a,e)=>a+(+e.q||0),0);
@@ -2616,11 +2657,13 @@ function renderLineaModal(foco){
     <button class="btn btn-ghost btn-sm" style="align-self:center" onclick="eliminarLinea()">Quitar esta línea</button>`;
   } else {
     const pct=l.meta?Math.round(r.tot/l.meta*100):0, corre=l.estado==='corriendo', ult=(l.pallets||[]).slice(-1)[0];
-    if(corre) h+=l.paroActivo
+    if(corre) h+=l.almuerzoActivo
+      ?`<div class="paro-on alm-on"><div><b>En almuerzo</b> · toda la línea<small>desde ${horaHM(l.almuerzoActivo.inicio)} · ${fmtH(almDur(l.almuerzoActivo))}</small></div><button class="btn btn-green" onclick="terminarAlmuerzoLinea()">Terminar almuerzo</button></div>`
+      :l.paroActivo
       ?`<div class="paro-on"><div><b>En paro</b> · ${esc(l.paroActivo.causa)}${l.paroActivo.nota?' · '+esc(l.paroActivo.nota):''}<small>desde ${horaHM(l.paroActivo.inicio)} · ${fmtH(paroDur(l.paroActivo))}</small></div><button class="btn btn-green" onclick="reanudarLinea()">Reanudar</button></div>`
       :_paroPick?`<div class="paro-pick"><div class="asig-ttl">Causa del paro</div><div class="chip-wrap">${causasParo().map((c,i)=>`<div class="chip" onclick="iniciarParo(${i})">${esc(c)}</div>`).join('')}</div>
           <input type="text" id="paroNota" placeholder="Nota (opcional)"><button class="btn btn-ghost btn-sm" style="align-self:flex-start" onclick="_paroPick=false;renderLineaModal()">Cancelar</button></div>`
-      :`<button class="btn btn-amber btn-full" onclick="_paroPick=true;renderLineaModal()">Registrar paro</button>`;
+      :`<div style="display:flex;gap:8px"><button class="btn btn-amber" style="flex:1" onclick="_paroPick=true;renderLineaModal()">Registrar paro</button><button class="btn btn-ghost" style="flex:1" id="lmAlmuerzo" onclick="iniciarAlmuerzoLinea()">Almuerzo de la línea</button></div>`;
     const agota=insumosPorAgotar(l);
     if(agota.length) h+=`<div class="warn-box">Por agotarse: ${agota.map(i=>esc(i.nombre)+' (alcanza para '+Math.max(0,estadoInsumo(i,l).alcanza)+' pallet'+(estadoInsumo(i,l).alcanza===1?'':'s')+')').join(' · ')}. Pide la entrega antes de que pare la línea.</div>`;
     h+=`<div class="stat-row">
@@ -2630,11 +2673,11 @@ function renderLineaModal(foco){
     <div class="li-sub">${n} persona${n===1?'':'s'} · ${fmtN(r.porPersona)} pallets por persona-hora${l.prod?' (objetivo '+l.prod+')':''}${l.responsable?' · a cargo: '+esc(l.responsable):''}</div>
     ${(()=>{ const op=apoyoOperadores(l.id); return op.total?`<div class="info-box">Apoyo de operadores: <b>${fmtN(op.total)} h-persona</b> · ${op.personas.map(o=>esc(o.nombre.split(' ')[0])+' '+fmtN(o.h)+' h ('+[...o.tareas].map(esc).join(', ')+')').join(' · ')}</div>`:''; })()}
     <div class="lp-row lp-total"><div class="lp-name">Pallets<small>${ult?'último '+horaHM(ult):'sin pallets aún'}</small></div>
-      ${corre?`<button class="btn btn-ghost" onclick="sumarPallet(-1)" aria-label="Restar un pallet">−</button>`:''}
+      ${corre&&!l.almuerzoActivo?`<button class="btn btn-ghost" onclick="sumarPallet(-1)" aria-label="Restar un pallet">−</button>`:''}
       <span class="lp-cnt">${r.tot}</span>
-      ${corre?`<button class="btn btn-green" onclick="sumarPallet(1)">+1</button><button class="btn btn-green" onclick="sumarPallet(5)">+5</button>`:''}</div>
+      ${corre&&!l.almuerzoActivo?`<button class="btn btn-green" onclick="sumarPallet(1)">+1</button><button class="btn btn-green" onclick="sumarPallet(5)">+5</button>`:''}</div>
     <div class="asig-ttl">Cuadrilla · ${n} persona${n===1?'':'s'}</div><div class="chip-wrap">${chips||'<span class="li-sub">Sin personas</span>'}</div>`;
-    h+=htmlInsumosLinea(l)+htmlParosLinea(l);
+    h+=htmlAlmLinea(l)+htmlInsumosLinea(l)+htmlParosLinea(l);
     if(corre) h+=`<div class="field"><label>Se suma alguien a la línea</label>${agregar}</div>
       <button class="btn btn-indigo btn-full" onclick="cerrarLinea()">Cerrar línea</button>`;
   }
@@ -2717,6 +2760,7 @@ async function arrancarLinea(){
 // Suma o resta pallets al total de la línea
 async function sumarPallet(n){
   const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='corriendo') return;
+  if(l.almuerzoActivo){ showToast('La línea está en almuerzo: termina el almuerzo para sumar pallets','error'); return; }
   l.pallets=l.pallets||[]; const t=Date.now();
   if(n>0) for(let k=0;k<n;k++) l.pallets.push(t); else l.pallets.splice(Math.max(0,l.pallets.length+n));
   renderLineaModal(); renderLineas(); await save(); revisarProduccion(l);
@@ -2724,7 +2768,7 @@ async function sumarPallet(n){
 // Paros: la línea queda «en paro» con su causa hasta que se reanuda
 let _paroPick=false;
 async function iniciarParo(i){
-  const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='corriendo'||l.paroActivo) return;
+  const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='corriendo'||l.paroActivo||l.almuerzoActivo) return;
   l.paroActivo={id:uid(),causa:causasParo()[i],nota:(document.getElementById('paroNota')?.value||'').trim(),inicio:Date.now(),por:quien()};
   _paroPick=false; renderLineaModal(); renderLineas(); await save(); showToast('Línea en paro: '+l.paroActivo.causa);
 }
@@ -2768,8 +2812,8 @@ async function cerrarLinea(){
   // Quienes de la cuadrilla siguen con la entrada abierta y no están en otra línea en marcha: salida por cierre
   const otras=new Set((S.lineas||[]).filter(x=>x.id!==l.id&&x.estado==='corriendo').flatMap(x=>(x.personas||[]).map(p=>p.personaId)));
   const sinSal=(l.personas||[]).filter(p=>p.personaId&&!otras.has(p.personaId)&&['presente','almuerzo'].includes(estadoMarca(p.personaId).estado));
-  if(!confirm('¿Cerrar la línea '+l.nombre+' con '+totalPallets(l)+' de '+l.meta+' pallets?'+(sinSal.length?'\n\n'+sinSal.length+' persona(s) no han marcado salida: '+sinSal.map(p=>p.nombre).join(', ')+'.\nSe retiran: se registrará su salida a esta hora como «Salida por cierre de línea sin marcaje».':'')+(l.paroActivo?'\nEl paro en curso se cerrará ahora.':'')+(sinSob.length?'\nFalta el sobrante de: '+sinSob.map(i=>i.nombre).join(', ')+' (puedes ponerlo después).':''))) return;
-  terminarParo(l,Date.now());
+  if(!confirm('¿Cerrar la línea '+l.nombre+' con '+totalPallets(l)+' de '+l.meta+' pallets?'+(sinSal.length?'\n\n'+sinSal.length+' persona(s) no han marcado salida: '+sinSal.map(p=>p.nombre).join(', ')+'.\nSe retiran: se registrará su salida a esta hora como «Salida por cierre de línea sin marcaje».':'')+(l.paroActivo?'\nEl paro en curso se cerrará ahora.':'')+(l.almuerzoActivo?'\nEl almuerzo en curso se cerrará ahora.':'')+(sinSob.length?'\nFalta el sobrante de: '+sinSob.map(i=>i.nombre).join(', ')+' (puedes ponerlo después).':''))) return;
+  terminarParo(l,Date.now()); cerrarAlmuerzoLinea(l,Date.now());
   l.estado='cerrada'; l.fin=Date.now(); l.porFin=quien();
   if(sinSal.length) await salidasPorCierre(sinSal,l.fin,'Salida por cierre de línea sin marcaje','cierrelsm|'+l.id,'Línea '+l.nombre+' cerrada con {n} sin marcar salida');
   renderLineaModal(); renderLineas(); await save(); showToast('Línea cerrada'); revisarProduccion(l);
@@ -2904,7 +2948,8 @@ function buildLineasSection(){
 }
 
 // ═══ MARCAJE DE ASISTENCIA ═══
-// Las personas marcan en una tablet en modo quiosco (sesión de administrador): entrada, salida y regreso de almuerzo y salida.
+// Las personas marcan en una tablet en modo quiosco (sesión de administrador): entrada y salida. El almuerzo lo registra
+// el encargado para toda la línea, o el supervisor en el turno (como marcaje de salida y regreso de almuerzo de cada uno).
 // La cédula vive cifrada en ch_personal (Supabase) y la hora la pone el servidor. Los marcajes alimentan el tablero del turno
 // (operador, ayudante, supervisor), la cuadrilla disponible de las líneas y las horas pagadas (costo y planilla).
 const PUESTOS={operador:'Operador',ag:'Ayudante general',supervisor:'Supervisor',linea:'Línea de producción',responsable:'Responsable de línea'};
@@ -3065,7 +3110,8 @@ function renderKiosco(){
 let _marca={pid:null,tipo:null,puesto:null};
 function abrirMarca(pid){
   const p=_personal.find(x=>x.id===pid), e=estadoMarca(pid); if(!p) return;
-  const posibles=e.estado==='presente'?['salida_almuerzo','salida']:e.estado==='almuerzo'?['regreso_almuerzo','salida']:['entrada'];
+  // El almuerzo ya no se marca en la tablet: lo pone el encargado a la línea o el supervisor en el turno
+  const posibles=e.estado==='presente'||e.estado==='almuerzo'?['salida']:['entrada'];
   // Propone la posición del último día que trabajó (o la habitual)
   const ult=[..._marcas].reverse().find(m=>m.persona_id===pid&&m.tipo==='entrada'&&!m.anulado);
   const ultB=(ult&&ult.bodega&&bodegas().includes(ult.bodega))?ult.bodega:(bodegas().length===1?bodegas()[0]:'');
@@ -3174,7 +3220,7 @@ const totalAsistencia=R=>({horas:R.reduce((a,o)=>a+o.horas,0),extra:R.reduce((a,
 function buildPersonalSection(){
   const sinCed=S.colaboradores.filter(c=>!_personal.some(p=>p.id===c.id&&p.tiene_cedula));
   let h=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sPers','cPers')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Personal y marcaje</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalPersona()">+ Persona</button><button class="btn btn-indigo btn-sm" onclick="event.stopPropagation();activarKiosco()">Marcaje en esta tablet</button><span class="chevron open" id="cPers">▼</span></div></div><div class="sec-body" id="sPers">
-  <div class="info-box">Cada persona marca en la tablet con su nombre y su cédula: entrada, almuerzo y salida. Quien entra como operador, ayudante o supervisor aparece solo en el tablero del turno; quien entra a la línea, en la cuadrilla disponible.</div>`;
+  <div class="info-box">Cada persona marca en la tablet con su nombre y su cédula: entrada y salida. El almuerzo lo pone el encargado a toda la línea, o el supervisor en el turno. Quien entra como operador, ayudante o supervisor aparece solo en el tablero del turno; quien entra a la línea, en la cuadrilla disponible.</div>`;
   if(sinCed.length) h+=`<div class="warn-box">${sinCed.length} colaborador(es) del maestro sin cédula: no podrán marcar hasta registrarla.</div>`;
   const filas=[..._personal.map(p=>({...p,deMaestro:S.colaboradores.some(c=>c.id===p.id)})),...sinCed.filter(c=>!_personal.some(p=>p.id===c.id)).map(c=>({id:c.id,nombre:c.nombre,puesto_def:c.cargo==='ag'?'ag':'operador',activo:true,tiene_cedula:false,deMaestro:true}))].sort((a,b)=>a.nombre.localeCompare(b.nombre));
   h+=filas.map(p=>{ const e=estadoMarca(p.id); return `<div class="list-item"><div class="li-info"><div class="li-name">${esc(p.nombre)}${p.activo===false?' <span class="badge bgy">Inactivo</span>':''}${p.contingente?' <span class="badge ba" title="Alta por '+esc(p.creado_por||'')+'">Contingente</span>':''}</div>
@@ -3280,9 +3326,10 @@ function completarCantidad(h, cant){
 }
 // Cierra la actividad actual de estas personas en el instante ts
 function cerrarActividad(pids, ts){
-  const ids=new Set(pids);
+  const ids=new Set(pids), regresan=[];
   S.tareasActivas.slice().forEach(t=>{
     const salen=(t.colaboradores||[]).filter(c=>ids.has(c.id)); if(!salen.length) return;
+    if(esAlmuerzo(t)) salen.forEach(c=>regresan.push(c.id));
     const fin=Math.max(ts,t.inicio), durH=msH(fin-t.inicio), base={...t,fin,durH,nota:t.nota||'',porFin:quien(),excel:actividadExcel(t.tareaId,t.clienteId)};
     delete base.cantAcum;
     if(salen.length===(t.colaboradores||[]).length){
@@ -3297,6 +3344,8 @@ function cerrarActividad(pids, ts){
       t.colaboradores=t.colaboradores.filter(c=>!ids.has(c.id));
     }
   });
+  // Termina el almuerzo: queda el regreso en su marcaje (si ya marcó regreso o salida, el servidor no hace nada)
+  if(regresan.length) almuerzoGrupo(regresan,'regreso_almuerzo',ts,'Regreso de almuerzo registrado en el turno');
 }
 // Hora de inicio elegida (ahora o hace N min), nunca antes del turno ni del inicio de la actividad actual
 function inicioPara(pids, haceMin){
@@ -3325,6 +3374,7 @@ async function pausar(pids, tipo, haceMin){
   S.tareasActivas.push({id:uid(),tareaId:'_'+tipo,tarea:PAUSAS[tipo].n,clienteId:null,cliente:'Interno',colaboradores:S.turno.equipo.filter(c=>pids.includes(c.id)),
     inicio:ini,fin:null,prod:0,unidad:'',sinProd:true,isEspecial:true,causa:tipo,bodega:bodegaActual(S.turno.equipo.find(c=>c.id===pids[0]))||'',por:quien()});
   await trasCambio(PAUSAS[tipo].n+' · '+pids.length+' persona(s)');
+  if(tipo==='almuerzo') await almuerzoGrupo(pids,'salida_almuerzo',ini,'Almuerzo registrado en el turno');
 }
 async function liberar(pids){
   if(!S.turno||!pids.length) return;
@@ -5488,9 +5538,10 @@ async function quickStartEspecial(tipo){
   S.tareasActivas.push({
     id:uid(), tarea:nombre, tareaId:'_'+tipo, cliente:'Interno',
     colaboradores:colabs, inicio:Date.now(),
-    prod:0, unidad:'', sinProd:true, isEspecial:true
+    prod:0, unidad:'', sinProd:true, isEspecial:true, causa:tipo, por:quien()
   });
   await save();
+  if(tipo==='almuerzo') await almuerzoGrupo(colabs.map(c=>c.id),'salida_almuerzo',Date.now(),'Almuerzo registrado en el turno');
   renderTareasActivas();
   renderEquipo();
   showToast(nombre+' iniciado — '+colabs.length+' persona(s)');
