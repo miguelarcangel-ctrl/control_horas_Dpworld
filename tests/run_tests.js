@@ -288,6 +288,18 @@ async function newPage(browser, opts = {}) {
     r.almBloq = /En almuerzo desde/.test(lb());
     mkTmp('tmp_p1', 'Pedro Temporal', 'linea', 'regreso_almuerzo', 1800000); await cargarMarcas(); renderLineaModal();
     r.almOk = !/En almuerzo desde/.test(lb()) && Math.abs(horasEnLinea(p1, l) - 1.5) < 0.02;
+    // almuerzo de la línea: el encargado lo pone a toda la cuadrilla (queda en el marcaje de cada uno) y no cuenta como paro
+    { const c0 = window.confirm, SRV = window.__SRV; window.confirm = () => true; renderLineaModal();
+      r.btnAlm = !!document.getElementById('lmAlmuerzo');
+      const n0 = SRV.marcas.length; await iniciarAlmuerzoLinea();
+      r.lineaAlm = !!l.almuerzoActivo && SRV.marcas.slice(n0).filter(m => m.tipo === 'salida_almuerzo').length === 4
+        && l.personas.every(p => estadoMarca(p.personaId).estado === 'almuerzo') && /Terminar almuerzo/.test(lb()) && !/sumarPallet\(1\)/.test(lb());
+      const t0 = totalPallets(l); await sumarPallet(1);
+      r.almSinPallet = totalPallets(l) === t0 && !claveSinRegistro(l, Date.now() + 5 * 3600000) && ritmoLinea(l).paroH === 0;
+      await terminarAlmuerzoLinea();
+      r.lineaReg = !l.almuerzoActivo && l.almuerzos.length === 1 && SRV.marcas.slice(n0).filter(m => m.tipo === 'regreso_almuerzo').length === 4
+        && l.personas.every(p => estadoMarca(p.personaId).estado === 'presente') && /sumarPallet\(1\)/.test(lb()) && /Almuerzo: /.test(lb());
+      window.confirm = c0; }
     hideModal('modalLinea');
     // vuelve el turno regular: la línea sigue en marcha, se ve en el resumen y los operadores pueden apoyarla
     S.turno = turnoGuardado; S.tareasActivas = []; renderAll();
@@ -314,6 +326,9 @@ async function newPage(browser, opts = {}) {
   ok(ln.hoy && ln.corre, 'línea: funciona sin turno regular abierto y guarda quién está a cargo');
   ok(ln.nombres && ln.recuerda, 'línea: la cuadrilla es solo la lista de quienes marcaron (sin puestos ni duplicados); sin marcajes no arranca; sin supervisor ni responsable sí');
   ok(ln.almBloq && ln.almOk, 'línea: quien está en almuerzo se ve en la cuadrilla y su almuerzo no cuenta en sus horas de línea');
+  ok(ln.btnAlm && ln.lineaAlm, 'línea: «Almuerzo de la línea» manda a almuerzo a toda la cuadrilla y lo registra en el marcaje de cada uno');
+  ok(ln.almSinPallet, 'línea: en almuerzo no se suman pallets, no avisa «sin registrar» y no cuenta como paro');
+  ok(ln.lineaReg, 'línea: «Terminar almuerzo» registra el regreso de todos y vuelve a sumar pallets');
   ok(ln.pallets && ln.bloque, 'línea: un solo contador de pallets por línea (+1 / +5 / −1); el bloque muestra cuántas personas');
   ok(ln.resumen && ln.chipLinea && ln.apoyoOp, 'línea: resumen en el turno; tarea de operador marcada como apoyo a la línea (2 h)');
   ok(ln.independiente && ln.cierre, 'línea: su ciclo es propio (se cierra con su botón, no con el turno)');
@@ -393,8 +408,12 @@ async function newPage(browser, opts = {}) {
     r.turno = e1 && e1.marcas && e1.marcas.length === 1 && es && es.cargo === 'supervisor' && !S.turno.equipo.some(c => c.id === rosa);
     r.linea = disponiblesLinea().some(p => p.id === rosa);
     await marcar('c1', '8-111-1111', 'salida_almuerzo'); r.almuerzo = (actDe('c1') || {}).causa === 'almuerzo';
-    abrirMarca('c1'); r.accAlm = [...document.querySelectorAll('#mmAcciones button')].map(b => b.dataset.t).join() === 'regreso_almuerzo,salida'; hideModal('modalMarca');
+    abrirMarca('c1'); r.accAlm = [...document.querySelectorAll('#mmAcciones button')].map(b => b.dataset.t).join() === 'salida'; hideModal('modalMarca');
     await marcar('c1', '8-111-1111', 'regreso_almuerzo'); r.regreso = !actDe('c1');
+    abrirMarca('c1'); r.accPres = [...document.querySelectorAll('#mmAcciones button')].map(b => b.dataset.t).join() === 'salida'; hideModal('modalMarca');
+    // el supervisor pone el almuerzo en el turno: queda en el marcaje, y al terminarlo, el regreso
+    await pausar(['c1'], 'almuerzo'); await new Promise(res => setTimeout(res, 40)); r.pausaMarca = estadoMarca('c1').estado === 'almuerzo';
+    await liberar(['c1']); await new Promise(res => setTimeout(res, 60)); r.pausaReg = estadoMarca('c1').estado === 'presente' && !actDe('c1');
     await marcar('c1', '8-111-1111', 'salida'); r.salida = !!salioDelTurno(S.turno.equipo.find(c => c.id === 'c1')) && /Salió a las/.test(document.querySelector('.pc[data-pid="c1"]').innerHTML);
     r.secuencia = (await rpc('ch_marcar', { p_token: SESSION.token, p_key: STATE_KEY, p_persona: sara, p_cedula: '8-222-2222', p_tipo: 'regreso_almuerzo' }).catch(e => e.message)) === 'SECUENCIA';
     // salir del modo marcaje: pide la contraseña del administrador
@@ -425,6 +444,8 @@ async function newPage(browser, opts = {}) {
   ok(mk.soloEntrada && mk.cedulaMala && mk.ok, 'marcaje: ofrece solo lo que corresponde, propone la posición, rechaza cédula incorrecta y confirma en grande');
   ok(mk.turno && mk.linea, 'marcaje: operador y supervisor al tablero del turno; la persona de línea a la cuadrilla disponible');
   ok(mk.almuerzo && mk.accAlm && mk.regreso && mk.salida, 'marcaje: almuerzo pone la pausa, el regreso la quita y la salida cierra su día en el tablero');
+  ok(mk.accPres && mk.accAlm, 'marcaje: la tablet ya no ofrece marcar almuerzo, solo entrada y salida');
+  ok(mk.pausaMarca && mk.pausaReg, 'turno: el almuerzo que pone el supervisor queda en el marcaje (salida y regreso)');
   ok(mk.secuencia, 'marcaje: el servidor rechaza marcajes fuera de secuencia');
   ok(mk.salirMal && mk.salirBien, 'marcaje: salir del modo quiosco pide la contraseña del administrador');
   ok(mk.pagadas && mk.tarde, 'marcaje: horas pagadas desde el marcaje (9 h = 8 + 1 extra); tardanza con tolerancia');
