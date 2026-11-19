@@ -282,6 +282,14 @@ async function newPage(browser, opts = {}) {
     await sumarPallet(1); await sumarPallet(1); await sumarPallet(5); await sumarPallet(-1); await sumarPallet(-1); await sumarPallet(-1); await sumarPallet(-1);
     r.pallets = totalPallets(l) === 3 && /sumarPallet\(5\)/.test(lb()) && !/sumarPallet\('/.test(lb()) && /lp-total/.test(lb());
     r.bloque = /3<\/b> \/ 20 pallets/.test(document.getElementById('lineasList').innerHTML) && /4 personas/.test(document.getElementById('lineasList').innerHTML);
+    // letra por día y nombres en la tarjeta
+    { const hoyL = S.lineas.filter(x => x.fecha === l.fecha), letras = hoyL.map(x => x.letra);
+      const dup = { ...JSON.parse(JSON.stringify(l)), id: 'tmpl2', letra: l.letra, pallets: [], personas: [{ id: 'z1', nombre: 'Eliezer Velázquez' }, { id: 'z2', nombre: 'Eliezer Rodríguez' }, { id: 'z3', nombre: 'Ana Flores' }] };
+      S.lineas.push(dup); asignarLetras();
+      r.letras = !!l.letra && new Set(letras).size === letras.length && dup.letra && dup.letra !== l.letra && letraN(0) === 'A' && letraN(25) === 'Z' && letraN(26) === 'AA';
+      renderLineas(); const html = document.getElementById('lineasList').innerHTML;
+      r.tarjeta = html.includes('Línea ' + l.letra + ' · Inserto botella') && /Pedro · María · Rosa · Tito/.test(html) && /Eliezer V\. · Eliezer R\. · Ana/.test(html);
+      S.lineas = S.lineas.filter(x => x.id !== 'tmpl2'); renderLineas(); }
     // almuerzo: se ve en la cuadrilla y no cuenta en sus horas de línea
     l.inicio = p1.desde = Date.now() - 2 * 3600000;
     mkTmp('tmp_p1', 'Pedro Temporal', 'linea', 'salida_almuerzo', 3600000); await cargarMarcas(); renderLineaModal();
@@ -315,14 +323,14 @@ async function newPage(browser, opts = {}) {
     _sel = new Set(['c1']); abrirAsignar(); r.chipLinea = !document.getElementById('asigLineaField').classList.contains('hidden');
     setAsigLinea(l.id); elegirTarea('t1'); await new Promise(res => setTimeout(res, 50));
     const ta = S.tareasActivas.find(t => t.lineaId === l.id); if (ta) ta.inicio = Date.now() - 2 * 3600000;
-    r.apoyoOp = ta && Math.abs(apoyoOperadores(l.id).total - 2) < 0.05 && /línea Inserto botella/.test(document.getElementById('equipoList').innerHTML);
+    r.apoyoOp = ta && Math.abs(apoyoOperadores(l.id).total - 2) < 0.05 && /línea [A-Z]+ · Inserto botella/.test(document.getElementById('equipoList').innerHTML);
     // cerrar el turno regular no cierra la línea
     await liberar(['c1']); hideModal('modalCantidad'); S.historial.forEach(h => h.cantPend = false);
     r.independiente = l.estado === 'corriendo';
     abrirLinea(l.id); await (async () => { const c0 = window.confirm; window.confirm = () => true; await cerrarLinea(); window.confirm = c0; })(); hideModal('modalLinea');
     r.cierre = l.estado === 'cerrada' && l.fin > 0;
     exportExcel(null);
-    const hojas = window.__xlsx.w.s.slice(-4, -2), lr = hojas[0][1].find(x => x[1] === 'Inserto botella');
+    const hojas = window.__xlsx.w.s.slice(-4, -2), lr = hojas[0][1].find(x => /^[A-Z]+ · Inserto botella$/.test(x[1]));
     const det = window.__xlsx.w.s.slice(-9)[0][1]; const cols = det[0];
     const lh = hojas[0][1][0], cu = hojas[1];
     r.excel = lr && lr[lh.indexOf('Pallets')] === 3 && lr[lh.indexOf('Personas')] === 4 && !lh.includes('Paletizan') && Math.abs(lr[lh.indexOf('Horas operadores de apoyo')] - 2) < 0.05 && cu[0] === 'Cuadrilla de línea' && cu[1].length === 5 && det.some(x => x[cols.indexOf('Apoyo a línea')] === 'Inserto botella');
@@ -337,6 +345,8 @@ async function newPage(browser, opts = {}) {
   ok(ln.btnAlm && ln.lineaAlm, 'línea: «Almuerzo de la línea» manda a almuerzo a toda la cuadrilla y lo registra en el marcaje de cada uno');
   ok(ln.almSinPallet, 'línea: en almuerzo no se suman pallets, no avisa «sin registrar» y no cuenta como paro');
   ok(ln.lineaReg, 'línea: «Terminar almuerzo» registra el regreso de todos y vuelve a sumar pallets');
+  ok(ln.letras, 'línea: cada línea del día lleva su letra (A, B, C…), sin repetirse aunque dos la creen a la vez');
+  ok(ln.tarjeta, 'línea: la tarjeta muestra «Línea A · nombre» y el primer nombre de la cuadrilla (con inicial si se repite)');
   ok(ln.btnQuitar && ln.sinBtnConPallets && ln.quitada, 'línea: en marcha y sin pallets se puede quitar, sin marcar la salida de nadie (con pallets, no)');
   ok(ln.pallets && ln.bloque, 'línea: un solo contador de pallets por línea (+1 / +5 / −1); el bloque muestra cuántas personas');
   ok(ln.resumen && ln.chipLinea && ln.apoyoOp, 'línea: resumen en el turno; tarea de operador marcada como apoyo a la línea (2 h)');
