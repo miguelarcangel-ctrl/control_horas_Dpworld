@@ -327,7 +327,10 @@ async function newPage(browser, opts = {}) {
     // cerrar el turno regular no cierra la línea
     await liberar(['c1']); hideModal('modalCantidad'); S.historial.forEach(h => h.cantPend = false);
     r.independiente = l.estado === 'corriendo';
-    abrirLinea(l.id); await (async () => { const c0 = window.confirm; window.confirm = () => true; await cerrarLinea(); window.confirm = c0; })(); hideModal('modalLinea');
+    abrirLinea(l.id); await cerrarLinea(); r.pickCierre = !!document.getElementById('lmCierreSalida') && !!document.getElementById('lmCierreSiguen') && l.estado === 'corriendo';
+    { const SRV = window.__SRV, n0 = SRV.marcas.length; await cerrarLinea('salida'); const nuevas = SRV.marcas.slice(n0);
+      r.salidaLinea = l.estado === 'cerrada' && nuevas.length === 4 && nuevas.every(m => m.tipo === 'salida' && /^Salida con la línea [A-Z]+ · /.test(m.motivo)) && l.personas.every(p => estadoMarca(p.personaId).estado === 'salio'); }
+    hideModal('modalLinea');
     r.cierre = l.estado === 'cerrada' && l.fin > 0;
     exportExcel(null);
     const hojas = window.__xlsx.w.s.slice(-4, -2), lr = hojas[0][1].find(x => /^[A-Z]+ · Inserto botella$/.test(x[1]));
@@ -351,6 +354,7 @@ async function newPage(browser, opts = {}) {
   ok(ln.pallets && ln.bloque, 'línea: un solo contador de pallets por línea (+1 / +5 / −1); el bloque muestra cuántas personas');
   ok(ln.resumen && ln.chipLinea && ln.apoyoOp, 'línea: resumen en el turno; tarea de operador marcada como apoyo a la línea (2 h)');
   ok(ln.independiente && ln.cierre, 'línea: su ciclo es propio (se cierra con su botón, no con el turno)');
+  ok(ln.pickCierre && ln.salidaLinea, 'línea: al cerrar, el encargado da la salida a toda la cuadrilla a la vez (como el almuerzo), como su salida del día');
   ok(ln.excel && ln.insights, 'línea: Excel e Insights con pallets, cuadrilla y horas de operadores de apoyo');
   // 9f) Paros e insumos de línea
   const pi = await page.evaluate(async () => {
@@ -384,7 +388,7 @@ async function newPage(browser, opts = {}) {
     r.alcanzaMas = estadoInsumo(l.insumos[0], l).alcanza === 3;
     // nuevo paro abierto se cierra al cerrar la línea; sobrante 250 → consumo 350, diferencia +14 (+4%)
     _paroPick = true; renderLineaModal(); await iniciarParo(0);
-    await guardarSobrante(l.insumos[0].id, '250'); await cerrarLinea();
+    await guardarSobrante(l.insumos[0].id, '250'); { const n0 = window.__SRV.marcas.length; await cerrarLinea('siguen'); r.siguen = l.estado === 'cerrada' && window.__SRV.marcas.length === n0; }
     const e2 = estadoInsumo(l.insumos[0], l);
     r.cierre = l.estado === 'cerrada' && !l.paroActivo && l.paros.length === 2 && e2.real === 350 && e2.dif === 14 && Math.round(e2.difPct) === 4;
     hideModal('modalLinea');
@@ -400,6 +404,7 @@ async function newPage(browser, opts = {}) {
   ok(pi.metricas, 'paro: 30 min de paro en 4 h → 87.5% corriendo');
   ok(pi.alcanza && pi.agota && pi.avisoInsumo && pi.alcanzaMas, 'insumos: esperado = pallets × estándar; alcanza para N pallets; aviso de insumo por agotarse');
   ok(pi.cierre, 'insumos: consumo real = entregado − sobrante y diferencia; cerrar la línea termina el paro abierto');
+  ok(pi.siguen, 'línea: «Cerrar; siguen en otra línea» no registra la salida de nadie');
   ok(pi.excel && pi.insights && pi.causas, 'paros/insumos: Excel (Paros e Insumos de línea), Insights y causas configurables');
 
   // 9g) Marcaje de asistencia: personal con cédula, tablet en modo quiosco, turno armado solo, horas pagadas, planilla

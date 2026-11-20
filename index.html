@@ -1727,7 +1727,7 @@ function pasosTutorial(){
     }
   }
   if(rol==='responsable'||(S.lineasTipo||[]).length||rol==='admin'){
-    P.push({nav:'lineas',sel:'#lineasList',t:'Líneas de producción',d:'Cada bloque es una línea del día: meta, pallets, ritmo y si llega. Ábrelo para armar la cuadrilla con quienes marcaron, sumar los pallets de la línea (+1 / +5), registrar paros e insumos. A la hora de comer, «Almuerzo de la línea» manda a toda la cuadrilla a almuerzo y «Terminar almuerzo» los regresa: nadie marca almuerzo en la tablet.'});
+    P.push({nav:'lineas',sel:'#lineasList',t:'Líneas de producción',d:'Cada bloque es una línea del día: meta, pallets, ritmo y si llega. Ábrelo para armar la cuadrilla con quienes marcaron, sumar los pallets de la línea (+1 / +5), registrar paros e insumos. A la hora de comer, «Almuerzo de la línea» manda a toda la cuadrilla a almuerzo y «Terminar almuerzo» los regresa: nadie marca almuerzo en la tablet. Al terminar, «Cerrar línea» te deja dar la salida a toda la cuadrilla, o dejarla disponible para otra línea.'});
     P.push({nav:'lineas',sel:'button[onclick*="abrirPlanLinea(fechaManana())"]',t:'Planificar líneas',d:'Programa líneas para cualquier día con su meta: la app calcula cuántas personas hacen falta.'});
   }
   if(rol==='admin'){
@@ -2659,7 +2659,7 @@ function renderPlanesLinea(){
 
 // Ventana de la línea
 let _lineaAbierta=null;
-function abrirLinea(id){ _lineaAbierta=id; renderLineaModal(); showModal('modalLinea'); }
+function abrirLinea(id){ _lineaAbierta=id; _cierrePick=false; _paroPick=false; renderLineaModal(); showModal('modalLinea'); }
 function renderLineaModal(foco){
   const l=lineaDe(_lineaAbierta); if(!l) return;
   const r=ritmoLinea(l), c=cuadrilla(l.meta,l.prod,l.horas), n=(l.personas||[]).length;
@@ -2701,7 +2701,7 @@ function renderLineaModal(foco){
     <div class="asig-ttl">Cuadrilla · ${n} persona${n===1?'':'s'}</div><div class="chip-wrap">${chips||'<span class="li-sub">Sin personas</span>'}</div>`;
     h+=htmlAlmLinea(l)+htmlInsumosLinea(l)+htmlParosLinea(l);
     if(corre) h+=`<div class="field"><label>Se suma alguien a la línea</label>${agregar}</div>
-      <button class="btn btn-indigo btn-full" onclick="cerrarLinea()">Cerrar línea</button>
+      ${_cierrePick?htmlCierreLinea(l):`<button class="btn btn-indigo btn-full" onclick="cerrarLinea()">Cerrar línea</button>`}
       ${sePuedeQuitar(l)?`<button class="btn btn-ghost btn-sm" style="align-self:center" id="lmQuitar" onclick="eliminarLinea()">Quitar esta línea (se arrancó por error)</button>`:''}`;
   }
   document.getElementById('lineaBody').innerHTML=h;
@@ -2830,17 +2830,40 @@ async function guardarSobrante(iid, v){
   const l=lineaDe(_lineaAbierta), i=l&&(l.insumos||[]).find(x=>x.id===iid); if(!i) return;
   i.sobrante=v===''?null:Math.max(0,+v); renderLineaModal(); await save();
 }
-async function cerrarLinea(){
-  const l=lineaDe(_lineaAbierta); if(!l) return;
-  const sinSob=(l.insumos||[]).filter(i=>(i.entregas||[]).length&&(i.sobrante==null||i.sobrante===''));
-  // Quienes de la cuadrilla siguen con la entrada abierta y no están en otra línea en marcha: salida por cierre
+// Cierre de la línea: igual que el almuerzo, el encargado decide por toda la cuadrilla.
+// «Cerrar y dar salida»: registra la salida de todos a esta hora (su salida del día, no una falta de marcaje).
+// «Siguen en otra línea»: nadie sale; quedan disponibles para otra línea (si nadie los pone, salta el aviso obligatorio).
+let _cierrePick=false;
+function cuadrillaSinSalida(l){
   const otras=new Set((S.lineas||[]).filter(x=>x.id!==l.id&&x.estado==='corriendo').flatMap(x=>(x.personas||[]).map(p=>p.personaId)));
-  const sinSal=(l.personas||[]).filter(p=>p.personaId&&!otras.has(p.personaId)&&['presente','almuerzo'].includes(estadoMarca(p.personaId).estado));
-  if(!confirm('¿Cerrar la línea '+lin(l)+' con '+totalPallets(l)+' de '+l.meta+' pallets?'+(sinSal.length?'\n\nCERRAR LA LÍNEA LES MARCA LA SALIDA: '+sinSal.length+' persona(s) quedan fuera a esta hora como «Salida por cierre de línea sin marcaje»: '+sinSal.map(p=>p.nombre).join(', ')+'.':'')+(totalPallets(l)===0?'\n\nNo tiene pallets: si se arrancó por error, cancela y usa «Quitar esta línea», que no marca salidas.':'')+(l.paroActivo?'\nEl paro en curso se cerrará ahora.':'')+(l.almuerzoActivo?'\nEl almuerzo en curso se cerrará ahora.':'')+(sinSob.length?'\nFalta el sobrante de: '+sinSob.map(i=>i.nombre).join(', ')+' (puedes ponerlo después).':''))) return;
-  terminarParo(l,Date.now()); cerrarAlmuerzoLinea(l,Date.now());
-  l.estado='cerrada'; l.fin=Date.now(); l.porFin=quien();
-  if(sinSal.length) await salidasPorCierre(sinSal,l.fin,'Salida por cierre de línea sin marcaje','cierrelsm|'+l.id,'Línea '+lin(l)+' cerrada con {n} sin marcar salida');
-  renderLineaModal(); renderLineas(); await save(); showToast('Línea cerrada'); revisarProduccion(l);
+  return (l.personas||[]).filter(p=>p.personaId&&!otras.has(p.personaId)&&['presente','almuerzo'].includes(estadoMarca(p.personaId).estado));
+}
+function htmlCierreLinea(l){
+  const sinSal=cuadrillaSinSalida(l), sinSob=(l.insumos||[]).filter(i=>(i.entregas||[]).length&&(i.sobrante==null||i.sobrante===''));
+  const notas=[totalPallets(l)===0?'No tiene pallets: si se arrancó por error, usa «Quitar esta línea».':'',l.paroActivo?'El paro en curso se cierra ahora.':'',
+    l.almuerzoActivo?'El almuerzo en curso se cierra ahora.':'',sinSob.length?'Falta el sobrante de: '+sinSob.map(i=>esc(i.nombre)).join(', ')+' (puedes ponerlo después).':''].filter(Boolean);
+  return `<div class="paro-pick" id="lmCierre"><div class="asig-ttl">Cerrar la línea con ${totalPallets(l)} de ${l.meta} pallets</div>
+    ${notas.length?`<div class="warn-box">${notas.join('<br>')}</div>`:''}
+    ${sinSal.length?`<div class="li-sub">¿La cuadrilla termina su jornada? ${sinSal.length} persona${sinSal.length===1?'':'s'}: ${nombresCortos(sinSal).map(esc).join(' · ')}</div>
+    <button class="btn btn-indigo btn-full" id="lmCierreSalida" onclick="cerrarLinea('salida')">Cerrar y dar salida a la cuadrilla (${horaHM(Date.now())})</button>
+    <button class="btn btn-ghost btn-full" id="lmCierreSiguen" onclick="cerrarLinea('siguen')">Cerrar; siguen trabajando en otra línea</button>`
+    :`<button class="btn btn-indigo btn-full" id="lmCierreSalida" onclick="cerrarLinea('siguen')">Cerrar línea</button>`}
+    <button class="btn btn-ghost btn-sm" style="align-self:flex-start" onclick="_cierrePick=false;renderLineaModal()">Cancelar</button></div>`;
+}
+async function cerrarLinea(modo){
+  const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='corriendo') return;
+  if(!modo){ _cierrePick=true; _paroPick=false; renderLineaModal(); return; }
+  const sinSal=modo==='salida'?cuadrillaSinSalida(l):[], ts=Date.now();
+  _cierrePick=false; terminarParo(l,ts); cerrarAlmuerzoLinea(l,ts);
+  l.estado='cerrada'; l.fin=ts; l.porFin=quien(); l.cierreCuadrilla=modo;
+  renderLineaModal(); renderLineas(); await save();
+  if(sinSal.length){
+    let n=0;
+    for(const p of sinSal){ try{ if(await rpc('ch_salida_cierre',{p_token:SESSION.token,p_key:STATE_KEY,p_persona:p.personaId,p_ts:new Date(ts).toISOString(),p_motivo:'Salida con la línea '+lin(l)})) n++; }catch(e){ console.warn('Salida con la línea:',e.message); } }
+    await cargarMarcas(); renderLineaModal(); renderLineas();
+    showToast('Línea cerrada · salida de '+n+' persona'+(n===1?'':'s')+' a las '+horaHM(ts));
+  } else showToast(modo==='siguen'&&(l.personas||[]).length?'Línea cerrada · la cuadrilla queda disponible para otra línea':'Línea cerrada');
+  revisarProduccion(l);
 }
 // Se puede quitar una línea pendiente, o una en marcha que aún no tiene pallets (se arrancó por error).
 // Quitarla no registra salidas: la cuadrilla sigue trabajando y queda disponible para otra línea.
