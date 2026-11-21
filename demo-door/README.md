@@ -16,4 +16,4 @@ Toma el `index.html` actual de la app, le aplica el logo, los colores y los text
 
 ## Publicación
 
-Proyecto de Vercel aparte, conectado a este repositorio con directorio raíz `demo-door/dist`. El proyecto de DP World no publica esta carpeta (`.vercelignore`).
+Proyecto de Vercel aparte, conectado a este repositorio con directorio raíz `demo-door/dist`. El proyecto de DP World no muestra esta carpeta: `vercel.json` en la raíz la redirige al inicio. (Un `.vercelignore` en la raíz dejaba vacío también al proyecto de Door.)
