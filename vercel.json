@@ -1,0 +1,6 @@
+{
+  "redirects": [
+    { "source": "/demo-door", "destination": "/", "permanent": false },
+    { "source": "/demo-door/:path*", "destination": "/", "permanent": false }
+  ]
+}
