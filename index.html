@@ -3005,6 +3005,9 @@ function buildLineasSection(){
 // el encargado para toda la línea, o el supervisor en el turno (como marcaje de salida y regreso de almuerzo de cada uno).
 // La cédula vive cifrada en ch_personal (Supabase) y la hora la pone el servidor. Los marcajes alimentan el tablero del turno
 // (operador, ayudante, supervisor), la cuadrilla disponible de las líneas y las horas pagadas (costo y planilla).
+// Nombre del cargo en el tablero, la TV y los reportes (el supervisor no es «Ayudante General»)
+const cargoNombre=c=>({operador:'Operador',ag:'Ayudante General',supervisor:'Supervisor',responsable:'Responsable de línea'}[c]||'Operador');
+const cargoCorto=c=>({operador:'Op',ag:'AG',supervisor:'Sup',responsable:'Resp'}[c]||'Op');
 const PUESTOS={operador:'Operador',ag:'Ayudante general',supervisor:'Supervisor',linea:'Línea de producción',responsable:'Responsable de línea'};
 const TIPOS_MARCA={entrada:'Entrada',salida_almuerzo:'Salida a almuerzo',regreso_almuerzo:'Regreso de almuerzo',salida:'Salida'};
 let _personal=[], _marcas=[], _marcasCargadas=false;
@@ -4374,7 +4377,7 @@ function renderInsights(){
       <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title"><span class="live-dot" style="margin-right:5px"></span>Turno en Tiempo Real</span></div>
       <span class="chevron open" id="cLive">▼</span></div><div class="sec-body" id="sLive">
       <table class="rt-table"><thead><tr><th>Colaborador</th><th>Cargo</th><th>Estado</th><th>Tarea</th><th>Cliente</th></tr></thead><tbody>`;
-    S.turno.equipo.forEach(c=>{const act=S.tareasActivas.find(t=>(t.colaboradores||[]).some(x=>x.id===c.id));const sp=act?(act.tarea==='Almuerzo'?`<span class="sp sp-lunch">Almuerzo</span>`:`<span class="sp sp-active">Activo</span>`):`<span class="sp sp-idle">Libre</span>`;h+=`<tr><td><b>${c.nombre.split(' ')[0]}</b></td><td>${c.cargo==='operador'?'Op':'AG'}</td><td>${sp}</td><td>${act?act.tarea:'—'}</td><td>${act?act.cliente:'—'}</td></tr>`;});
+    S.turno.equipo.forEach(c=>{const act=S.tareasActivas.find(t=>(t.colaboradores||[]).some(x=>x.id===c.id));const sp=act?(act.tarea==='Almuerzo'?`<span class="sp sp-lunch">Almuerzo</span>`:`<span class="sp sp-active">Activo</span>`):`<span class="sp sp-idle">Libre</span>`;h+=`<tr><td><b>${c.nombre.split(' ')[0]}</b></td><td>${cargoCorto(c.cargo)}</td><td>${sp}</td><td>${act?act.tarea:'—'}</td><td>${act?act.cliente:'—'}</td></tr>`;});
     h+=`</tbody></table>
       <div><div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--mid);margin-bottom:3px"><span>Horas: <b>${usH.toFixed(1)}h</b> / ${S.turno.horasProd}h · Costo: <b>$${costo.toFixed(2)}</b></span><span>${Math.round(pct)}%</span></div>
       <div class="pbar-wrap"><div class="pbar-fill ${pct>90?'pr':pct>70?'pa':'pg'}" style="width:${pct}%"></div></div></div>
@@ -4761,7 +4764,7 @@ function renderDashboardAnalytics(){
       parts.push('<div style="background:rgba(var(--fg),.06);border-radius:12px;padding:14px;border:1px solid rgba(var(--fg),.08)">');
       parts.push('<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">');
       parts.push('<div style="width:36px;height:36px;border-radius:50%;background:'+TVCOLORS[i%TVCOLORS.length]+';display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.78rem;color:#fff;flex-shrink:0">'+init+'</div>');
-      parts.push('<div><div style="font-weight:800;font-size:.82rem;color:#F0F0F5">'+medal+' '+nm+'</div><div style="font-size:.62rem;color:#8B8FAD">'+(c.cargo==='operador'?'Operador':'AG')+'</div></div></div>');
+      parts.push('<div><div style="font-weight:800;font-size:.82rem;color:#F0F0F5">'+medal+' '+nm+'</div><div style="font-size:.62rem;color:#8B8FAD">'+cargoCorto(c.cargo)+'</div></div></div>');
       parts.push('<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">');
       [{l:'Horas',v:c.h.toFixed(1)+'h',col:'#00C389'},{l:'Tareas',v:c.t,col:'#7C5CBF'},{l:'Eficiencia',v:efic!=null?efic+'%':'—',col:ec},{l:'Costo',v:'$'+c.cost.toFixed(0),col:'#F59E0B'}].forEach(s=>{
         parts.push('<div style="background:rgba(var(--fg),.06);border-radius:6px;padding:6px;text-align:center"><div style="font-size:.55rem;text-transform:uppercase;letter-spacing:.05em;color:#8B8FAD;font-weight:700">'+s.l+'</div><div style="font-size:1rem;font-weight:900;color:'+s.col+'">'+s.v+'</div></div>');
@@ -4962,7 +4965,7 @@ function renderDashboard(){
     h+=`<div class="tv-op-row">
       <div style="display:flex;align-items:center;gap:8px">
         <div class="tv-op-av" style="background:${TVCOLORS[i%TVCOLORS.length]}">${init}</div>
-        <div><div class="tv-op-name">${c.nombre}</div><div class="tv-op-role">${c.cargo==='operador'?'Operador':'Ayudante General'}${act?' · '+act.cliente:''}</div></div>
+        <div><div class="tv-op-name">${c.nombre}</div><div class="tv-op-role">${cargoNombre(c.cargo)}${act?' · '+act.cliente:''}</div></div>
       </div>${sp}
     </div>`;
   });
@@ -5708,7 +5711,7 @@ function updateDimColabs(personasNec){
     S.colaboradores.forEach(c=>{
       const chip=document.createElement('div');
       chip.className='chip'; chip.dataset.id=c.id;
-      chip.textContent=c.nombre+' ('+(c.cargo==='operador'?'Op':'AG')+')';
+      chip.textContent=c.nombre+' ('+cargoCorto(c.cargo)+')';
       chip.onclick=()=>{chip.classList.toggle('selected');checkDimColabs(personasNec);};
       wrap.appendChild(chip);
     });
