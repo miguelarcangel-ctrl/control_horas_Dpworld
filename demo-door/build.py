@@ -69,6 +69,7 @@ body.en-kiosco .door-demo-tag{display:none}
 
 CREDENCIALES = """    <div class="door-cred"><b>USUARIOS DE PRUEBA</b> · contraseña <code>demo123</code><br>
       <code>admin</code> administrador · <code>supervisor</code> supervisor · <code>linea</code> encargada de línea<br>
+      <code>cliente</code> o <code>atlantico</code> cliente que pide personal para el día siguiente<br>
       Marcaje en tablet: la cédula de todo el personal es <code>1234</code></div>
 """
 

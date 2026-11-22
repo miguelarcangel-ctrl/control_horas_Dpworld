@@ -250,7 +250,8 @@ async function newPage(browser, opts = {}) {
     const c = cuadrilla(40, 0.5, 8);
     r.calc = c.total === 10 && c.ap === 0;
     // planificar otro día de la semana: no aparece hoy
-    const d = new Date(); d.setDate(d.getDate() + 6); const otroDia = fechaLocal(d);
+    // día hábil entre 2 y 6 días adelante (sábado y domingo tienen otra jornada y cambian el cálculo)
+    const d = new Date(); d.setDate(d.getDate() + 2); while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1); const otroDia = fechaLocal(d);
     abrirPlanLinea(fechaManana()); r.chips = document.querySelectorAll('#plDias .chip').length === 7;
     setPlanFecha(otroDia); document.getElementById('plTipo').value = 'lt1'; document.getElementById('plMeta').value = '40'; calcPlanLinea();
     r.calcTxt = /10 personas/.test(document.getElementById('plCalc').textContent);
@@ -511,7 +512,7 @@ async function newPage(browser, opts = {}) {
     hideModal('modalAsist'); document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
     // pantalla propia: todos los momentos con su interruptor, por omisión los del rol
     _misAvisos = null; await abrirAvisos();
-    const sw = [...document.querySelectorAll('#avBody input[data-av]')], total = AVISOS_CAT.reduce((a, g) => a + g.items.length, 0);
+    const sw = [...document.querySelectorAll('#avBody input[data-av]')], total = AVISOS_CAT.reduce((a, g) => a + (g.solo && !g.solo() ? 0 : g.items.length), 0);
     r.lista = sw.length === total && total >= 18 && !document.getElementById('modalAvisos').classList.contains('hidden') && /Mis avisos/.test(document.getElementById('avTitulo').textContent);
     r.porRol = sw.find(x => x.dataset.av === 'ent_op').checked && !sw.find(x => x.dataset.av === 'lin_mitad').checked;
     // apagar y encender: se guarda en el servidor y rige los avisos de esta app
@@ -547,6 +548,34 @@ async function newPage(browser, opts = {}) {
     S.lineas = S.lineas.filter(x => x.id !== l.id);
     window.confirm = c0; return r; });
   ok(avs.lista && avs.porRol, 'avisos: pantalla con todos los momentos y su interruptor; por omisión los de su rol');
+
+  // Pedidos de personal de clientes (Door Logistic): apagado por omisión; el cliente solo ve los de su empresa
+  const ped = await page.evaluate(async () => {
+    const r = {}, yo = currentUser, cfg0 = { ...S.config }, ped0 = S.pedidosPersonal, uc0 = S.usuariosCliente;
+    S.config.pedidosClientes = false; setNav('pedidos');
+    r.apagado = _nav === 'supervisor' && document.getElementById('viewPedidos').classList.contains('hidden') && pedidosBadge() === 0;
+    S.config.pedidosClientes = true; S.usuariosCliente = { cli: 'kA' };
+    S.clientes.push({ id: 'kA', nombre: 'Cliente A' }, { id: 'kB', nombre: 'Cliente B' });
+    const man = fechaManana();
+    S.pedidosPersonal = [{ id: 'pa', clienteId: 'kA', fecha: man, inicio: '08:00', fin: '17:00', lineas: [{ tipo: 'ag', cant: 3, conf: 0 }], estado: 'pendiente', log: [] },
+      { id: 'pb', clienteId: 'kB', fecha: man, inicio: '08:00', fin: '17:00', lineas: [{ tipo: 'linea', cant: 5, conf: 0 }], estado: 'pendiente', log: [] }];
+    r.badge = pedidosBadge() === 2;
+    setNav('pedidos'); r.interno = /Cliente A/.test(document.getElementById('pedidosContent').innerHTML) && /Cliente B/.test(document.getElementById('pedidosContent').innerHTML);
+    abrirRespuesta('pa', 'confirmar'); document.querySelector('#prLineas input').value = '2'; await responderPedido();
+    const pa = S.pedidosPersonal.find(p => p.id === 'pa');
+    r.parcial = pa.estado === 'parcial' && pa.lineas[0].conf === 2 && pa.vistoCliente === false && /Confirmó 2 de 3/.test(pa.log[0].a);
+    abrirRespuesta('pb', 'rechazar'); document.getElementById('prNota').value = ''; await responderPedido();
+    r.motivo = S.pedidosPersonal.find(p => p.id === 'pb').estado === 'pendiente';
+    hideModal('modalPedidoResp');
+    currentUser = { ...yo, rol: 'cliente', username: 'cli', nombre: 'Cli' }; setNav('supervisor');
+    r.cliente = _nav === 'pedidos' && pedidosVisibles().map(p => p.id).join() === 'pa' && !/Cliente B/.test(document.getElementById('pedidosContent').innerHTML);
+    currentUser = yo; S.config = cfg0; S.pedidosPersonal = ped0; S.usuariosCliente = uc0; S.clientes = S.clientes.filter(c => !['kA', 'kB'].includes(c.id));
+    document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden')); setNav('supervisor'); await save();
+    return r; });
+  ok(ped.apagado, 'pedidos de clientes: apagado por omisión (DP World no lo ve)');
+  ok(ped.badge && ped.interno, 'pedidos de clientes: la empresa ve los de todos sus clientes con la insignia de por confirmar');
+  ok(ped.parcial && ped.motivo, 'pedidos de clientes: confirmar parcial deja historial; rechazar exige motivo');
+  ok(ped.cliente, 'pedidos de clientes: el cliente solo entra a sus pedidos y no ve los de otra empresa');
   ok(avs.guarda && avs.filtra, 'avisos: cada interruptor se guarda en el servidor y decide qué avisa (entrada de operador apagada, de supervisor encendida)');
   ok(avs.otro && avs.otroGuarda && avs.botonUsuarios, 'avisos: el administrador elige los avisos de cada usuario desde Usuarios');
   ok(avs.riesgo && avs.mitad && avs.meta && avs.texto && avs.cierre && avs.unaVezServidor, 'avisos de producción: riesgo de no llegar, mitad, meta cumplida y cierre; una sola vez');

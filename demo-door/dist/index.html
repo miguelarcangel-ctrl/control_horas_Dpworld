@@ -175,6 +175,21 @@ input[type=checkbox]{accent-color:var(--green);width:auto}
 .ba{background:rgba(245,162,11,.12);color:var(--amber);border-color:rgba(245,162,11,.3)}
 .br{background:rgba(227,6,19,.12);color:var(--red-t);border-color:rgba(227,6,19,.3)}
 .bi{background:rgba(47,95,196,.3);color:var(--accent);border-color:rgba(124,196,255,.25)}
+.ped-card{border:1px solid var(--b1);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--s1,transparent)}
+.ped-card.pend{border-left:4px solid var(--amber)}.ped-card.conf{border-left:4px solid var(--green)}.ped-card.rech,.ped-card.canc{border-left:4px solid var(--b1);opacity:.85}
+.ped-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.ped-tit{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;letter-spacing:.4px;text-transform:uppercase}
+.ped-lineas{margin:8px 0 4px;display:grid;gap:4px}
+.ped-ln{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:5px 8px;border-radius:8px;background:rgba(var(--fg),.04)}
+.ped-log{margin-top:8px;font-size:11.5px;color:var(--t2);line-height:1.5}
+.ped-acc{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.ped-resumen{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}
+.ped-kpi{border:1px solid var(--b1);border-radius:10px;padding:9px 11px}
+.ped-kpi b{display:block;font-family:'Barlow Condensed',sans-serif;font-size:22px}
+.ped-kpi span{font-size:11.5px;color:var(--t2)}
+.ped-row{display:grid;grid-template-columns:1fr 90px 34px;gap:8px;align-items:end;margin-bottom:8px}
+.ped-row .field{margin:0}
+.ped-conf-row{display:grid;grid-template-columns:1fr 70px 90px;gap:8px;align-items:center;margin-bottom:6px;font-size:13px}
 .bgy{background:rgba(var(--fg),.06);color:var(--t2);border-color:var(--b1)}
 .bp{background:rgba(76,143,224,.15);color:var(--purple-t);border-color:rgba(76,143,224,.3)}
 
@@ -656,6 +671,7 @@ body.en-kiosco .door-demo-tag{display:none}
     <button class="dpw-lg-btn" id="loginBtn" onclick="doLogin()">Iniciar sesión</button>
         <div class="door-cred"><b>USUARIOS DE PRUEBA</b> · contraseña <code>demo123</code><br>
       <code>admin</code> administrador · <code>supervisor</code> supervisor · <code>linea</code> encargada de línea<br>
+      <code>cliente</code> o <code>atlantico</code> cliente que pide personal para el día siguiente<br>
       Marcaje en tablet: la cédula de todo el personal es <code>1234</code></div>
     <div class="dpw-lg-foot">Demostración para Door Logistic · datos ficticios</div>
   </div>
@@ -810,6 +826,16 @@ body.en-kiosco .door-demo-tag{display:none}
 
   <div id="viewInsights" class="main hidden">
     <div id="insightsContent"></div>
+  </div>
+  <!-- PEDIDOS DE PERSONAL: el cliente pide para el día siguiente; la empresa confirma o rechaza -->
+  <div id="viewPedidos" class="main hidden">
+    <div class="sec">
+      <div class="sec-hdr">
+        <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title" id="pedTitulo">Pedidos de personal</span></div>
+        <div class="sec-hdr-actions" id="pedAcciones"></div>
+      </div>
+      <div class="sec-body" id="pedidosContent"></div>
+    </div>
   </div>
 
 </div>
@@ -1045,10 +1071,42 @@ body.en-kiosco .door-demo-tag{display:none}
       <div class="field"><label>Línea en paro más de (min)</label><input type="number" id="cfgAlParo" min="5" step="5"></div>
       <div class="field"><label>Tolerancia de entrada (min)</label><input type="number" id="cfgTolera" min="0" step="1"></div>
     </div>
+    <div class="field hidden" id="cfgPedCorteField"><label>Hora límite para pedir personal del día siguiente</label><input type="time" id="cfgPedCorte"><div class="li-sub">Los pedidos de clientes que lleguen después quedan marcados «fuera de hora».</div></div>
     <hr style="margin:4px 0">
     <div class="field"><label>Bodegas (una por renglón)</label><textarea id="cfgBodegas" rows="3" placeholder="Bodega 1 CLP&#10;Bodega 2 MSL"></textarea><div class="li-sub">Se eligen al marcar la entrada y en cada tarea y línea.</div></div>
     <div class="info-box" id="cfgResumen"></div>
     <button class="btn btn-green btn-full" onclick="guardarConfig()">Guardar Configuración</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="modalPedido">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title">Pedir personal</span><span class="modal-close" onclick="hideModal('modalPedido')">×</span></div>
+    <div class="info-box" id="pdInfo"></div>
+    <div class="field"><label>Día</label><input type="date" id="pdFecha" onchange="pintarCortePedido()"></div>
+    <div class="field-row">
+      <div class="field"><label>Hora de entrada</label><input type="time" id="pdInicio"></div>
+      <div class="field"><label>Hora de salida</label><input type="time" id="pdFin"></div>
+    </div>
+    <div class="field"><label>Personal que necesitas</label><div id="pdLineas"></div>
+      <button class="btn btn-ghost btn-sm" onclick="agregarLineaPedido()">+ Otro tipo de personal</button></div>
+    <div class="field"><label>Lugar o área de trabajo</label><input type="text" id="pdLugar" maxlength="120" placeholder="Ej. Bodega 3, línea de empaque"></div>
+    <div class="field"><label>Notas para Door</label><textarea id="pdNotas" rows="2" maxlength="400" placeholder="Ej. traer botas de seguridad, experiencia en montacargas"></textarea></div>
+    <div class="err-box hidden" id="pdErr"></div>
+    <button class="btn btn-green btn-full" onclick="enviarPedido()">Enviar pedido</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="modalPedidoResp">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title" id="prTitulo">Confirmar pedido</span><span class="modal-close" onclick="hideModal('modalPedidoResp')">×</span></div>
+    <div class="info-box" id="prInfo"></div>
+    <div id="prConfirmar">
+      <div class="field"><label>Personas que se confirman</label><div class="li-sub">Vienen las pedidas. Si no alcanzas a cubrir todo, baja la cantidad: el pedido queda como confirmado parcial.</div><div id="prLineas" style="margin-top:8px"></div></div>
+    </div>
+    <div class="field"><label id="prNotaLbl">Nota para el cliente</label><textarea id="prNota" rows="2" maxlength="300"></textarea></div>
+    <div class="err-box hidden" id="prErr"></div>
+    <button class="btn btn-green btn-full" id="prBtn" onclick="responderPedido()">Confirmar</button>
   </div>
 </div>
 
@@ -1086,8 +1144,10 @@ body.en-kiosco .door-demo-tag{display:none}
         <option value="supervisor">Supervisor</option>
         <option value="responsable">Responsable de línea (solo líneas de producción)</option>
         <option value="admin">Admin (Insights completo)</option>
+        <option value="cliente" id="uRolCliente">Cliente (solo pide personal para su empresa)</option>
       </select>
     </div>
+    <div class="field hidden" id="uClienteField"><label>Empresa del cliente</label><select id="uCliente"></select><div class="li-sub">Solo verá y hará pedidos de esta empresa.</div></div>
     <button class="btn btn-green btn-full" onclick="guardarUsuario()">Guardar Usuario</button>
   </div>
 </div>
@@ -1441,11 +1501,11 @@ const SESS_KEY='ch_sesion_'+STATE_KEY, BK_KEY='ch_backup_'+STATE_KEY;
 const RUNTIME_KEYS=['cerrandoId','reabriendoId','editingId','usuarios'];
 
 const DEFAULT_CONFIG={horaInicio:'08:00',horaFin:'17:00',horasAlmuerzo:1,multSobretiempo:1.5,horasSabado:4,multSabado:1.0,horasDomingo:0,multDomingo:2.0,
-  tarifaOperador:50,tarifaAG:36,factorCarga:1.07,alertaLibreMin:15,alertaTareaH:3,alertaParoMin:15,tarifaSupervisor:50,toleranciaMin:5,bodegas:['Bodega 1 CLP','Bodega 2 MSL']};
+  tarifaOperador:50,tarifaAG:36,factorCarga:1.07,alertaLibreMin:15,alertaTareaH:3,alertaParoMin:15,tarifaSupervisor:50,toleranciaMin:5,pedidosClientes:false,pedidoCorte:'15:00',bodegas:['Bodega 1 CLP','Bodega 2 MSL']};
 let S={
   colaboradores:[],tareasCat:[],clientes:[],
   turno:null,tareasActivas:[],historial:[],
-  turnosHistorial:[],solicitudes:[],turnosProgramados:[],
+  turnosHistorial:[],solicitudes:[],turnosProgramados:[],pedidosPersonal:[],usuariosCliente:{},
   rutinas:[],plantillas:[],
   temaHSE:[],  // catálogo de cápsulas HSE para Toolbox
   cerrandoId:null,reabriendoId:null,editingId:null,
@@ -1609,8 +1669,9 @@ function persistable(){
   return JSON.parse(JSON.stringify(o));
 }
 function normalizeS(){
-  ['clientes','tareasCat','colaboradores','solicitudes','turnosProgramados','turnosHistorial','tareasActivas','historial','rutinas','plantillas','temaHSE','maestro','lineasTipo','lineasPlan','nombresLinea','lineas','causasParo']
+  ['clientes','tareasCat','colaboradores','solicitudes','pedidosPersonal','turnosProgramados','turnosHistorial','tareasActivas','historial','rutinas','plantillas','temaHSE','maestro','lineasTipo','lineasPlan','nombresLinea','lineas','causasParo']
     .forEach(k=>{ if(!Array.isArray(S[k])) S[k]=[]; });
+  if(!S.usuariosCliente||typeof S.usuariosCliente!=='object'||Array.isArray(S.usuariosCliente)) S.usuariosCliente={};
   S.config=getConfig();
   migrarLineas();
   S.tareasCat.forEach(t=>{if(!t.efic)t.efic=85; if(esSupervision(t.nombre)){ t.sinProd=true; t.prod=0; t.clase='apoyo'; } if(!t.clase) t.clase=/supervis|limpiez|capacitac|toolbox|reuni|acomodo|gestion de almacen/i.test(normTxt(t.nombre))?'apoyo':'productiva';});
@@ -1717,7 +1778,8 @@ async function startApp(){
   document.getElementById('appScreen').classList.remove('hidden');
   document.getElementById('hdrUser').textContent=currentUser.nombre;
   DPW.quien('Sesión',currentUser.nombre+' · '+(ROL_NOMBRE[currentUser.rol]||currentUser.rol));
-  setNav(esResponsable()?'lineas':'supervisor');
+  setNav(esResponsable()?'lineas':esCliente()?'pedidos':'supervisor');
+  if(esCliente()){ renderAll(); avisarRespuestasCliente(); if(tutorialPendiente()) setTimeout(()=>{ if(!_tour&&tutorialPendiente()) iniciarTutorial(); },900); return; }
   cargarMisAvisos(); cargarPersonal().then(cargarMarcas).then(()=>{ suscribirPush().then(revisarRegistroAvisos); if(enKiosco()){ if(currentUser.rol==='admin') entrarKiosco(); else try{ localStorage.removeItem(KIOSCO_KEY); }catch(e){} } });
   if(_lineasMigradas){ _lineasMigradas=false; save(); }
   const now=new Date();
@@ -1735,6 +1797,13 @@ const secPorTitulo=t=>[...document.querySelectorAll('.sec-title')].find(x=>x.tex
 function pasosTutorial(){
   const rol=currentUser.rol, P=[];
   P.push({t:'Bienvenido, '+currentUser.nombre.split(' ')[0],d:'Te mostramos en pocas tarjetas qué es cada parte de la app. Puedes saltarlo y volver a verlo cuando quieras desde el menú, en «Ver tutorial».'});
+  if(rol==='cliente'){
+    P.push({sel:'.dpw-burger',t:'Menú',d:'Aquí están tus pedidos de personal, el tema y este tutorial.'});
+    P.push({nav:'pedidos',sel:'#pedAcciones button',t:'Pedir personal',d:'Indica el día, el horario, cuántas personas y de qué tipo, y dónde van a trabajar. Pide antes de la hora límite ('+getConfig().pedidoCorte+') del día anterior.'});
+    P.push({nav:'pedidos',sel:'#pedidosContent',t:'Tus pedidos',d:'Cada pedido muestra su estado: por confirmar, confirmado (o parcial, con cuántas personas van) o rechazado con el motivo. Mientras esté por confirmar lo puedes cancelar.'});
+    P.push({t:'Listo',d:'Puedes volver a ver este tutorial desde el menú, en «Ver tutorial».'});
+    return P;
+  }
   P.push({sel:'.dpw-burger',t:'Menú',d:'Aquí están todas las secciones'+(rol==='admin'?' (Turno, Líneas, Insights, Vista TV, Marcaje en esta tablet)':rol==='supervisor'?' (Turno, Líneas y el alta de personal de contingente)':' (Líneas de producción)')+' y los ajustes: Avisos y este tutorial.'});
   P.push({sel:'[data-dpw="tema"]',t:'Tema claro u oscuro',d:'Cambia los colores de la app según la luz del lugar. Se recuerda en este equipo.'});
   if(rol!=='responsable'){
@@ -1937,10 +2006,14 @@ const AVISOS_CAT=[
     ['tur_reap','Solicitud de reapertura de un turno','Para aprobarla o rechazarla en Insights'],
     ['per_alta','Personal de contingente registrado','Cuando un supervisor da de alta a alguien nuevo'],
   ]},
+  {g:'Pedidos de clientes',solo:()=>pedidosOn(),items:[
+    ['ped_nuevo','Pedido de personal de un cliente','Qué empresa, para qué día y cuántas personas'],
+    ['ped_cancel','Pedido cancelado por el cliente'],
+  ]},
 ];
 const AVISOS_DEF={
-  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre','tur_sobre','tur_reap','per_alta','tur_sin_abrir'],
-  supervisor:['ent_sup','ent_op','alm_reg','lin_riesgo','lin_paro','tur_sin_abrir','tur_libre','tur_larga','tur_pend','tur_sobre','tur_sobre_fin'],
+  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre','tur_sobre','tur_reap','per_alta','tur_sin_abrir','ped_nuevo','ped_cancel'],
+  supervisor:['ent_sup','ent_op','alm_reg','lin_riesgo','lin_paro','tur_sin_abrir','tur_libre','tur_larga','tur_pend','tur_sobre','tur_sobre_fin','ped_nuevo','ped_cancel'],
   responsable:['ent_resp','ent_lin','alm_reg','tur_sin_abrir','lin_arranca','lin_mitad','lin_meta','lin_riesgo','lin_paro','lin_insumo'],
 };
 // Avisos obligatorios por perfil: los del uso correcto del turno (no se pueden apagar)
@@ -1980,7 +2053,7 @@ function renderAvisos(){
     <div class="btn-row" style="margin-top:8px">${st==='default'?'<button class="btn btn-green btn-sm" onclick="activarAvisos()">Activar en este equipo</button>':''}${st==='granted'?'<button class="btn btn-ghost btn-sm" onclick="probarAviso()">Probar aviso</button><button class="btn btn-ghost btn-sm" onclick="probarAvisoCerrada()">Probar con la app cerrada</button>':''}${st==='denied'?'<button class="btn btn-ghost btn-sm" onclick="location.reload()">Ya lo permití: recargar</button>':''}</div></div>`;
   else h+=`<div class="info-box">${esc(E.nombre)} · ${ROL_NOMBRE[E.rol]||E.rol}. Le llegan a los celulares donde activó los avisos.</div>`;
   h+=`<div class="li-sub">Elige qué momentos son importantes: ${n} activo(s)${E.propios?'':' · por ahora, los de su rol'}.</div>`;
-  AVISOS_CAT.forEach(g=>{ h+=`<div class="av-grupo">${g.g}</div>`+g.items.map(([id,nom,det])=>{ const d=typeof det==='function'?det():det;
+  AVISOS_CAT.forEach(g=>{ if(g.solo&&!g.solo()) return; h+=`<div class="av-grupo">${g.g}</div>`+g.items.map(([id,nom,det])=>{ const d=typeof det==='function'?det():det;
     const ob=avisoObligatorio(E.rol,id);
     return `<label class="av-row"><span class="av-txt"><b>${nom}</b>${d?`<small>${d}</small>`:''}${ob?'<small style="color:var(--green);font-weight:600">Obligatorio para este perfil</small>':''}</span><span class="sw"><input type="checkbox" data-av="${id}" ${E.prefs[id]||ob?'checked':''} ${ob?'disabled':''} onchange="cambiarAviso('${id}',this.checked)"><span></span></span></label>`; }).join(''); });
   h+=`<button class="btn btn-ghost btn-sm" style="align-self:center;margin-top:8px" onclick="restablecerAvisos()">Volver a los de su rol</button>`;
@@ -1999,6 +2072,7 @@ async function restablecerAvisos(){ _avEdit.prefs=avisosDeRol(_avEdit.rol); awai
 // a los celulares de quienes los tienen encendidos. Aquí, además, el aviso del sistema si este equipo no recibe push.
 function emitirAviso(evento, key, titulo, cuerpo, data){
   if(IS_TV||!SESSION) return;
+  if(esCliente()&&!String(evento).startsWith('ped_')) return;
   if(_avisados.has(key)) return; _avisados.add(key);
   try{ sessionStorage.setItem('ch_avisados',JSON.stringify([..._avisados].slice(-200))); }catch(e){}
   funcionPush({accion:'evento',token:SESSION.token,key:STATE_KEY,evento,ref:key,titulo,cuerpo,data:data||{}}).catch(e=>console.warn('Aviso:',e));
@@ -2031,6 +2105,7 @@ const fmtH=h=>h>=1?Math.floor(h)+' h '+Math.round((h%1)*60)+' min':Math.round(h*
 let _avisados=new Set(); try{ _avisados=new Set(JSON.parse(sessionStorage.getItem('ch_avisados')||'[]')); }catch(e){}
 let _avisosApp=[];   // tarjetas visibles en la app
 function avisarUnaVez(key, titulo, cuerpo, data, evento){
+  if(esCliente()) return;
   if(!_avisosApp.some(a=>a.key===key)){ _avisosApp.push({key,titulo,cuerpo,data}); pintarAvisosApp(); }
   emitirAviso(evento,key,titulo,cuerpo,data);
 }
@@ -2061,6 +2136,7 @@ function tocarAviso(i){ const v=quitarVista(i); if(v) manejarAviso(v.data); }
 function manejarAviso(data){
   if(!data||!data.accion) return;
   if(data.accion==='avisos'){ abrirAvisos(); return; }
+  if(data.accion==='pedido'){ setNav('pedidos'); return; }
   if(data.accion==='cerrar'){ setNav('supervisor'); if(S.turno) prepCerrarTurno(); return; }
   if(data.accion==='abrir'){ if(esResponsable()){ setNav('lineas'); return; } setNav('supervisor'); if(!S.turno) showModal('modalAbrirTurno'); return; }
   if(data.accion==='reap'||data.accion==='personal'){ if(currentUser&&currentUser.rol==='admin') setNav('insights'); return; }
@@ -2187,25 +2263,31 @@ document.addEventListener('dpw:tema',e=>showToast('Tema '+(e.detail==='light'?'c
 pintarAvisos();
 
 // Menú desplegable: todas las secciones de la app (molde Last Mile, sin íconos)
-const ROL_NOMBRE={admin:'Administrador',supervisor:'Supervisor',responsable:'Responsable de línea'};
+const ROL_NOMBRE={admin:'Administrador',supervisor:'Supervisor',responsable:'Responsable de línea',cliente:'Cliente'};
 var _nav='supervisor'; // var: pintarAvisos() la usa antes de esta línea
 function pintarMenu(){
   if(!window.DPW) return;
   const st=avisosEstado(), pend=(S.solicitudes||[]).filter(x=>x.estado==='pendiente').length;
   DPW.menu([
-    {id:'supervisor',label:'Turno',hidden:esResponsable(),on:()=>setNav('supervisor')},
-    {id:'lineas',label:'Líneas de producción',hidden:!currentUser||(!esResponsable()&&!(S.lineasTipo||[]).length&&currentUser.rol!=='admin'),on:()=>setNav('lineas')},
+    {id:'pedidos',label:esCliente()?'Mis pedidos de personal':'Pedidos de clientes',badge:pedidosBadge()||0,hidden:!currentUser||!pedidosOn()||IS_TV||esResponsable(),on:()=>setNav('pedidos')},
+    {id:'supervisor',label:'Turno',hidden:esResponsable()||esCliente(),on:()=>setNav('supervisor')},
+    {id:'lineas',label:'Líneas de producción',hidden:!currentUser||esCliente()||(!esResponsable()&&!(S.lineasTipo||[]).length&&currentUser.rol!=='admin'),on:()=>setNav('lineas')},
     {id:'insights',label:'Insights',badge:pend||0,hidden:!currentUser||currentUser.rol!=='admin',on:()=>setNav('insights')},
     {id:'tv',label:'Vista TV',hint:'pantalla completa',hidden:!currentUser||currentUser.rol!=='admin',on:openDashboard},
     {id:'marcaje',label:'Marcaje en esta tablet',group:'Ajustes',hint:'modo quiosco',hidden:!currentUser||currentUser.rol!=='admin'||IS_TV,on:activarKiosco},
     {id:'contingente',label:'Alta de personal de contingente',group:'Personal',hint:'para que pueda marcar',hidden:!currentUser||currentUser.rol!=='supervisor'||IS_TV,on:()=>altaContingente()},
-    {id:'avisos',label:'Avisos',group:'Ajustes',hint:st==='denied'?'Bloqueados en este equipo':st==='granted'?'Elegir qué avisa':'Activar y elegir',hidden:IS_TV||!currentUser,on:()=>abrirAvisos()},
+    {id:'avisos',label:'Avisos',group:'Ajustes',hint:st==='denied'?'Bloqueados en este equipo':st==='granted'?'Elegir qué avisa':'Activar y elegir',hidden:IS_TV||!currentUser||esCliente(),on:()=>abrirAvisos()},
     {id:'tutorial',label:'Ver tutorial',group:'Ajustes',hint:'qué es cada cosa',hidden:IS_TV||!currentUser,on:()=>{ DPW.cerrarMenu&&DPW.cerrarMenu(); iniciarTutorial(); }}
   ],_nav);
 }
 function esResponsable(){ return !!currentUser&&currentUser.rol==='responsable'; }
+function esCliente(){ return !!currentUser&&currentUser.rol==='cliente'; }
 function setNav(nav){
   if(esResponsable()&&nav!=='lineas') nav='lineas';
+  if(esCliente()) nav='pedidos';
+  if(nav==='pedidos'&&!pedidosOn()) nav='supervisor';
+  document.getElementById('viewPedidos').classList.toggle('hidden',nav!=='pedidos');
+  if(nav==='pedidos') renderPedidos();
   document.getElementById('viewLineas').classList.toggle('hidden',nav!=='lineas');
   if(nav==='lineas') renderLineas();
   document.getElementById('viewSupervisor').classList.toggle('hidden',nav!=='supervisor');
@@ -3040,7 +3122,7 @@ const KIOSCO_KEY='ch_kiosco_'+STATE_KEY;
 const enKiosco=()=>{ try{ return localStorage.getItem(KIOSCO_KEY)==='1'; }catch(e){ return false; } };
 const msTs=ts=>typeof ts==='number'?ts:Date.parse(ts);
 const fechaMenos=(f,d)=>{ const x=new Date(f+'T12:00:00'); x.setDate(x.getDate()-d); return fechaLocal(x); };
-async function cargarPersonal(){ if(!SESSION) return; try{ _personal=await rpc('ch_personal_list',{p_token:SESSION.token,p_key:STATE_KEY})||[]; }catch(e){ console.warn('Personal:',e.message); } }
+async function cargarPersonal(){ if(!SESSION||esCliente()) return; try{ _personal=await rpc('ch_personal_list',{p_token:SESSION.token,p_key:STATE_KEY})||[]; }catch(e){ console.warn('Personal:',e.message); } }
 async function cargarMarcas(){
   if(!SESSION||IS_TV) return;
   const hoy=hoyStr();
@@ -3937,15 +4019,26 @@ function openModalUsuario(id){
   document.getElementById('uUser').value=u?u.username:'';
   document.getElementById('uPass').value='';
   document.getElementById('uPass').placeholder=u?'Dejar vacío para no cambiarla':'Mínimo 6 caracteres';
+  document.getElementById('uRolCliente').hidden=!pedidosOn(); document.getElementById('uRolCliente').disabled=!pedidosOn();
   document.getElementById('uRol').value=u?u.rol:'supervisor';
+  document.getElementById('uCliente').innerHTML=(S.clientes||[]).map(c=>`<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('');
+  if(u&&S.usuariosCliente[u.username]) document.getElementById('uCliente').value=S.usuariosCliente[u.username];
+  document.getElementById('uRol').onchange=()=>document.getElementById('uClienteField').classList.toggle('hidden',document.getElementById('uRol').value!=='cliente');
+  document.getElementById('uRol').onchange();
   showModal('modalUsuario');
 }
 async function guardarUsuario(){
   const nombre=document.getElementById('uNombre').value.trim(),username=document.getElementById('uUser').value.trim().toLowerCase(),pass=document.getElementById('uPass').value,rol=document.getElementById('uRol').value;
   if(!nombre||!username){showToast('Nombre y usuario son requeridos','error');return;}
+  const cli=rol==='cliente'?document.getElementById('uCliente').value:'';
+  if(rol==='cliente'&&!cli){showToast('Elige la empresa del cliente (se agregan en Clientes)','error');return;}
   try{
     await rpc('ch_upsert_user',{p_token:SESSION.token,p_id:S.editingId||null,p_nombre:nombre,p_username:username,p_rol:rol,p_pass:pass||null});
   }catch(e){ showToast(errUsr(e),'error'); return; }
+  const prev=S.editingId&&_usuarios.find(x=>x.id===S.editingId);
+  if(prev&&prev.username!==username) delete S.usuariosCliente[prev.username];
+  if(cli) S.usuariosCliente[username]=cli; else delete S.usuariosCliente[username];
+  if(cli||prev) await save();
   S.editingId=null;document.getElementById('uPass').value='';hideModal('modalUsuario');
   await refreshUsuarios();renderInsights();showToast('Usuario guardado');
 }
@@ -4240,14 +4333,190 @@ function exportExcel(turnoId){
   XLSX.writeFile(wb,turnoId?`Turno_${turnos[0]?.fecha||'N/A'}.xlsx`:`Control_Horas_DPWorld_${fechaLocal(new Date())}.xlsx`);
 }
 
+// ═══ PEDIDOS DE PERSONAL DE CLIENTES ═══
+// Para empresas que ponen personal en las operaciones de sus clientes (Door Logistic). Se enciende con config.pedidosClientes.
+// El cliente (rol «cliente», ligado a una empresa de Clientes en S.usuariosCliente) pide personal para el día siguiente;
+// administrador y supervisor confirman (total o parcial) o rechazan con motivo. Cada paso queda en el historial del pedido.
+// El cliente solo ve los pedidos de su empresa. En producción el filtro debe ir también en el servidor.
+const TIPOS_PEDIDO={ag:'Ayudante general',operador:'Operador de equipo',linea:'Personal de línea / maquila',supervisor:'Supervisor'};
+const PED_ESTADO={pendiente:['Por confirmar','ba'],confirmado:['Confirmado','bg'],parcial:['Confirmado parcial','ba'],rechazado:['Rechazado','br'],cancelado:['Cancelado','bgy']};
+function pedidosOn(){ return !!getConfig().pedidosClientes; }
+function nombreCliente(id){ return ((S.clientes||[]).find(c=>c.id===id)||{}).nombre||''; }
+function miCliente(){ return esCliente()?(S.usuariosCliente||{})[currentUser.username]||'':''; }
+function puedeResponderPedido(){ return !!currentUser&&['admin','supervisor'].includes(currentUser.rol); }
+const pedTot=(p,k)=>(p.lineas||[]).reduce((s,l)=>s+(+l[k]||0),0);
+const pedFechaTxt=f=>{ const t=new Date(f+'T12:00:00').toLocaleDateString('es-PA',{weekday:'long',day:'numeric',month:'long'}); return t.charAt(0).toUpperCase()+t.slice(1); };
+const pedAhora=()=>{ const d=new Date(); return fechaLocal(d)+' '+d.toTimeString().slice(0,5); };
+const pedQuien=()=>currentUser?(esCliente()?currentUser.nombre+' · '+(nombreCliente(miCliente())||'Cliente'):currentUser.nombre):'';
+function pedidosVisibles(){
+  const L=S.pedidosPersonal||[];
+  if(esCliente()){ const c=miCliente(); return c?L.filter(p=>p.clienteId===c):[]; }
+  return L;
+}
+function pedidosBadge(){ return puedeResponderPedido()&&pedidosOn()?(S.pedidosPersonal||[]).filter(p=>p.estado==='pendiente'&&p.fecha>=fechaLocal(new Date())).length:0; }
+function fueraDeHora(fecha){ const c=getConfig().pedidoCorte; if(!c) return false; const ahora=new Date();
+  return fecha===fechaManana()&&ahora.toTimeString().slice(0,5)>c || fecha<=fechaLocal(ahora); }
+function pedCard(p,interno){
+  const [et,eb]=PED_ESTADO[p.estado]||[p.estado,'bgy'], conf=['confirmado','parcial'].includes(p.estado);
+  let h=`<div class="ped-card ${p.estado==='pendiente'?'pend':conf?'conf':p.estado==='rechazado'?'rech':'canc'}" data-ped="${p.id}"><div class="ped-top"><div>
+    <div class="ped-tit">${interno?esc(nombreCliente(p.clienteId)||'Cliente')+' · ':''}${esc(pedFechaTxt(p.fecha))}</div>
+    <div class="li-sub">${esc(p.inicio)} a ${esc(p.fin)}${p.lugar?' · '+esc(p.lugar):''}</div></div>
+    <div><span class="badge ${eb}">${et}</span>${p.fueraHora?' <span class="badge br" title="Llegó después de la hora límite">Fuera de hora</span>':''}</div></div>
+    <div class="ped-lineas">${(p.lineas||[]).map(l=>`<div class="ped-ln"><span>${esc(TIPOS_PEDIDO[l.tipo]||l.tipo)}</span><b>${conf?(+l.conf||0)+' de '+l.cant:l.cant} ${(conf?+l.conf:+l.cant)===1?'persona':'personas'}</b></div>`).join('')}</div>`;
+  if(p.notas) h+=`<div class="li-sub">Notas: ${esc(p.notas)}</div>`;
+  if(p.respuesta) h+=`<div class="info-box" style="margin:8px 0 0">${p.estado==='rechazado'?'Motivo':'Nota de Door'}: ${esc(p.respuesta)}</div>`;
+  const acc=[];
+  if(p.estado==='pendiente'&&interno&&puedeResponderPedido()){
+    acc.push(`<button class="btn btn-green btn-sm" onclick="abrirRespuesta('${p.id}','confirmar')">Confirmar</button>`);
+    acc.push(`<button class="btn btn-red btn-sm" onclick="abrirRespuesta('${p.id}','rechazar')">Rechazar</button>`); }
+  if(p.estado==='pendiente'&&esCliente()) acc.push(`<button class="btn btn-ghost btn-sm" onclick="cancelarPedido('${p.id}')">Cancelar pedido</button>`);
+  if(acc.length) h+=`<div class="ped-acc">${acc.join('')}</div>`;
+  h+=`<div class="ped-log">${(p.log||[]).map(x=>esc(x.t)+' · '+esc(x.u)+' · '+esc(x.a)).join('<br>')}</div></div>`;
+  return h;
+}
+function renderPedidos(){
+  const el=document.getElementById('pedidosContent'); if(!el) return;
+  const hoy=fechaLocal(new Date()), man=fechaManana(), L=pedidosVisibles().slice().sort((a,b)=>a.fecha.localeCompare(b.fecha)||(a.creado||0)-(b.creado||0));
+  const proximos=L.filter(p=>p.fecha>=hoy), anteriores=L.filter(p=>p.fecha<hoy).reverse().slice(0,20);
+  const corte=getConfig().pedidoCorte;
+  document.getElementById('pedAcciones').innerHTML=esCliente()?`<button class="btn btn-green btn-sm" onclick="abrirPedido()">+ Pedir personal</button>`:'';
+  let h='';
+  if(esCliente()){
+    document.getElementById('pedTitulo').textContent='Mis pedidos';
+    if(!miCliente()){ el.innerHTML='<div class="info-box">Tu usuario todavía no está ligado a una empresa. Pídele al administrador de Door que lo configure.</div>'; return; }
+    h+=`<div class="info-box">${esc(nombreCliente(miCliente()))}: pide aquí el personal que necesitas. Para el día siguiente, envía tu pedido antes de las <b>${esc(corte)}</b>; Door lo confirma y te avisa aquí mismo.</div>`;
+    const pm=L.filter(p=>p.fecha===man&&p.estado!=='cancelado'&&p.estado!=='rechazado');
+    h+=`<div class="ped-resumen"><div class="ped-kpi"><b>${pm.reduce((s,p)=>s+pedTot(p,'cant'),0)}</b><span>Personas pedidas para mañana</span></div>
+      <div class="ped-kpi"><b>${pm.filter(p=>p.estado!=='pendiente').reduce((s,p)=>s+pedTot(p,'conf'),0)}</b><span>Confirmadas por Door</span></div>
+      <div class="ped-kpi"><b>${L.filter(p=>p.estado==='pendiente'&&p.fecha>=hoy).length}</b><span>Pedidos por confirmar</span></div></div>`;
+    h+=proximos.length?proximos.map(p=>pedCard(p,false)).join(''):'<div class="li-sub" style="margin:6px 0 12px">No tienes pedidos para los próximos días.</div>';
+    if(anteriores.length) h+=`<div class="sec-title" style="margin:16px 0 8px">Anteriores</div>`+anteriores.map(p=>pedCard(p,false)).join('');
+    el.innerHTML=h; avisarRespuestasCliente(); return;
+  }
+  document.getElementById('pedTitulo').textContent='Pedidos de clientes';
+  // Resumen por día: lo pedido frente al personal activo de la empresa
+  const dias=[...new Set(proximos.filter(p=>p.estado!=='cancelado'&&p.estado!=='rechazado').map(p=>p.fecha))].slice(0,4);
+  const activos=t=>_personal.filter(x=>x.activo!==false&&(!t||x.puesto_def===t)).length;
+  if(!dias.length) h+='<div class="info-box">No hay pedidos de clientes para los próximos días.</div>';
+  dias.forEach(f=>{ const ps=proximos.filter(p=>p.fecha===f&&p.estado!=='cancelado'&&p.estado!=='rechazado');
+    const pedidas=ps.reduce((s,p)=>s+pedTot(p,'cant'),0), conf=ps.filter(p=>p.estado!=='pendiente').reduce((s,p)=>s+pedTot(p,'conf'),0), porConf=ps.filter(p=>p.estado==='pendiente').reduce((s,p)=>s+pedTot(p,'cant'),0);
+    const porTipo={}; ps.forEach(p=>(p.lineas||[]).forEach(l=>{ porTipo[l.tipo]=(porTipo[l.tipo]||0)+(p.estado==='pendiente'?+l.cant:+l.conf||0); }));
+    const falta=Object.entries(porTipo).filter(([t,n])=>_personal.length&&n>activos(t)).map(([t,n])=>TIPOS_PEDIDO[t]+': piden '+n+', hay '+activos(t)+' activos');
+    h+=`<div class="sec-title" style="margin:4px 0 8px">${esc(pedFechaTxt(f))}${f===man?' · mañana':''}</div><div class="ped-resumen">
+      <div class="ped-kpi"><b>${pedidas}</b><span>Personas pedidas · ${ps.length} ${ps.length===1?'pedido':'pedidos'}</span></div>
+      <div class="ped-kpi"><b>${conf}</b><span>Confirmadas</span></div>
+      <div class="ped-kpi"><b>${porConf}</b><span>Por confirmar</span></div>
+      ${_personal.length?`<div class="ped-kpi"><b>${activos()}</b><span>Personal activo registrado</span></div>`:''}</div>
+      ${falta.length?`<div class="err-box" style="margin-bottom:10px">Faltaría personal · ${esc(falta.join(' · '))}</div>`:''}`; });
+  const pend=proximos.filter(p=>p.estado==='pendiente'), resto=proximos.filter(p=>p.estado!=='pendiente');
+  h+=`<div class="sec-title" style="margin:14px 0 8px">Por confirmar (${pend.length})</div>`+(pend.length?pend.map(p=>pedCard(p,true)).join(''):'<div class="li-sub" style="margin-bottom:10px">Nada pendiente.</div>');
+  if(resto.length) h+=`<div class="sec-title" style="margin:14px 0 8px">Próximos días</div>`+resto.map(p=>pedCard(p,true)).join('');
+  if(anteriores.length) h+=`<div class="sec-title" style="margin:14px 0 8px">Anteriores</div>`+anteriores.map(p=>pedCard(p,true)).join('');
+  if(!(S.clientes||[]).length||!Object.keys(S.usuariosCliente||{}).length) h+=`<div class="li-sub" style="margin-top:10px">Para que un cliente pida personal, el administrador le crea un usuario con rol «Cliente» en Insights → Usuarios y lo liga a su empresa.</div>`;
+  el.innerHTML=h;
+}
+// Formulario del cliente
+let _pdLineas=[];
+function abrirPedido(){
+  const c=getConfig(); _pdLineas=[{tipo:'ag',cant:1}];
+  const f=document.getElementById('pdFecha'); f.min=fechaManana(); f.value=fechaManana();
+  document.getElementById('pdInicio').value=c.horaInicio; document.getElementById('pdFin').value=c.horaFin;
+  document.getElementById('pdLugar').value=''; document.getElementById('pdNotas').value='';
+  document.getElementById('pdErr').classList.add('hidden');
+  pintarLineasPedido(); pintarCortePedido(); showModal('modalPedido');
+}
+function pintarCortePedido(){
+  const f=document.getElementById('pdFecha').value, c=getConfig().pedidoCorte, el=document.getElementById('pdInfo');
+  el.innerHTML=fueraDeHora(f)?`Ya pasó la hora límite (<b>${esc(c)}</b>) para pedir personal de ese día. Puedes enviarlo igual: llegará marcado «fuera de hora» y Door te confirma si lo puede cubrir.`
+    :`Pedido para <b>${esc(f?pedFechaTxt(f):'—')}</b>. Door lo revisa y te confirma cuántas personas van.`;
+}
+function pintarLineasPedido(){
+  document.getElementById('pdLineas').innerHTML=_pdLineas.map((l,i)=>`<div class="ped-row">
+    <div class="field"><select onchange="_pdLineas[${i}].tipo=this.value">${Object.entries(TIPOS_PEDIDO).map(([k,n])=>`<option value="${k}"${k===l.tipo?' selected':''}>${n}</option>`).join('')}</select></div>
+    <div class="field"><input type="number" min="1" max="200" step="1" value="${l.cant}" aria-label="Cantidad" oninput="_pdLineas[${i}].cant=parseInt(this.value)||0"></div>
+    ${_pdLineas.length>1?`<button class="btn btn-ghost btn-sm" title="Quitar" onclick="_pdLineas.splice(${i},1);pintarLineasPedido()">×</button>`:'<span></span>'}</div>`).join('');
+}
+function agregarLineaPedido(){ const usados=_pdLineas.map(l=>l.tipo), t=Object.keys(TIPOS_PEDIDO).find(k=>!usados.includes(k))||'ag'; _pdLineas.push({tipo:t,cant:1}); pintarLineasPedido(); }
+async function enviarPedido(){
+  const err=document.getElementById('pdErr'), fail=m=>{ err.textContent=m; err.classList.remove('hidden'); };
+  const fecha=document.getElementById('pdFecha').value, inicio=document.getElementById('pdInicio').value, fin=document.getElementById('pdFin').value;
+  if(!miCliente()) return fail('Tu usuario no está ligado a una empresa.');
+  if(!fecha||fecha<fechaManana()) return fail('Elige un día a partir de mañana.');
+  if(!inicio||!fin||fin<=inicio) return fail('La hora de salida debe ser después de la de entrada.');
+  const lin={}; _pdLineas.forEach(l=>{ if(l.cant>0) lin[l.tipo]=(lin[l.tipo]||0)+l.cant; });
+  const lineas=Object.entries(lin).map(([tipo,cant])=>({tipo,cant,conf:0}));
+  if(!lineas.length) return fail('Indica cuántas personas necesitas.');
+  if(lineas.some(l=>l.cant>200)) return fail('Máximo 200 personas por tipo en un pedido.');
+  const fh=fueraDeHora(fecha), total=lineas.reduce((s,l)=>s+l.cant,0);
+  const p={id:uid(),clienteId:miCliente(),fecha,inicio,fin,lineas,lugar:document.getElementById('pdLugar').value.trim(),notas:document.getElementById('pdNotas').value.trim(),
+    estado:'pendiente',creado:Date.now(),porUsuario:currentUser.username,fueraHora:fh,respuesta:'',vistoCliente:true,
+    log:[{t:pedAhora(),u:pedQuien(),a:'Pidió '+total+(total===1?' persona':' personas')+(fh?' (fuera de hora)':'')}]};
+  S.pedidosPersonal.push(p); await save(); hideModal('modalPedido'); renderPedidos();
+  emitirAviso('ped_nuevo','ped|'+p.id,'Pedido de personal · '+nombreCliente(p.clienteId),total+(total===1?' persona':' personas')+' para el '+pedFechaTxt(fecha).toLowerCase()+', '+inicio+' a '+fin+(fh?' · fuera de hora':''),{accion:'pedido',id:p.id});
+  showToast('Pedido enviado: Door te confirmará aquí mismo');
+}
+async function cancelarPedido(id){
+  const p=(S.pedidosPersonal||[]).find(x=>x.id===id); if(!p||p.estado!=='pendiente'||p.clienteId!==miCliente()) return;
+  if(!confirm('¿Cancelar el pedido del '+pedFechaTxt(p.fecha).toLowerCase()+'?')) return;
+  p.estado='cancelado'; p.log.push({t:pedAhora(),u:pedQuien(),a:'Canceló el pedido'}); await save(); renderPedidos();
+  emitirAviso('ped_cancel','pedc|'+p.id,'Pedido cancelado · '+nombreCliente(p.clienteId),'El pedido del '+pedFechaTxt(p.fecha).toLowerCase()+' ('+pedTot(p,'cant')+' personas) fue cancelado por el cliente',{accion:'pedido',id:p.id});
+  showToast('Pedido cancelado');
+}
+// Respuesta de la empresa: confirmar (con cantidades) o rechazar (con motivo)
+let _pr={id:null,modo:null};
+function abrirRespuesta(id,modo){
+  const p=(S.pedidosPersonal||[]).find(x=>x.id===id); if(!p||!puedeResponderPedido()) return;
+  _pr={id,modo}; const conf=modo==='confirmar';
+  document.getElementById('prTitulo').textContent=conf?'Confirmar pedido':'Rechazar pedido';
+  document.getElementById('prInfo').innerHTML=`<b>${esc(nombreCliente(p.clienteId))}</b> · ${esc(pedFechaTxt(p.fecha))}, ${esc(p.inicio)} a ${esc(p.fin)}${p.lugar?' · '+esc(p.lugar):''}${p.notas?'<br>Notas: '+esc(p.notas):''}`;
+  document.getElementById('prConfirmar').classList.toggle('hidden',!conf);
+  document.getElementById('prLineas').innerHTML=p.lineas.map((l,i)=>`<div class="ped-conf-row"><span>${esc(TIPOS_PEDIDO[l.tipo]||l.tipo)}</span><span class="li-sub">pidió ${l.cant}</span><input type="number" min="0" max="${l.cant}" step="1" value="${l.cant}" data-i="${i}" aria-label="Confirmadas"></div>`).join('');
+  document.getElementById('prNotaLbl').textContent=conf?'Nota para el cliente (opcional)':'Motivo del rechazo';
+  document.getElementById('prNota').value=''; document.getElementById('prNota').placeholder=conf?'Ej. el personal llega 15 min antes a la garita':'Ej. no tenemos personal disponible ese día';
+  document.getElementById('prBtn').textContent=conf?'Confirmar':'Rechazar pedido';
+  document.getElementById('prBtn').className='btn btn-full '+(conf?'btn-green':'btn-red');
+  document.getElementById('prErr').classList.add('hidden'); showModal('modalPedidoResp');
+}
+async function responderPedido(){
+  const p=(S.pedidosPersonal||[]).find(x=>x.id===_pr.id); if(!p) return;
+  const err=document.getElementById('prErr'), nota=document.getElementById('prNota').value.trim();
+  if(p.estado!=='pendiente'){ hideModal('modalPedidoResp'); showToast('Este pedido ya fue respondido o cancelado','error'); renderPedidos(); return; }
+  if(_pr.modo==='rechazar'){
+    if(!nota){ err.textContent='Escribe el motivo: el cliente lo verá.'; err.classList.remove('hidden'); return; }
+    p.estado='rechazado'; p.respuesta=nota; p.log.push({t:pedAhora(),u:pedQuien(),a:'Rechazó el pedido'});
+  } else {
+    document.querySelectorAll('#prLineas input').forEach(inp=>{ const l=p.lineas[+inp.dataset.i]; l.conf=Math.max(0,Math.min(l.cant,parseInt(inp.value)||0)); });
+    const c=pedTot(p,'conf'), t=pedTot(p,'cant');
+    if(!c){ err.textContent='Si no puedes cubrir a nadie, usa «Rechazar» con el motivo.'; err.classList.remove('hidden'); return; }
+    p.estado=c<t?'parcial':'confirmado'; p.respuesta=nota;
+    p.log.push({t:pedAhora(),u:pedQuien(),a:c<t?'Confirmó '+c+' de '+t+' personas':'Confirmó las '+t+' personas'});
+  }
+  p.vistoCliente=false; p.respondido=Date.now();
+  await save(); hideModal('modalPedidoResp'); renderPedidos(); pintarMenu();
+  showToast(p.estado==='rechazado'?'Pedido rechazado: el cliente verá el motivo':'Pedido confirmado: el cliente lo verá en su sesión');
+}
+// Al cliente: aviso de los pedidos que Door respondió desde la última vez que entró
+let _pedAvisando=false;
+async function avisarRespuestasCliente(){
+  if(!esCliente()||_pedAvisando) return;
+  const nuevos=pedidosVisibles().filter(p=>p.vistoCliente===false); if(!nuevos.length) return;
+  _pedAvisando=true;
+  nuevos.forEach(p=>{ const t=p.estado==='rechazado'?'Rechazado':p.estado==='parcial'?'Confirmado parcial':'Confirmado';
+    showToast('Pedido del '+pedFechaTxt(p.fecha).toLowerCase()+': '+t+(p.estado==='rechazado'?'':' · '+pedTot(p,'conf')+' personas'),p.estado==='rechazado'?'error':'success');
+    if(avisosEstado()==='granted') notificar('Door respondió tu pedido',pedFechaTxt(p.fecha)+': '+t,'pedr|'+p.id,{accion:'pedido',id:p.id});
+    p.vistoCliente=true; });
+  try{ await save(); }finally{ _pedAvisando=false; }
+}
+
 // ═══ CONFIG ═══
 const CFG_FIELDS=[['cfgHoraInicio','horaInicio','t'],['cfgHoraFin','horaFin','t'],['cfgAlmuerzo','horasAlmuerzo'],['cfgMultSobre','multSobretiempo'],
   ['cfgHorasSab','horasSabado'],['cfgMultSab','multSabado'],['cfgHorasDom','horasDomingo'],['cfgMultDom','multDomingo'],
-  ['cfgTarOp','tarifaOperador'],['cfgTarAG','tarifaAG'],['cfgFactor','factorCarga'],['cfgAlLibre','alertaLibreMin'],['cfgAlTarea','alertaTareaH'],['cfgAlParo','alertaParoMin'],['cfgTarSup','tarifaSupervisor'],['cfgTolera','toleranciaMin']];
+  ['cfgTarOp','tarifaOperador'],['cfgTarAG','tarifaAG'],['cfgFactor','factorCarga'],['cfgAlLibre','alertaLibreMin'],['cfgAlTarea','alertaTareaH'],['cfgAlParo','alertaParoMin'],['cfgTarSup','tarifaSupervisor'],['cfgTolera','toleranciaMin'],['cfgPedCorte','pedidoCorte','t']];
 function openConfig(){
   const cfg=getConfig();
   CFG_FIELDS.forEach(([id,k])=>{const el=document.getElementById(id);el.value=cfg[k];el.oninput=updateCfgResumen;});
   document.getElementById('cfgBodegas').value=(cfg.bodegas||[]).join('\n');
+  document.getElementById('cfgPedCorteField').classList.toggle('hidden',!pedidosOn());
   updateCfgResumen();
   showModal('modalConfig');
 }
@@ -4551,7 +4820,7 @@ function renderInsights(){
     // USUARIOS
     h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sUsers','cUsers')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Usuarios</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalUsuario()">+ Nuevo</button><span class="chevron open" id="cUsers">▼</span></div></div><div class="sec-body" id="sUsers">`;
     if(!_usuarios.length)h+=`<div class="info-box">Cargando usuarios…</div>`;
-    _usuarios.forEach(u=>{const yo=u.id===currentUser?.id;h+=`<div class="list-item"><div class="li-info"><div class="li-name">${esc(u.nombre)}${yo?' <span class="badge bg">Tú</span>':''}</div><div class="li-sub">@${esc(u.username)} · ${ROL_NOMBRE[u.rol]||u.rol}${equiposTxt(u)}</div></div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="abrirAvisos('${u.id}')">Avisos</button><button class="btn btn-ghost btn-sm" onclick="openModalUsuario('${u.id}')">Editar</button>${yo?'':`<button class="btn btn-red btn-sm" title="Desactivar" onclick="eliminarUsuario('${u.id}')">×</button>`}</div></div>`;});
+    _usuarios.forEach(u=>{const yo=u.id===currentUser?.id;h+=`<div class="list-item"><div class="li-info"><div class="li-name">${esc(u.nombre)}${yo?' <span class="badge bg">Tú</span>':''}</div><div class="li-sub">@${esc(u.username)} · ${ROL_NOMBRE[u.rol]||u.rol}${u.rol==='cliente'?' · '+esc(nombreCliente(S.usuariosCliente[u.username])||'sin empresa'):''}${equiposTxt(u)}</div></div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="abrirAvisos('${u.id}')">Avisos</button><button class="btn btn-ghost btn-sm" onclick="openModalUsuario('${u.id}')">Editar</button>${yo?'':`<button class="btn btn-red btn-sm" title="Desactivar" onclick="eliminarUsuario('${u.id}')">×</button>`}</div></div>`;});
     h+=`</div></div>`;
 
     // COLABORADORES
@@ -5932,6 +6201,8 @@ function renderAll(){
   renderLineas();
   updateNotifBadge();
   if(!document.getElementById('viewInsights').classList.contains('hidden'))renderInsights();
+  if(!document.getElementById('viewPedidos').classList.contains('hidden'))renderPedidos();
+  pintarMenu();
 }
 
 // ═══ RUTINAS ═══
