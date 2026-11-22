@@ -19,3 +19,10 @@ Toma el `index.html` actual de la app, le aplica el logo, los colores y los text
 ## Publicación
 
 Proyecto de Vercel aparte, conectado a este repositorio con directorio raíz `demo-door/dist`. El proyecto de DP World no muestra esta carpeta: `vercel.json` en la raíz la redirige al inicio. (Un `.vercelignore` en la raíz dejaba vacío también al proyecto de Door.)
+
+## Planilla, cobros y proformas
+- **Tarifas y costos** (administrador): costo y venta por persona por día de cada servicio (ayudante, operador, verificador, supervisor, personal de línea…), tarifa negociada por cliente y, en cada tipo de línea, cómo se vende la maquila (unidad, caja, paleta o bulto) y cómo se costea (por unidad o por el personal de la línea).
+- **Planilla** (administrador y supervisor): por día y persona, cédula, servicio, cliente, bodega, dónde trabajó, entrada, almuerzo, salida, horas, extra y **supervisor** (quien marcó como supervisor ese día en esa bodega; si no hubo, se marca). Vistas por persona, por cliente (con margen) y por supervisor. Excel.
+- **Cobros y proformas** (administrador): los rubros por cobrar salen solos de los marcajes y las líneas (persona-día, sobretiempo y maquila). Filtro sin facturar / en revisión / facturado. «Generar proforma» por cliente y período.
+- **Mis proformas** (cliente): marca con check lo que aprueba y confirma; lo no marcado sigue sin facturar para cobrarse después. Puede generar la proforma del período. Nunca ve costos.
+- Se enciende con `facturacion`. Todo vive en el navegador del prototipo; en producción, costos, cédulas y el filtro por cliente deben ir en el servidor.

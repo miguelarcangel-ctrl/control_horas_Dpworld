@@ -603,6 +603,49 @@ async function newPage(browser, opts = {}) {
   ok(mcl.apagado, 'marcaje: sin la función encendida no pide cliente (DP World)');
   ok(mcl.encendido, 'marcaje con cliente: primero los clientes con pedido confirmado de hoy y propone ese');
   ok(mcl.obligatorio && mcl.guarda, 'marcaje con cliente: es obligatorio en la entrada y queda guardado en la marca');
+
+  // Planilla, cobros y proformas (Door): apagado por omisión; rubros por día, sobretiempo y maquila; el cliente aprueba con check
+  const fac = await page.evaluate(async () => {
+    const r = {}, yo = currentUser, c0 = window.confirm, cfg0 = { ...S.config }, bk = {};
+    ['clientes', 'proformas', 'lineas', 'lineasTipo', 'servicios', 'tarifasCliente', 'fichas', 'usuariosCliente'].forEach(k => bk[k] = JSON.parse(JSON.stringify(S[k])));
+    window.confirm = () => true;
+    S.config.facturacion = false; setNav('planilla'); r.apagado = _nav === 'supervisor' && document.getElementById('viewCobros').classList.contains('hidden');
+    S.config.facturacion = true; S.config.itbms = 7; S.config.horaInicio = '08:00'; S.config.horaFin = '17:00'; S.config.horasAlmuerzo = 1; S.config.multSobretiempo = 1.5;
+    S.clientes = [{ id: 'kF', nombre: 'Cliente F' }]; S.usuariosCliente = { clif: 'kF' };
+    S.servicios = [{ id: 'sa', nombre: 'Ayudante', puesto: 'ag', costoDia: 30, ventaDia: 40 }, { id: 'ss', nombre: 'Supervisor', puesto: 'supervisor', costoDia: 50, ventaDia: 80 }, { id: 'sl', nombre: 'Línea', puesto: 'linea', costoDia: 25, ventaDia: 35 }];
+    S.tarifasCliente = { kF: { sa: 44 } }; S.fichas = { fa: { cedula: '8-1-1' } }; S.proformas = [];
+    // miércoles fijo (sin recargo de fin de semana); Ana trabaja 08:00–19:00 sin almuerzo marcado: 11 h, 3 de sobretiempo
+    const f = '2026-11-18', ts = hm => new Date(f + 'T' + hm + ':00').toISOString();
+    const mk = (id, pid, nom, tipo, hm, puesto) => ({ id, persona_id: pid, nombre: nom, fecha: f, tipo, puesto, ts: ts(hm), anulado: false, bodega: 'B1', cliente: 'Cliente F' });
+    const M = [mk(1, 'fa', 'Ana F', 'entrada', '08:00', 'ag'), mk(2, 'fa', 'Ana F', 'salida', '19:00', 'ag'),
+      mk(3, 'fs', 'Sup F', 'entrada', '07:55', 'supervisor'), mk(4, 'fs', 'Sup F', 'salida', '17:00', 'supervisor'),
+      mk(5, 'fl', 'Lin F', 'entrada', '08:00', 'linea'), mk(6, 'fl', 'Lin F', 'salida', '17:00', 'linea')];
+    S.lineasTipo = [{ id: 'tF', nombre: 'Kit F', clienteId: 'kF', prod: 1, apoyo: [], insumos: [], venta: { unidad: 'caja', precio: 0.5, porPallet: 10, costeo: 'unidad', costoUnidad: 0.2 } }];
+    S.lineas = [{ id: 'lF', fecha: f, tipoId: 'tF', nombre: 'Kit F', clienteId: 'kF', cliente: 'Cliente F', estado: 'cerrada', inicio: Date.parse(ts('08:00')), fin: Date.parse(ts('17:00')), meta: 10, horas: 8,
+      personas: [{ id: 'x', nombre: 'Lin F', personaId: 'fl', desde: Date.parse(ts('08:00')) }], pallets: [{ ts: Date.parse(ts('12:00')), n: 4 }], insumos: [], paros: [] }];
+    _cob = { desde: f, hasta: f, marcas: M, cargando: false, tab: 'detalle', fCli: 'kF', fBod: '', fEst: 'sin' };
+    const O = operacionPeriodo(), ana = O.filas.find(x => x.pid === 'fa'), lin = O.filas.find(x => x.pid === 'fl');
+    r.planilla = ana.cedula === '8-1-1' && ana.sup === 'Sup F' && ana.cliente === 'Cliente F' && lin.maq && lin.venta === 0 && lin.costo === 0;
+    const pd = O.rubros.find(x => x.id === 'pd|fa|' + f), ex = O.rubros.find(x => x.id === 'ex|fa|' + f), mq = O.rubros.find(x => x.tipo === 'maquila');
+    r.rubros = pd && pd.venta === 44 && pd.costo === 30 && ex && Math.abs(ex.cantidad - 3) < 0.01 && Math.abs(ex.venta - 3 * 44 / 8 * 1.5) < 0.02
+      && mq && mq.cantidad === totalPallets(S.lineas[0]) * 10 && mq.venta === rd2(mq.cantidad * 0.5) && mq.costo === rd2(mq.cantidad * 0.2) && !O.rubros.some(x => x.id === 'pd|fl|' + f);
+    setNav('cobros'); _cob.marcas = M; await crearProforma(); hideModal('modalProforma');
+    const p = S.proformas[0]; r.proforma = p && p.estado === 'revision' && p.items.length === O.rubros.filter(x => x.venta > 0).length && estadoRubros()[pd.id].e === 'revision';
+    currentUser = { ...yo, rol: 'cliente', username: 'clif', nombre: 'Cli F' };
+    verProforma(p.id); r.sinCostos = !/Costo|Margen/.test(document.getElementById('pfBody').innerText);
+    document.querySelector(`#pfBody .pf-it[data-id="${ex.id}"]`).checked = false; await confirmarProforma();
+    const E = estadoRubros();
+    r.confirma = p.estado === 'confirmada' && E[pd.id].e === 'facturado' && E[ex.id].e === 'sin' && pfTotales(p).total === rd2((p.items.filter(i => i.id !== ex.id).reduce((a, i) => a + i.venta, 0)) * 1.07);
+    currentUser = yo; setNav('cobros'); _cob.marcas = M; await crearProforma(); hideModal('modalProforma');
+    r.pendiente = S.proformas.length === 2 && S.proformas[1].items.length === 1 && S.proformas[1].items[0].id === ex.id;
+    window.confirm = c0; S.config = cfg0; Object.assign(S, bk); _cob = { desde: null, hasta: null, marcas: [], cargando: false, tab: 'detalle', fCli: '', fBod: '', fEst: 'sin' };
+    document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden')); setNav('supervisor'); await save();
+    return r; });
+  ok(fac.apagado, 'planilla y cobros: apagado por omisión (DP World no lo ve)');
+  ok(fac.planilla, 'planilla: cédula, cliente y supervisor de la misma bodega; la cuadrilla de maquila no se cobra por día');
+  ok(fac.rubros, 'cobros: persona-día con tarifa del cliente, sobretiempo por hora con recargo y maquila por caja costeada por unidad');
+  ok(fac.proforma && fac.sinCostos, 'proforma: junta lo sin facturar del cliente y el cliente no ve costos');
+  ok(fac.confirma && fac.pendiente, 'proforma: lo marcado queda facturado (con ITBMS) y lo no marcado sigue por cobrar en la siguiente');
   ok(avs.guarda && avs.filtra, 'avisos: cada interruptor se guarda en el servidor y decide qué avisa (entrada de operador apagada, de supervisor encendida)');
   ok(avs.otro && avs.otroGuarda && avs.botonUsuarios, 'avisos: el administrador elige los avisos de cada usuario desde Usuarios');
   ok(avs.riesgo && avs.mitad && avs.meta && avs.texto && avs.cierre && avs.unaVezServidor, 'avisos de producción: riesgo de no llegar, mitad, meta cumplida y cierre; una sola vez');

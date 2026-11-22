@@ -517,6 +517,29 @@ body.en-kiosco .toast,body.en-kiosco .dpw-hdr,body.en-kiosco .dpw-drawer,body.en
 .ki-ok.hidden{display:none}.ki-ok.err{background:var(--red)}
 .ki-ok b{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(2.2rem,6vw,4.5rem);letter-spacing:.04em}
 .ki-ok span{display:block;font-size:clamp(1.1rem,2.6vw,1.8rem);margin-top:8px}
+.cob-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 12px}
+.cob-filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end;margin-bottom:10px}
+.cob-filtros .field{margin:0}
+.cob-tbl td.n,.cob-tbl th.n{text-align:right;white-space:nowrap}
+.cob-tbl td.warn{color:var(--amber);font-weight:600}
+.cob-tbl tr.tot td{font-weight:700;border-top:2px solid var(--b1)}
+.cob-tbl td,.cob-tbl th{font-size:12.5px}
+.cob-chk{width:18px;height:18px;accent-color:var(--accent)}
+.pf-doc{background:#fff;color:#111;border-radius:10px;padding:22px;font-family:'Barlow',sans-serif}
+.pf-doc h2{font-family:'Barlow Condensed',sans-serif;letter-spacing:.6px;text-transform:uppercase;margin:0;font-size:22px;color:#111}
+.pf-doc .pf-top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:3px solid var(--dpw-red,#E30613);padding-bottom:12px;margin-bottom:12px;flex-wrap:wrap}
+.pf-doc .pf-top img{height:44px}
+.pf-doc table{width:100%;border-collapse:collapse;font-size:12.5px}
+.pf-doc th{text-align:left;background:#f1f5f9;padding:6px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.4px}
+.pf-doc td{padding:6px;border-bottom:1px solid #e2e8f0}
+.pf-doc .n{text-align:right;white-space:nowrap}
+.pf-doc .pf-tot{margin-left:auto;margin-top:12px;max-width:280px}
+.pf-doc .pf-tot div{display:flex;justify-content:space-between;padding:3px 0}
+.pf-doc .pf-tot .g{font-weight:800;font-size:16px;border-top:2px solid #111;padding-top:6px}
+.pf-doc .pf-pie{margin-top:16px;font-size:11.5px;color:#475569}
+@media print{body.pf-print>*{display:none!important}body.pf-print>#modalProforma{display:block!important;position:static;background:none;padding:0}
+  body.pf-print #modalProforma .modal{box-shadow:none;max-width:none;width:auto;border:0;padding:0;max-height:none;overflow:visible}
+  body.pf-print #modalProforma .modal-hdr,body.pf-print .pf-noprint{display:none!important}}
 .mm-cli .chip small{display:block;font-size:10px;opacity:.75;letter-spacing:.4px}
 .mm-acciones{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
 .mm-acciones button{padding:16px 10px;font-size:1.05rem;justify-content:center}
@@ -828,6 +851,16 @@ body.en-kiosco .door-demo-tag{display:none}
   <div id="viewInsights" class="main hidden">
     <div id="insightsContent"></div>
   </div>
+  <!-- PLANILLA, COBROS, TARIFAS Y PROFORMAS (Door): todo sale de los marcajes, las líneas y el catálogo de servicios -->
+  <div id="viewCobros" class="main hidden">
+    <div class="sec">
+      <div class="sec-hdr">
+        <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title" id="cobTitulo">Planilla</span></div>
+        <div class="sec-hdr-actions" id="cobAcciones"></div>
+      </div>
+      <div class="sec-body" id="cobContent"></div>
+    </div>
+  </div>
   <!-- PEDIDOS DE PERSONAL: el cliente pide para el día siguiente; la empresa confirma o rechaza -->
   <div id="viewPedidos" class="main hidden">
     <div class="sec">
@@ -1098,6 +1131,13 @@ body.en-kiosco .door-demo-tag{display:none}
   </div>
 </div>
 
+<div class="overlay hidden" id="modalProforma">
+  <div class="modal" style="max-width:860px">
+    <div class="modal-hdr"><span class="modal-title" id="pfTitulo">Proforma</span><span class="modal-close" onclick="hideModal('modalProforma')">×</span></div>
+    <div id="pfBody"></div>
+  </div>
+</div>
+
 <div class="overlay hidden" id="modalPedidoResp">
   <div class="modal">
     <div class="modal-hdr"><span class="modal-title" id="prTitulo">Confirmar pedido</span><span class="modal-close" onclick="hideModal('modalPedidoResp')">×</span></div>
@@ -1313,6 +1353,11 @@ body.en-kiosco .door-demo-tag{display:none}
     <div class="field"><label>Nombre completo</label><input type="text" id="peNombre" autocomplete="off"></div>
     <div class="field"><label>Número de cédula</label><input type="password" id="peCedula" autocomplete="off" placeholder="Ej. 8-123-4567"><div class="li-sub" id="peCedHint"></div></div>
     <div class="field"><label>Posición habitual</label><div class="chip-wrap" id="pePuestos"></div></div>
+    <div id="peFactField" class="hidden">
+      <div class="field"><label>Servicio con el que se cobra (opcional)</label><select id="peServicio"></select><div class="li-sub">Vacío: se cobra según la posición que marque cada día.</div></div>
+      <div class="field"><label>Costo propio por día ($, opcional)</label><input type="number" id="peCostoDia" min="0" step="0.01" placeholder="Vacío: el costo del servicio"></div>
+      <div class="li-sub" id="peCedVisible"></div>
+    </div>
     <div class="info-box hidden" id="peContInfo">Queda guardada en el personal como <b>contingente</b>, con tu nombre. Desde ya puede marcar en la tablet con su cédula. El administrador la revisa después.</div>
     <label class="li-sub" id="peActivoRow" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="peActivo" checked> Activo (aparece en el marcaje)</label>
     <div class="err-box hidden" id="peErr"></div>
@@ -1392,6 +1437,23 @@ body.en-kiosco .door-demo-tag{display:none}
     <div class="field"><label>Insumos de la línea (consumo estándar por pallet)</label><div id="tlInsumos" style="display:flex;flex-direction:column;gap:6px"></div>
       <button class="btn btn-ghost btn-sm" style="align-self:flex-start;margin-top:4px" onclick="addInsumoTipo('','',0)">+ Insumo</button></div>
     <div class="li-sub">Personas necesarias = meta ÷ (productividad × horas). Insumo esperado = pallets × consumo por pallet.</div>
+    <div id="tlVentaField" class="hidden">
+      <hr style="margin:10px 0">
+      <div class="field"><label>Maquila · cómo se le vende al cliente</label>
+        <div class="field-row">
+          <div class="field"><label>Se cobra por</label><select id="tlVUnidad" onchange="pintarTlVenta()"><option value="unidad">Unidad</option><option value="caja">Caja</option><option value="paleta">Paleta</option><option value="bulto">Bulto</option></select></div>
+          <div class="field"><label id="tlVPrecioLbl">Precio por unidad ($)</label><input type="number" id="tlVPrecio" min="0" step="0.0001"></div>
+        </div>
+        <div class="field" id="tlVPorPalletField"><label id="tlVPorPalletLbl">Unidades en cada pallet registrado</label><input type="number" id="tlVPorPallet" min="0" step="any"><div class="li-sub">La línea cuenta pallets: con esto la app pasa los pallets a la unidad de cobro.</div></div>
+      </div>
+      <div class="field"><label>Maquila · cómo se costea</label>
+        <div class="field-row">
+          <div class="field"><label>Costeo</label><select id="tlVCosteo" onchange="pintarTlVenta()"><option value="personal">Por el personal que trabajó en la línea</option><option value="unidad">Por unidad producida</option></select></div>
+          <div class="field" id="tlVCostoField"><label id="tlVCostoLbl">Costo por unidad ($)</label><input type="number" id="tlVCosto" min="0" step="0.0001"></div>
+        </div>
+        <div class="li-sub" id="tlVHint"></div>
+      </div>
+    </div>
     <button class="btn btn-green btn-full" onclick="guardarTipoLinea()">Guardar</button>
   </div>
 </div>
@@ -1504,11 +1566,11 @@ const SESS_KEY='ch_sesion_'+STATE_KEY, BK_KEY='ch_backup_'+STATE_KEY;
 const RUNTIME_KEYS=['cerrandoId','reabriendoId','editingId','usuarios'];
 
 const DEFAULT_CONFIG={horaInicio:'08:00',horaFin:'17:00',horasAlmuerzo:1,multSobretiempo:1.5,horasSabado:4,multSabado:1.0,horasDomingo:0,multDomingo:2.0,
-  tarifaOperador:50,tarifaAG:36,factorCarga:1.07,alertaLibreMin:15,alertaTareaH:3,alertaParoMin:15,tarifaSupervisor:50,toleranciaMin:5,pedidosClientes:false,pedidoCorte:'15:00',marcajeCliente:false,bodegas:['Bodega 1 CLP','Bodega 2 MSL']};
+  tarifaOperador:50,tarifaAG:36,factorCarga:1.07,alertaLibreMin:15,alertaTareaH:3,alertaParoMin:15,tarifaSupervisor:50,toleranciaMin:5,pedidosClientes:false,pedidoCorte:'15:00',marcajeCliente:false,facturacion:false,itbms:7,bodegas:['Bodega 1 CLP','Bodega 2 MSL']};
 let S={
   colaboradores:[],tareasCat:[],clientes:[],
   turno:null,tareasActivas:[],historial:[],
-  turnosHistorial:[],solicitudes:[],turnosProgramados:[],pedidosPersonal:[],usuariosCliente:{},
+  turnosHistorial:[],solicitudes:[],turnosProgramados:[],pedidosPersonal:[],usuariosCliente:{},servicios:[],proformas:[],tarifasCliente:{},fichas:{},
   rutinas:[],plantillas:[],
   temaHSE:[],  // catálogo de cápsulas HSE para Toolbox
   cerrandoId:null,reabriendoId:null,editingId:null,
@@ -1672,9 +1734,9 @@ function persistable(){
   return JSON.parse(JSON.stringify(o));
 }
 function normalizeS(){
-  ['clientes','tareasCat','colaboradores','solicitudes','pedidosPersonal','turnosProgramados','turnosHistorial','tareasActivas','historial','rutinas','plantillas','temaHSE','maestro','lineasTipo','lineasPlan','nombresLinea','lineas','causasParo']
+  ['clientes','tareasCat','colaboradores','solicitudes','pedidosPersonal','servicios','proformas','turnosProgramados','turnosHistorial','tareasActivas','historial','rutinas','plantillas','temaHSE','maestro','lineasTipo','lineasPlan','nombresLinea','lineas','causasParo']
     .forEach(k=>{ if(!Array.isArray(S[k])) S[k]=[]; });
-  if(!S.usuariosCliente||typeof S.usuariosCliente!=='object'||Array.isArray(S.usuariosCliente)) S.usuariosCliente={};
+  ['usuariosCliente','tarifasCliente','fichas'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object'||Array.isArray(S[k])) S[k]={}; });
   S.config=getConfig();
   migrarLineas();
   S.tareasCat.forEach(t=>{if(!t.efic)t.efic=85; if(esSupervision(t.nombre)){ t.sinProd=true; t.prod=0; t.clase='apoyo'; } if(!t.clase) t.clase=/supervis|limpiez|capacitac|toolbox|reuni|acomodo|gestion de almacen/i.test(normTxt(t.nombre))?'apoyo':'productiva';});
@@ -1782,7 +1844,7 @@ async function startApp(){
   document.getElementById('hdrUser').textContent=currentUser.nombre;
   DPW.quien('Sesión',currentUser.nombre+' · '+(ROL_NOMBRE[currentUser.rol]||currentUser.rol));
   setNav(esResponsable()?'lineas':esCliente()?'pedidos':'supervisor');
-  if(esCliente()){ renderAll(); avisarRespuestasCliente(); if(tutorialPendiente()) setTimeout(()=>{ if(!_tour&&tutorialPendiente()) iniciarTutorial(); },900); return; }
+  if(esCliente()){ renderAll(); avisarRespuestasCliente(); avisarProformasCliente(); if(tutorialPendiente()) setTimeout(()=>{ if(!_tour&&tutorialPendiente()) iniciarTutorial(); },900); return; }
   cargarMisAvisos(); cargarPersonal().then(cargarMarcas).then(()=>{ suscribirPush().then(revisarRegistroAvisos); if(enKiosco()){ if(currentUser.rol==='admin') entrarKiosco(); else try{ localStorage.removeItem(KIOSCO_KEY); }catch(e){} } });
   if(_lineasMigradas){ _lineasMigradas=false; save(); }
   const now=new Date();
@@ -1803,6 +1865,7 @@ function pasosTutorial(){
   if(rol==='cliente'){
     P.push({sel:'.dpw-burger',t:'Menú',d:'Aquí están tus pedidos de personal, el tema y este tutorial.'});
     P.push({nav:'pedidos',sel:'#pedAcciones button',t:'Pedir personal',d:'Indica el día, el horario, cuántas personas y de qué tipo, y dónde van a trabajar. Pide antes de la hora límite ('+getConfig().pedidoCorte+') del día anterior.'});
+    if(facturacionOn()) P.push({nav:'proformas',sel:'#cobContent',t:'Tus proformas',d:'Door te envía la proforma del período (o la generas tú). Marcas lo que apruebas y confirmas; lo que no marques queda pendiente de aclarar.'});
     P.push({nav:'pedidos',sel:'#pedidosContent',t:'Tus pedidos',d:'Cada pedido muestra su estado: por confirmar, confirmado (o parcial, con cuántas personas van) o rechazado con el motivo. Mientras esté por confirmar lo puedes cancelar.'});
     P.push({t:'Listo',d:'Puedes volver a ver este tutorial desde el menú, en «Ver tutorial».'});
     return P;
@@ -2013,9 +2076,12 @@ const AVISOS_CAT=[
     ['ped_nuevo','Pedido de personal de un cliente','Qué empresa, para qué día y cuántas personas'],
     ['ped_cancel','Pedido cancelado por el cliente'],
   ]},
+  {g:'Cobros',solo:()=>facturacionOn(),items:[
+    ['pf_conf','Proforma confirmada o devuelta por el cliente','Cuántos rubros aprobó y el total'],
+  ]},
 ];
 const AVISOS_DEF={
-  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre','tur_sobre','tur_reap','per_alta','tur_sin_abrir','ped_nuevo','ped_cancel'],
+  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre','tur_sobre','tur_reap','per_alta','tur_sin_abrir','ped_nuevo','ped_cancel','pf_conf'],
   supervisor:['ent_sup','ent_op','alm_reg','lin_riesgo','lin_paro','tur_sin_abrir','tur_libre','tur_larga','tur_pend','tur_sobre','tur_sobre_fin','ped_nuevo','ped_cancel'],
   responsable:['ent_resp','ent_lin','alm_reg','tur_sin_abrir','lin_arranca','lin_mitad','lin_meta','lin_riesgo','lin_paro','lin_insumo'],
 };
@@ -2140,6 +2206,7 @@ function manejarAviso(data){
   if(!data||!data.accion) return;
   if(data.accion==='avisos'){ abrirAvisos(); return; }
   if(data.accion==='pedido'){ setNav('pedidos'); return; }
+  if(data.accion==='cobros'){ setNav('cobros'); return; }
   if(data.accion==='cerrar'){ setNav('supervisor'); if(S.turno) prepCerrarTurno(); return; }
   if(data.accion==='abrir'){ if(esResponsable()){ setNav('lineas'); return; } setNav('supervisor'); if(!S.turno) showModal('modalAbrirTurno'); return; }
   if(data.accion==='reap'||data.accion==='personal'){ if(currentUser&&currentUser.rol==='admin') setNav('insights'); return; }
@@ -2273,10 +2340,14 @@ function pintarMenu(){
   const st=avisosEstado(), pend=(S.solicitudes||[]).filter(x=>x.estado==='pendiente').length;
   DPW.menu([
     {id:'pedidos',label:esCliente()?'Mis pedidos de personal':'Pedidos de clientes',badge:pedidosBadge()||0,hidden:!currentUser||!pedidosOn()||IS_TV||esResponsable(),on:()=>setNav('pedidos')},
+    {id:'proformas',label:'Mis proformas',badge:esCliente()&&facturacionOn()?(S.proformas||[]).filter(p=>p.clienteId===miCliente()&&p.estado==='revision').length:0,hidden:!esCliente()||!facturacionOn(),on:()=>setNav('proformas')},
     {id:'supervisor',label:'Turno',hidden:esResponsable()||esCliente(),on:()=>setNav('supervisor')},
     {id:'lineas',label:'Líneas de producción',hidden:!currentUser||esCliente()||(!esResponsable()&&!(S.lineasTipo||[]).length&&currentUser.rol!=='admin'),on:()=>setNav('lineas')},
     {id:'insights',label:'Insights',badge:pend||0,hidden:!currentUser||currentUser.rol!=='admin',on:()=>setNav('insights')},
     {id:'tv',label:'Vista TV',hint:'pantalla completa',hidden:!currentUser||currentUser.rol!=='admin',on:openDashboard},
+    {id:'planilla',label:'Planilla',group:'Planilla y cobros',hint:'asistencia, cédula y supervisor',hidden:!currentUser||!facturacionOn()||IS_TV||!['admin','supervisor'].includes(currentUser.rol),on:()=>setNav('planilla')},
+    {id:'cobros',label:'Cobros y proformas',group:'Planilla y cobros',hint:'facturado y sin facturar',badge:esAdminU()&&facturacionOn()?(S.proformas||[]).filter(p=>p.estado==='devuelta'&&!p.vistaAdmin).length:0,hidden:!esAdminU()||!facturacionOn()||IS_TV,on:()=>setNav('cobros')},
+    {id:'tarifas',label:'Tarifas y costos',group:'Planilla y cobros',hint:'servicios y maquila',hidden:!esAdminU()||!facturacionOn()||IS_TV,on:()=>setNav('tarifas')},
     {id:'marcaje',label:'Marcaje en esta tablet',group:'Ajustes',hint:'modo quiosco',hidden:!currentUser||currentUser.rol!=='admin'||IS_TV,on:activarKiosco},
     {id:'contingente',label:'Alta de personal de contingente',group:'Personal',hint:'para que pueda marcar',hidden:!currentUser||currentUser.rol!=='supervisor'||IS_TV,on:()=>altaContingente()},
     {id:'avisos',label:'Avisos',group:'Ajustes',hint:st==='denied'?'Bloqueados en este equipo':st==='granted'?'Elegir qué avisa':'Activar y elegir',hidden:IS_TV||!currentUser||esCliente(),on:()=>abrirAvisos()},
@@ -2287,8 +2358,11 @@ function esResponsable(){ return !!currentUser&&currentUser.rol==='responsable';
 function esCliente(){ return !!currentUser&&currentUser.rol==='cliente'; }
 function setNav(nav){
   if(esResponsable()&&nav!=='lineas') nav='lineas';
-  if(esCliente()) nav='pedidos';
+  if(esCliente()&&!(nav==='proformas'&&facturacionOn())) nav='pedidos';
   if(nav==='pedidos'&&!pedidosOn()) nav='supervisor';
+  const navCob=['planilla','cobros','tarifas','proformas'].includes(nav);
+  if(navCob&&!facturacionOn()) nav='supervisor';
+  document.getElementById('viewCobros').classList.toggle('hidden',!['planilla','cobros','tarifas','proformas'].includes(nav));
   document.getElementById('viewPedidos').classList.toggle('hidden',nav!=='pedidos');
   if(nav==='pedidos'){ renderPedidos(); if(!esCliente()&&marcajeClienteOn()) cargarMarcas().then(()=>{ if(_nav==='pedidos') renderPedidos(); }); }
   document.getElementById('viewLineas').classList.toggle('hidden',nav!=='lineas');
@@ -2296,6 +2370,7 @@ function setNav(nav){
   document.getElementById('viewSupervisor').classList.toggle('hidden',nav!=='supervisor');
   document.getElementById('viewInsights').classList.toggle('hidden',nav!=='insights');
   _nav=nav; document.body.dataset.nav=nav; pintarMenu(); pintarAvisosApp(); window.scrollTo(0,0);
+  if(['planilla','cobros','tarifas','proformas'].includes(nav)){ if(nav==='cobros') (S.proformas||[]).forEach(p=>{ if(p.estado==='devuelta') p.vistaAdmin=true; }); renderCobros(); }
   if(nav==='insights'){ renderInsights(); if(currentUser?.rol==='admin'){ refreshUsuarios().then(renderInsights); cargarPersonal().then(renderInsights); } }
 }
 function toggleSec(b,c){
@@ -3049,7 +3124,11 @@ function openModalTipoLinea(id){
   document.getElementById('tlCliente').innerHTML='<option value="">— Sin cliente —</option>'+S.clientes.map(c=>`<option value="${c.id}"${c.id===t.clienteId?' selected':''}>${esc(c.nombre)}</option>`).join('');
   document.getElementById('tlApoyo').innerHTML=''; (id?(t.apoyo||[]):APOYO_INICIAL).forEach(a=>addPuestoApoyo(a.nombre,a.cant));
   document.getElementById('tlInsumos').innerHTML=''; (id?(t.insumos||[]):INSUMOS_INICIAL).forEach(i=>addInsumoTipo(i.nombre,i.unidad,i.porPallet));
-  renderTlExcel(t.excel); showModal('modalTipoLinea');
+  renderTlExcel(t.excel);
+  const v=t.venta||{}; document.getElementById('tlVentaField').classList.toggle('hidden',!facturacionOn());
+  document.getElementById('tlVUnidad').value=v.unidad||'paleta'; document.getElementById('tlVPrecio').value=v.precio??'';
+  document.getElementById('tlVPorPallet').value=v.porPallet??''; document.getElementById('tlVCosteo').value=v.costeo||'personal'; document.getElementById('tlVCosto').value=v.costoUnidad??'';
+  pintarTlVenta(); showModal('modalTipoLinea');
 }
 const INSUMOS_INICIAL=[{nombre:'Cajas',unidad:'unid',porPallet:0},{nombre:'Bandejas',unidad:'unid',porPallet:0},{nombre:'Etiquetas',unidad:'unid',porPallet:0},{nombre:'Stretch',unidad:'rollo',porPallet:0}];
 function addInsumoTipo(nombre, unidad, porPallet){
@@ -3074,6 +3153,10 @@ async function guardarTipoLinea(){
   const apoyo=[...document.querySelectorAll('#tlApoyo .edit-row')].map(r=>{ const [n,c]=r.querySelectorAll('input'); return {nombre:n.value.trim(),cant:Math.max(0,Math.round(+c.value||0))}; }).filter(a=>a.nombre);
   const insumos=[...document.querySelectorAll('#tlInsumos .edit-row')].map(r=>{ const [n,u,q]=r.querySelectorAll('input'); return {nombre:n.value.trim(),unidad:u.value.trim()||'unid',porPallet:Math.max(0,+q.value||0)}; }).filter(i=>i.nombre&&i.porPallet>0);
   const d={nombre,prod,apoyo:[],insumos,clienteId:document.getElementById('tlCliente').value||null,excel:document.getElementById('tlExcel').value||null};
+  if(facturacionOn()){ const u=document.getElementById('tlVUnidad').value, pr=+document.getElementById('tlVPrecio').value||0;
+    d.venta={unidad:u,precio:pr,porPallet:u==='paleta'?1:(+document.getElementById('tlVPorPallet').value||0),costeo:document.getElementById('tlVCosteo').value,costoUnidad:+document.getElementById('tlVCosto').value||0};
+    if(pr>0&&u!=='paleta'&&!(d.venta.porPallet>0)){ showToast('Indica cuántas unidades de cobro trae cada pallet','error'); return; }
+    if(pr>0&&d.venta.costeo==='unidad'&&!(d.venta.costoUnidad>0)){ showToast('Indica el costo por unidad','error'); return; } }
   S.lineasTipo=S.lineasTipo||[];
   if(_tipoEdit) Object.assign(tipoLinea(_tipoEdit),d); else S.lineasTipo.push({id:uid(),...d});
   hideModal('modalTipoLinea'); renderInsights(); renderAll(); await save(); showToast('Tipo de línea guardado');
@@ -3357,6 +3440,11 @@ function openModalPersona(id, desdeColab){
   const cont=!!(currentUser&&currentUser.rol==='supervisor');
   document.getElementById('peContInfo').classList.toggle('hidden',!cont); document.getElementById('peActivoRow').classList.toggle('hidden',cont);
   if(cont) document.getElementById('peTitulo').textContent='Alta de personal de contingente';
+  const fac=facturacionOn()&&currentUser&&currentUser.rol==='admin', fi=(id&&S.fichas[id])||{};
+  document.getElementById('peFactField').classList.toggle('hidden',!fac);
+  if(fac){ document.getElementById('peServicio').innerHTML='<option value="">Según la posición del día</option>'+servicios().map(s=>`<option value="${esc(s.id)}">${esc(s.nombre)}</option>`).join('');
+    document.getElementById('peServicio').value=fi.servicioId||''; document.getElementById('peCostoDia').value=fi.costoDia||'';
+    document.getElementById('peCedVisible').textContent=fi.cedula?'Cédula en la planilla: '+fi.cedula+'. Si escribes otra arriba, se actualiza.':'La cédula que escribas arriba también queda visible en la planilla (solo el administrador la ve).'; }
   pintarPePuestos(); showModal('modalPersona');
 }
 // El supervisor da de alta personal que llega de contingente y no está registrado (solo personas nuevas)
@@ -3368,7 +3456,11 @@ async function guardarPersona(){
   if(!nombre){ err.textContent='Escribe el nombre'; err.classList.remove('hidden'); return; }
   if(!ced&&!(existe&&existe.tiene_cedula)){ err.textContent='Escribe la cédula'; err.classList.remove('hidden'); return; }
   try{
-    await rpc('ch_personal_upsert',{p_token:SESSION.token,p_key:STATE_KEY,p_id:_peEdit,p_nombre:nombre,p_cedula:ced,p_puesto:_pePuesto,p_activo:document.getElementById('peActivo').checked});
+    const nid=await rpc('ch_personal_upsert',{p_token:SESSION.token,p_key:STATE_KEY,p_id:_peEdit,p_nombre:nombre,p_cedula:ced,p_puesto:_pePuesto,p_activo:document.getElementById('peActivo').checked});
+    const pid=_peEdit||nid;
+    if(facturacionOn()&&pid){ const fi=Object.assign({},S.fichas[pid]||{}); if(ced) fi.cedula=ced;
+      if(currentUser&&currentUser.rol==='admin'){ fi.servicioId=document.getElementById('peServicio').value||''; fi.costoDia=+document.getElementById('peCostoDia').value||0; }
+      S.fichas[pid]=fi; await save(); }
     hideModal('modalPersona'); await cargarPersonal();
     if(currentUser&&currentUser.rol==='supervisor'){
       showToast(nombre+' quedó registrada como contingente: ya puede marcar en la tablet','success');
@@ -4357,6 +4449,332 @@ function exportExcel(turnoId){
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(insRows),'Insumos de línea');
 
   XLSX.writeFile(wb,turnoId?`Turno_${turnos[0]?.fecha||'N/A'}.xlsx`:`Control_Horas_DPWorld_${fechaLocal(new Date())}.xlsx`);
+}
+
+// ═══ PLANILLA, COBROS Y PROFORMAS (config.facturacion: Door) ═══
+// Catálogo: servicios de personal por día (costo y venta por persona-día; venta por cliente en S.tarifasCliente) y,
+// en cada tipo de línea, cómo se vende la maquila (unidad, caja, paleta o bulto) y cómo se costea (por unidad o por personal).
+// Rubros por cobrar: salen solos de los marcajes y las líneas del período. Proforma: cliente + rango; el cliente marca lo que
+// acepta y confirma; lo marcado queda facturado y lo demás sigue sin facturar para cobrarse después.
+// El cliente nunca ve costos ni márgenes. En producción, costos, cédulas y el filtro por cliente deben ir en el servidor.
+const SERVICIOS_INICIAL=[{id:'ag',nombre:'Ayudante general',puesto:'ag',costoDia:28,ventaDia:42},{id:'operador',nombre:'Operador de equipo',puesto:'operador',costoDia:36,ventaDia:55},
+  {id:'verificador',nombre:'Verificador',puesto:'',costoDia:32,ventaDia:48},{id:'supervisor',nombre:'Supervisor',puesto:'supervisor',costoDia:48,ventaDia:70},
+  {id:'linea',nombre:'Personal de línea / maquila',puesto:'linea',costoDia:28,ventaDia:40},{id:'responsable',nombre:'Responsable de línea',puesto:'responsable',costoDia:40,ventaDia:60}];
+const UNID_COBRO={unidad:['unidad','unidades'],caja:['caja','cajas'],paleta:['paleta','paletas'],bulto:['bulto','bultos']};
+function facturacionOn(){ return !!getConfig().facturacion; }
+function servicios(){ return (S.servicios&&S.servicios.length)?S.servicios:SERVICIOS_INICIAL; }
+function servicioDe(id){ return servicios().find(s=>s.id===id)||null; }
+function servicioDia(pid,puesto){ const f=(S.fichas||{})[pid]||{}; return servicioDe(f.servicioId)||servicios().find(s=>s.puesto&&s.puesto===puesto)||servicios()[0]; }
+function costoDiaPersona(pid,srv){ const f=(S.fichas||{})[pid]||{}; return +f.costoDia>0?+f.costoDia:(+srv.costoDia||0); }
+function ventaDiaCliente(cliId,srv){ const t=((S.tarifasCliente||{})[cliId]||{})[srv.id]; return t!==undefined&&t!==''&&t!==null&&+t>=0?+t:(+srv.ventaDia||0); }
+const money=n=>'$'+(Math.round((n||0)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const rd2=n=>Math.round((n||0)*100)/100;
+function clienteIdPorNombre(n){ return ((S.clientes||[]).find(c=>c.nombre===n)||{}).id||null; }
+function esAdminU(){ return !!currentUser&&currentUser.rol==='admin'; }
+function pintarTlVenta(){
+  const u=document.getElementById('tlVUnidad').value, c=document.getElementById('tlVCosteo').value, un=UNID_COBRO[u][0];
+  document.getElementById('tlVPrecioLbl').textContent='Precio por '+un+' ($)';
+  document.getElementById('tlVPorPalletField').classList.toggle('hidden',u==='paleta');
+  document.getElementById('tlVPorPalletLbl').textContent=UNID_COBRO[u][1].charAt(0).toUpperCase()+UNID_COBRO[u][1].slice(1)+' en cada pallet registrado';
+  document.getElementById('tlVCostoField').classList.toggle('hidden',c!=='unidad');
+  document.getElementById('tlVCostoLbl').textContent='Costo por '+un+' ($)';
+  document.getElementById('tlVHint').textContent=c==='unidad'?'El costo de la maquila = '+UNID_COBRO[u][1]+' producidas × costo por '+un+'. El personal de la línea no se cobra aparte ni suma costo por día.'
+    :'El costo de la maquila = el costo por día de cada persona que trabajó en la línea (más su sobretiempo). Al cliente se le cobra la maquila, no las personas.';
+}
+
+// ── Período cargado (marcajes) y filtros
+let _cob={desde:null,hasta:null,marcas:[],cargando:false,tab:'detalle',fCli:'',fBod:'',fEst:'sin'};
+async function cargarPeriodoCobro(desde,hasta){
+  if(!desde||!hasta||hasta<desde){ showToast('Revisa el rango de fechas','error'); return; }
+  if((new Date(hasta)-new Date(desde))/86400000>62){ showToast('El rango máximo es de 62 días','error'); return; }
+  _cob.desde=desde; _cob.hasta=hasta; _cob.cargando=true; renderCobros();
+  let M=[]; try{ M=await rpc('ch_marcajes',{p_token:SESSION.token,p_key:STATE_KEY,p_desde:desde,p_hasta:hasta})||[]; }catch(e){ showToast('No se pudieron leer los marcajes: '+e.message,'error'); }
+  if(esCliente()){ const n=nombreCliente(miCliente()); M=M.filter(m=>m.cliente===n); }   // el cliente solo con lo suyo
+  _cob.marcas=M; _cob.cargando=false; renderCobros();
+}
+function asegurarPeriodo(){ if(!_cob.desde){ const [d,hh]=quincena(0); cargarPeriodoCobro(d,hh); return false; } return true; }
+
+// ── Operación del período: una fila por persona y día, con supervisor, costo y venta; y las líneas de maquila
+function operacionPeriodo(){
+  const {desde,hasta}=_cob, cfg=getConfig(), hp=hpRegular()||8, por={};
+  _cob.marcas.filter(m=>!m.anulado).forEach(m=>{ const k=m.persona_id+'|'+m.fecha; (por[k]=por[k]||[]).push(m); });
+  const lineas=(S.lineas||[]).filter(l=>l.fecha>=desde&&l.fecha<=hasta&&l.inicio&&(!esCliente()||l.clienteId===miCliente()));
+  const turnos=[S.turno,...(S.turnosHistorial||[])].filter(Boolean);
+  const filas=Object.entries(por).map(([k,M])=>{
+    const i=k.indexOf('|'), pid=k.slice(0,i), f=k.slice(i+1); M.sort((a,b)=>msTs(a.ts)-msTs(b.ts));
+    const d=diaAsistencia(M,f); if(!d.ent) return null;
+    const puesto=d.puesto||M[0].puesto, srv=servicioDia(pid,puesto);
+    const l=lineas.find(x=>x.fecha===f&&(x.personas||[]).some(p=>p.personaId===pid)), t=l&&tipoLinea(l.tipoId), v=t&&t.venta, maq=!!(v&&+v.precio>0);
+    const cliente=(maq&&l.cliente)||d.cliente||(l&&l.cliente)||'', cliId=(maq&&l.clienteId)||clienteIdPorNombre(cliente)||(l&&l.clienteId)||null;
+    const mult=multDia(f), cBase=costoDiaPersona(pid,srv), vBase=ventaDiaCliente(cliId,srv), trabajo=d.horas>0.01, extra=trabajo?(d.extra||0):0;
+    const cDia=trabajo?cBase*mult:0, vDia=trabajo?vBase*mult:0, cExt=extra*(cBase/hp)*(cfg.multSobretiempo||1), vExt=extra*(vBase/hp)*(cfg.multSobretiempo||1);
+    const costo=maq&&v.costeo==='unidad'?0:cDia+cExt, venta=maq?0:vDia+vExt;
+    const turno=l?'Línea '+lin(l):turnos.some(T=>T.fecha===f&&(T.equipo||[]).some(e=>e.id===pid))?'Turno regular':'Sin turno';
+    return {id:pid+'|'+f,pid,nombre:M[0].nombre,fecha:f,cedula:((S.fichas||{})[pid]||{}).cedula||'',puesto,srv,cliente:cliente||(cliId?nombreCliente(cliId):''),clienteId:cliId,
+      bodega:d.bodega||'',ent:d.ent,salAlm:d.salAlm,regAlm:d.regAlm,sal:d.sal,horas:d.horas,extra,extraSin:d.extraSin||0,tarde:d.tarde,turno,linea:l||null,maq,costo,venta,cDia,cExt,vDia,vExt};
+  }).filter(Boolean).sort((a,b)=>a.fecha.localeCompare(b.fecha)||a.nombre.localeCompare(b.nombre));
+  // Supervisor de cada persona: quien marcó como supervisor ese día en la misma bodega (y, si se puede, para el mismo cliente)
+  const sups=filas.filter(r=>r.puesto==='supervisor');
+  filas.forEach(r=>{ if(r.puesto==='supervisor'){ r.sup=''; r.esSup=true; return; }
+    let c=sups.filter(s=>s.fecha===r.fecha&&(!r.bodega||!s.bodega||s.bodega===r.bodega));
+    const mc=c.filter(s=>r.cliente&&s.cliente===r.cliente); if(mc.length) c=mc;
+    r.sup=c.map(s=>s.nombre).join(', '); });
+  // Rubros por cobrar
+  const rub=[];
+  // Solo se cobra lo cerrado: días con salida marcada y líneas cerradas
+  const recargo=f=>{ const m=multDia(f), dow=new Date(f+'T12:00:00').getDay(); return m!==1?' · '+(dow===0?'domingo':'sábado')+' ×'+m:''; };
+  filas.forEach(r=>{ if(r.maq||r.horas<=0.01||!r.sal) return;
+    rub.push({id:'pd|'+r.id,tipo:'personal',clienteId:r.clienteId,fecha:r.fecha,desc:r.srv.nombre+' · '+r.nombre+recargo(r.fecha),cantidad:1,unidad:'día',precio:rd2(r.vDia),venta:rd2(r.vDia),costo:rd2(r.cDia)});
+    if(r.extra>=0.25) rub.push({id:'ex|'+r.id,tipo:'sobretiempo',clienteId:r.clienteId,fecha:r.fecha,desc:'Sobretiempo · '+r.srv.nombre+' · '+r.nombre,cantidad:rd2(r.extra),unidad:'h',precio:rd2(r.vExt/r.extra),venta:rd2(r.vExt),costo:rd2(r.cExt)}); });
+  lineas.forEach(l=>{ const t=tipoLinea(l.tipoId), v=t&&t.venta; if(!(v&&+v.precio>0)||l.estado!=='cerrada') return;
+    const pal=ritmoLinea(l).tot, u=pal*(v.unidad==='paleta'?1:(+v.porPallet||0)), crew=filas.filter(r=>r.linea===l);
+    const costo=v.costeo==='unidad'?u*(+v.costoUnidad||0):crew.reduce((a,r)=>a+r.cDia+r.cExt,0);
+    rub.push({id:'mq|'+l.id,tipo:'maquila',clienteId:l.clienteId,fecha:l.fecha,desc:'Maquila · '+lin(l),cantidad:rd2(u),unidad:UNID_COBRO[v.unidad][u===1?0:1],precio:+v.precio,venta:rd2(u*v.precio),costo:rd2(costo),personas:crew.length,pallets:pal}); });
+  return {filas,rubros:rub.filter(x=>x.venta>0||x.costo>0),lineas};
+}
+// Estado de cobro de cada rubro según las proformas
+function estadoRubros(){
+  const m={}, P=(S.proformas||[]).filter(p=>p.estado!=='anulada');
+  P.filter(p=>p.estado==='confirmada').forEach(p=>(p.aprobados||[]).forEach(id=>m[id]={e:'facturado',pf:p}));
+  P.filter(p=>p.estado==='revision').forEach(p=>(p.items||[]).forEach(it=>{ if(!m[it.id]) m[it.id]={e:'revision',pf:p}; }));
+  P.forEach(p=>(p.excluidos||[]).forEach(id=>{ if(!m[id]) m[id]={e:'sin',excl:p}; }));
+  return m;
+}
+const EST_RUB={sin:['Sin facturar','ba'],revision:['En revisión del cliente','bgy'],facturado:['Facturado','bg']};
+const EST_PF={revision:['En revisión del cliente','ba'],confirmada:['Confirmada','bg'],devuelta:['Devuelta sin aprobar','br'],anulada:['Anulada','bgy']};
+function filtrarPorCliente(L,campo){ return _cob.fCli?L.filter(x=>x[campo||'clienteId']===_cob.fCli):L; }
+
+// ── Pantallas
+function chipsPeriodo(){
+  const q0=quincena(0), q1=quincena(-1), d=new Date(), m0=[fechaLocal(new Date(d.getFullYear(),d.getMonth(),1)),fechaLocal(new Date(d.getFullYear(),d.getMonth()+1,0))];
+  const ch=(r,t)=>`<div class="chip${_cob.desde===r[0]&&_cob.hasta===r[1]?' selected':''}" onclick="cargarPeriodoCobro('${r[0]}','${r[1]}')">${t}</div>`;
+  return `<div class="chip-wrap">${ch(q0,'Esta quincena')}${ch(q1,'Quincena anterior')}${ch(m0,'Este mes')}</div>
+    <div class="cob-filtros"><div class="field"><label>Desde</label><input type="date" value="${_cob.desde||''}" onchange="cargarPeriodoCobro(this.value,'${_cob.hasta}')"></div>
+    <div class="field"><label>Hasta</label><input type="date" value="${_cob.hasta||''}" onchange="cargarPeriodoCobro('${_cob.desde}',this.value)"></div>
+    ${esCliente()?'':`<div class="field"><label>Cliente</label><select onchange="_cob.fCli=this.value;renderCobros()"><option value="">Todos</option>${(S.clientes||[]).map(c=>`<option value="${c.id}"${_cob.fCli===c.id?' selected':''}>${esc(c.nombre)}</option>`).join('')}</select></div>`}
+    ${_nav==='planilla'&&hayBodegas()?`<div class="field"><label>Bodega</label><select onchange="_cob.fBod=this.value;renderCobros()"><option value="">Todas</option>${bodegas().map(b=>`<option${_cob.fBod===b?' selected':''}>${esc(b)}</option>`).join('')}</select></div>`:''}</div>`;
+}
+function renderCobros(){
+  const el=document.getElementById('cobContent'); if(!el||document.getElementById('viewCobros').classList.contains('hidden')) return;
+  const tit={planilla:'Planilla',cobros:'Cobros y proformas',tarifas:'Tarifas y costos',proformas:'Mis proformas'}[_nav]||'Planilla';
+  document.getElementById('cobTitulo').textContent=tit; document.getElementById('cobAcciones').innerHTML='';
+  if(_nav==='tarifas'){ el.innerHTML=htmlTarifas(); return; }
+  if(!asegurarPeriodo()||_cob.cargando){ el.innerHTML='<div class="li-sub">Leyendo los marcajes del período…</div>'; return; }
+  el.innerHTML=_nav==='planilla'?htmlPlanilla():_nav==='cobros'?htmlCobros():htmlProformasCliente();
+}
+// Planilla
+function htmlPlanilla(){
+  const din=esAdminU(), O=operacionPeriodo();
+  let F=filtrarPorCliente(O.filas); if(_cob.fBod) F=F.filter(r=>r.bodega===_cob.fBod);
+  document.getElementById('cobAcciones').innerHTML=`<button class="btn btn-ghost btn-sm" onclick="exportarPlanilla()">Excel</button>`;
+  const sinSup=F.filter(r=>!r.esSup&&!r.sup), sinCli=F.filter(r=>!r.clienteId), sinCed=[...new Set(F.filter(r=>!r.cedula).map(r=>r.nombre))];
+  const T=k=>F.reduce((a,r)=>a+(r[k]||0),0);
+  let h=chipsPeriodo();
+  h+=`<div class="ped-resumen"><div class="ped-kpi"><b>${F.length}</b><span>Días-persona · ${new Set(F.map(r=>r.pid)).size} personas</span></div>
+    <div class="ped-kpi"><b>${fmtN(T('horas'))}</b><span>Horas trabajadas · extra ${fmtN(T('extra'))}</span></div>
+    <div class="ped-kpi"><b style="${sinSup.length?'color:var(--amber)':''}">${sinSup.length}</b><span>Días sin supervisor marcado</span></div>
+    ${din?`<div class="ped-kpi"><b>${money(T('costo'))}</b><span>Costo del personal</span></div>`:''}</div>`;
+  if(sinCli.length) h+=`<div class="warn-box">${sinCli.length} día(s)-persona sin cliente: no se pueden cobrar hasta corregir el cliente en Asistencia.</div>`;
+  if(din&&sinCed.length) h+=`<div class="li-sub" style="margin-bottom:8px">Sin cédula en la planilla: ${esc(sinCed.slice(0,8).join(', '))}${sinCed.length>8?' y '+(sinCed.length-8)+' más':''}. Se registra al editar la persona.</div>`;
+  const tabs=[['detalle','Detalle por día'],['persona','Por persona'],['cliente','Por cliente'],['supervisor','Por supervisor']];
+  h+=`<div class="cob-tabs">${tabs.map(([k,n])=>`<div class="chip${_cob.tab===k?' selected':''}" onclick="_cob.tab='${k}';renderCobros()">${n}</div>`).join('')}</div>`;
+  if(!F.length) return h+'<div class="empty-text">Sin marcajes en el período.</div>';
+  const hh=m=>m?horaHM(msTs(m.ts)):'—', alm=r=>r.salAlm?hh(r.salAlm)+'–'+hh(r.regAlm):'—';
+  if(_cob.tab==='detalle'){
+    h+=`<div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Fecha</th><th>Persona</th><th>Cédula</th><th>Servicio</th><th>Cliente</th>${hayBodegas()?'<th>Bodega</th>':''}<th>Trabajó en</th><th>Entrada</th><th>Almuerzo</th><th>Salida</th><th class="n">Horas</th><th class="n">Extra</th><th>Supervisor</th>${din?'<th class="n">Costo</th><th class="n">Venta</th>':''}</tr>`
+      +F.map(r=>`<tr><td>${r.fecha.slice(5)}</td><td>${esc(r.nombre)}</td><td>${esc(r.cedula||'—')}</td><td>${esc(r.srv.nombre)}</td><td${r.clienteId?'':' class="warn"'}>${esc(r.cliente||'Sin cliente')}</td>${hayBodegas()?`<td>${esc(r.bodega||'—')}</td>`:''}
+        <td>${esc(r.turno)}</td><td>${hh(r.ent)}${r.tarde?' <span class="badge ba">'+r.tarde+' min</span>':''}</td><td>${alm(r)}</td><td>${r.sal?hh(r.sal):r.fecha===hoyStr()?'—':'<b style="color:var(--amber)">Sin salida</b>'}</td>
+        <td class="n">${fmtN(r.horas)}</td><td class="n">${r.extra>0.05?fmtN(r.extra):''}</td><td${!r.esSup&&!r.sup?' class="warn"':''}>${r.esSup?'Es supervisor':esc(r.sup||'Sin supervisor marcado')}</td>
+        ${din?`<td class="n">${r.maq&&r.linea&&(tipoLinea(r.linea.tipoId)||{venta:{}}).venta.costeo==='unidad'?'<span class="li-sub">por unidad</span>':money(r.costo)}</td><td class="n">${r.maq?'<span class="li-sub">en maquila</span>':money(r.venta)}</td>`:''}</tr>`).join('')+`</table></div>`;
+  } else if(_cob.tab==='persona'){
+    const G={}; F.forEach(r=>{ const g=G[r.pid]||(G[r.pid]={nombre:r.nombre,cedula:r.cedula,dias:0,horas:0,extra:0,costo:0,venta:0,cli:new Set()}); g.dias++; g.horas+=r.horas; g.extra+=r.extra; g.costo+=r.costo; g.venta+=r.venta; if(r.cliente) g.cli.add(r.cliente); });
+    h+=`<div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Persona</th><th>Cédula</th><th>Clientes</th><th class="n">Días</th><th class="n">Horas</th><th class="n">Extra</th>${din?'<th class="n">Costo</th><th class="n">Venta directa</th>':''}</tr>`
+      +Object.values(G).sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(g=>`<tr><td>${esc(g.nombre)}</td><td>${esc(g.cedula||'—')}</td><td>${esc([...g.cli].join(', '))}</td><td class="n">${g.dias}</td><td class="n">${fmtN(g.horas)}</td><td class="n">${fmtN(g.extra)}</td>${din?`<td class="n">${money(g.costo)}</td><td class="n">${money(g.venta)}</td>`:''}</tr>`).join('')+`</table></div>`;
+  } else if(_cob.tab==='cliente'){
+    const R=filtrarPorCliente(O.rubros), G={};
+    F.forEach(r=>{ const k=r.cliente||'Sin cliente', g=G[k]||(G[k]={dias:0,horas:0,extra:0,vPer:0,vMaq:0,costo:0,pal:0}); g.dias++; g.horas+=r.horas; g.extra+=r.extra; });
+    R.forEach(x=>{ const k=x.clienteId?nombreCliente(x.clienteId):'Sin cliente', g=G[k]||(G[k]={dias:0,horas:0,extra:0,vPer:0,vMaq:0,costo:0,pal:0}); if(x.tipo==='maquila'){ g.vMaq+=x.venta; g.pal+=x.pallets||0; } else g.vPer+=x.venta; g.costo+=x.costo; });
+    h+=`<div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Cliente</th><th class="n">Días-persona</th><th class="n">Horas</th><th class="n">Extra</th>${din?'<th class="n">Venta personal</th><th class="n">Venta maquila</th><th class="n">Costo</th><th class="n">Margen</th>':''}</tr>`
+      +Object.entries(G).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,g])=>{ const v=g.vPer+g.vMaq, m=v-g.costo;
+        return `<tr><td${k==='Sin cliente'?' class="warn"':''}>${esc(k)}</td><td class="n">${g.dias}</td><td class="n">${fmtN(g.horas)}</td><td class="n">${fmtN(g.extra)}</td>${din?`<td class="n">${money(g.vPer)}</td><td class="n">${money(g.vMaq)}</td><td class="n">${money(g.costo)}</td><td class="n" style="color:${m<0?'var(--red-t)':'var(--green)'}">${money(m)}${v>0?' · '+Math.round(m/v*100)+'%':''}</td>`:''}</tr>`; }).join('')+`</table></div>`;
+  } else {
+    const S2=F.filter(r=>r.esSup).map(s=>({s,a:F.filter(r=>!r.esSup&&r.fecha===s.fecha&&r.sup.split(', ').includes(s.nombre))}));
+    h+=`<div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Fecha</th><th>Supervisor</th>${hayBodegas()?'<th>Bodega</th>':''}<th>Cliente</th><th>Entrada</th><th>Salida</th><th class="n">Personas a cargo</th><th class="n">Horas del equipo</th></tr>`
+      +S2.map(({s,a})=>`<tr><td>${s.fecha.slice(5)}</td><td>${esc(s.nombre)}</td>${hayBodegas()?`<td>${esc(s.bodega||'—')}</td>`:''}<td>${esc(s.cliente||'—')}</td><td>${hh(s.ent)}</td><td>${s.sal?hh(s.sal):'—'}</td><td class="n">${a.length}</td><td class="n">${fmtN(a.reduce((x,r)=>x+r.horas,0))}</td></tr>`).join('')+`</table></div>`;
+    if(sinSup.length){ const D={}; sinSup.forEach(r=>{ const k=r.fecha+'|'+(r.bodega||'')+'|'+(r.cliente||''); (D[k]=D[k]||[]).push(r.nombre); });
+      h+=`<div class="sec-title" style="margin:14px 0 8px">Sin supervisor marcado</div>`+Object.entries(D).map(([k,n])=>{ const [f,b,c]=k.split('|'); return `<div class="warn-box" style="margin-bottom:6px">${f.slice(5)}${b?' · '+esc(b):''}${c?' · '+esc(c):''}: ${n.length} persona(s) (${esc(n.slice(0,6).join(', '))}${n.length>6?'…':''})</div>`; }).join(''); }
+  }
+  return h;
+}
+function exportarPlanilla(){
+  const din=esAdminU(), O=operacionPeriodo(); let F=filtrarPorCliente(O.filas); if(_cob.fBod) F=F.filter(r=>r.bodega===_cob.fBod);
+  const hh=m=>m?horaHM(msTs(m.ts)):'', wb=XLSX.utils.book_new();
+  const det=[['Fecha','Persona','Cédula','Servicio','Posición','Cliente','Bodega','Trabajó en','Entrada','Salida a almuerzo','Regreso de almuerzo','Salida','Horas','Horas extra','Tardanza (min)','Supervisor',...(din?['Costo','Venta']:[])]];
+  F.forEach(r=>det.push([r.fecha,r.nombre,r.cedula,r.srv.nombre,PUESTOS[r.puesto]||'',r.cliente||'Sin cliente',r.bodega,r.turno,hh(r.ent),hh(r.salAlm),hh(r.regAlm),hh(r.sal),rd2(r.horas),rd2(r.extra),r.tarde||'',r.esSup?'Es supervisor':(r.sup||'Sin supervisor marcado'),...(din?[rd2(r.costo),r.maq?'En maquila':rd2(r.venta)]:[])]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(det),'Planilla');
+  const G={}; F.forEach(r=>{ const g=G[r.pid]||(G[r.pid]=[r.nombre,r.cedula,0,0,0,0,0]); g[2]++; g[3]+=r.horas; g[4]+=r.extra; g[5]+=r.costo; g[6]+=r.venta; });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Persona','Cédula','Días','Horas','Horas extra',...(din?['Costo','Venta directa']:[])],...Object.values(G).map(g=>[g[0],g[1],g[2],rd2(g[3]),rd2(g[4]),...(din?[rd2(g[5]),rd2(g[6])]:[])])]),'Por persona');
+  const sup=[['Fecha','Supervisor','Bodega','Cliente','Personas a cargo']]; F.filter(r=>r.esSup).forEach(s=>sup.push([s.fecha,s.nombre,s.bodega,s.cliente,F.filter(r=>!r.esSup&&r.fecha===s.fecha&&r.sup.split(', ').includes(s.nombre)).length]));
+  F.filter(r=>!r.esSup&&!r.sup).forEach(r=>sup.push([r.fecha,'SIN SUPERVISOR MARCADO',r.bodega,r.cliente,r.nombre]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sup),'Por supervisor');
+  if(din){ const ru=[['Fecha','Cliente','Rubro','Cantidad','Unidad','Precio','Venta','Costo','Margen','Estado']], E=estadoRubros();
+    filtrarPorCliente(O.rubros).forEach(x=>{ const e=E[x.id]; ru.push([x.fecha,nombreCliente(x.clienteId)||'Sin cliente',x.desc,x.cantidad,x.unidad,x.precio,x.venta,x.costo,rd2(x.venta-x.costo),e?(EST_RUB[e.e][0]+(e.pf?' '+e.pf.numero:'')):'Sin facturar']); });
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ru),'Rubros por cobrar'); }
+  XLSX.writeFile(wb,`Planilla_${_cob.desde}_a_${_cob.hasta}.xlsx`);
+}
+// Cobros (administrador): rubros por estado y proformas
+function htmlCobros(){
+  const O=operacionPeriodo(), E=estadoRubros(), est=_cob.fEst;
+  // Facturado: lo guardado en las proformas confirmadas (lo que se cobró, aunque la operación cambie después)
+  const fact=[]; (S.proformas||[]).filter(p=>p.estado==='confirmada').forEach(p=>p.items.filter(it=>(p.aprobados||[]).includes(it.id)&&it.fecha>=_cob.desde&&it.fecha<=_cob.hasta).forEach(it=>fact.push({...it,clienteId:p.clienteId,_e:'facturado',_pf:p})));
+  const vivos=O.rubros.filter(x=>!(E[x.id]&&E[x.id].e==='facturado')).map(x=>({...x,_e:E[x.id]?E[x.id].e:'sin',_pf:E[x.id]&&(E[x.id].pf||E[x.id].excl)}));
+  const todos=filtrarPorCliente([...vivos,...fact]), L=est==='todos'?todos:todos.filter(x=>x._e===est);
+  const sum=(A,k)=>A.reduce((a,x)=>a+(x[k]||0),0), por=e=>todos.filter(x=>x._e===e);
+  const sinCli=todos.filter(x=>!x.clienteId&&x._e==='sin');
+  let h=chipsPeriodo();
+  h+=`<div class="ped-resumen">${['sin','revision','facturado'].map(e=>`<div class="ped-kpi" style="cursor:pointer;${est===e?'border-color:var(--accent)':''}" onclick="_cob.fEst='${e}';renderCobros()"><b>${money(sum(por(e),'venta'))}</b><span>${EST_RUB[e][0]} · ${por(e).length} rubro(s)</span></div>`).join('')}
+    <div class="ped-kpi"><b style="color:${sum(todos,'venta')-sum(todos,'costo')<0?'var(--red-t)':'var(--green)'}">${money(sum(todos,'venta')-sum(todos,'costo'))}</b><span>Margen del período (venta ${money(sum(todos,'venta'))} − costo ${money(sum(todos,'costo'))})</span></div></div>`;
+  h+=`<div class="cob-tabs">${[['sin','Sin facturar'],['revision','En revisión'],['facturado','Facturado'],['todos','Todos']].map(([k,n])=>`<div class="chip${est===k?' selected':''}" onclick="_cob.fEst='${k}';renderCobros()">${n}</div>`).join('')}</div>`;
+  const abiertos=O.filas.filter(r=>!r.maq&&r.horas>0.01&&!r.sal&&(!_cob.fCli||r.clienteId===_cob.fCli)).length, lAb=O.lineas.filter(l=>l.estado!=='cerrada'&&(!_cob.fCli||l.clienteId===_cob.fCli)).length;
+  if(abiertos||lAb) h+=`<div class="li-sub" style="margin-bottom:8px">Todavía no se cobran ${abiertos?abiertos+' día(s)-persona sin salida marcada':''}${abiertos&&lAb?' ni ':''}${lAb?lAb+' línea(s) sin cerrar':''}: entran cuando se cierren.</div>`;
+  if(sinCli.length) h+=`<div class="warn-box">${sinCli.length} rubro(s) sin cliente (personas que marcaron sin elegir cliente). Corrige el cliente en Asistencia para poder cobrarlos.</div>`;
+  const puede=_cob.fCli&&por('sin').some(x=>x.clienteId===_cob.fCli&&x.venta>0);
+  document.getElementById('cobAcciones').innerHTML=`<button class="btn btn-ghost btn-sm" onclick="exportarPlanilla()">Excel</button><button class="btn btn-green btn-sm" onclick="crearProforma()"${puede?'':' title="Elige un cliente con rubros sin facturar"'}>Generar proforma</button>`;
+  if(!_cob.fCli) h+=`<div class="li-sub" style="margin-bottom:8px">Para generar una proforma, elige el cliente arriba: junta todo lo sin facturar de ese cliente en el período.</div>`;
+  h+=L.length?`<div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Fecha</th><th>Cliente</th><th>Rubro</th><th class="n">Cant.</th><th class="n">Precio</th><th class="n">Venta</th><th class="n">Costo</th><th class="n">Margen</th><th>Estado</th></tr>`
+    +L.sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(x=>`<tr><td>${x.fecha.slice(5)}</td><td${x.clienteId?'':' class="warn"'}>${esc(nombreCliente(x.clienteId)||'Sin cliente')}</td><td>${esc(x.desc)}</td><td class="n">${fmtN(x.cantidad)} ${esc(x.unidad)}</td><td class="n">${money(x.precio)}</td><td class="n">${money(x.venta)}</td><td class="n">${money(x.costo)}</td><td class="n">${money(x.venta-x.costo)}</td>
+      <td><span class="badge ${EST_RUB[x._e][1]}">${EST_RUB[x._e][0]}</span>${x._pf?` <a href="#" onclick="event.preventDefault();verProforma('${x._pf.id}')">${esc(x._pf.numero)}</a>`:''}${x._e==='sin'&&x._pf?' <span class="li-sub">(no aprobado)</span>':''}</td></tr>`).join('')
+    +`<tr class="tot"><td colspan="5">Total (${L.length})</td><td class="n">${money(sum(L,'venta'))}</td><td class="n">${money(sum(L,'costo'))}</td><td class="n">${money(sum(L,'venta')-sum(L,'costo'))}</td><td></td></tr></table></div>`
+    :'<div class="empty-text">Nada en este estado para el período.</div>';
+  const PF=filtrarPorCliente(S.proformas||[]).slice().reverse();
+  h+=`<div class="sec-title" style="margin:18px 0 8px">Proformas</div>`+(PF.length?PF.map(p=>pfFila(p)).join(''):'<div class="li-sub">Todavía no hay proformas.</div>');
+  return h;
+}
+function pfTotales(p){ const A=(p.estado==='confirmada'?p.items.filter(it=>(p.aprobados||[]).includes(it.id)):p.items), sub=rd2(A.reduce((a,x)=>a+x.venta,0)), it=rd2(sub*(+p.itbms||0)/100); return {A,sub,itbms:it,total:rd2(sub+it)}; }
+function pfFila(p){
+  const [et,eb]=EST_PF[p.estado]||[p.estado,'bgy'], T=pfTotales(p);
+  return `<div class="list-item"><div class="li-info"><div class="li-name">${esc(p.numero)} · ${esc(nombreCliente(p.clienteId))} <span class="badge ${eb}">${et}</span></div>
+    <div class="li-sub">${p.desde} a ${p.hasta} · ${T.A.length} rubro(s) · ${money(T.total)}${p.estado==='confirmada'&&(p.excluidos||[]).length?' · '+p.excluidos.length+' sin aprobar (siguen por cobrar)':''}</div></div>
+    <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="verProforma('${p.id}')">${esCliente()&&p.estado==='revision'?'Revisar':'Ver'}</button>${esAdminU()&&['revision','confirmada'].includes(p.estado)?`<button class="btn btn-red btn-sm" onclick="anularProforma('${p.id}')">Anular</button>`:''}</div></div>`;
+}
+function sigNumeroPF(){ const n=(S.proformas||[]).reduce((a,p)=>Math.max(a,parseInt(String(p.numero).replace(/\D/g,''))||0),0)+1; return 'PF-'+String(n).padStart(4,'0'); }
+async function crearProforma(){
+  const cli=esCliente()?miCliente():_cob.fCli; if(!cli){ showToast('Elige el cliente','error'); return; }
+  const E=estadoRubros(), items=operacionPeriodo().rubros.filter(x=>x.clienteId===cli&&x.venta>0&&!(E[x.id]&&['facturado','revision'].includes(E[x.id].e)));
+  if(!items.length){ showToast('No hay nada sin facturar de '+nombreCliente(cli)+' en el período','info'); return; }
+  const tot=rd2(items.reduce((a,x)=>a+x.venta,0));
+  if(!confirm('Proforma de '+nombreCliente(cli)+' del '+_cob.desde+' al '+_cob.hasta+':\n'+items.length+' rubro(s) por '+money(tot)+' más ITBMS.\n\n'+(esCliente()?'Después marcas lo que apruebas y confirmas.':'Se envía al cliente para que la revise y confirme.'))) return;
+  const p={id:uid(),numero:sigNumeroPF(),clienteId:cli,desde:_cob.desde,hasta:_cob.hasta,estado:'revision',itbms:+getConfig().itbms||0,creada:Date.now(),
+    items:items.map(x=>({id:x.id,tipo:x.tipo,fecha:x.fecha,desc:x.desc,cantidad:x.cantidad,unidad:x.unidad,precio:x.precio,venta:x.venta,costo:x.costo})),aprobados:[],excluidos:[],vistoCliente:esCliente(),
+    log:[{t:pedAhora(),u:pedQuien(),a:'Generó la proforma ('+items.length+' rubros, '+money(tot)+' antes de ITBMS)'}]};
+  S.proformas.push(p); await save(); renderCobros(); pintarMenu();
+  if(!esCliente()) showToast(p.numero+' enviada a '+nombreCliente(cli)+' para su revisión'); verProforma(p.id);
+}
+let _pfVer=null;
+function verProforma(id){
+  const p=(S.proformas||[]).find(x=>x.id===id); if(!p) return; if(esCliente()&&p.clienteId!==miCliente()) return;
+  _pfVer=id; const rev=esCliente()&&p.estado==='revision', T=pfTotales(p), [et,eb]=EST_PF[p.estado]||[p.estado,'bgy'];
+  document.getElementById('pfTitulo').textContent=p.numero+' · '+nombreCliente(p.clienteId);
+  const filas=(rev?p.items:T.A).slice().sort((a,b)=>a.fecha.localeCompare(b.fecha)||a.desc.localeCompare(b.desc));
+  let h='';
+  if(rev) h+=`<div class="info-box pf-noprint">Marca lo que apruebas para cobro y confirma. Lo que dejes sin marcar no se factura ahora: queda pendiente para revisarlo con Door y cobrarse más adelante.</div>`;
+  h+=`<div class="pf-doc"><div class="pf-top"><div><img src="door/door-logo-sm.png" alt="Door Logistic"><div class="li-sub" style="color:#475569">Door Logistic</div></div>
+    <div style="text-align:right"><h2>Proforma ${esc(p.numero)}</h2><div>${esc(nombreCliente(p.clienteId))}</div><div class="li-sub" style="color:#475569">Período ${p.desde} a ${p.hasta} · ${new Date(p.creada).toLocaleDateString('es-PA')}</div><div class="pf-noprint" style="margin-top:4px"><span class="badge ${eb}">${et}</span></div></div></div>
+    <table><tr>${rev?'<th class="pf-noprint"><input type="checkbox" class="cob-chk" checked onchange="document.querySelectorAll(\'#pfBody .pf-it\').forEach(c=>c.checked=this.checked);pfRecalc()" aria-label="Marcar todo"></th>':''}<th>Fecha</th><th>Descripción</th><th class="n">Cantidad</th><th class="n">Precio</th><th class="n">Importe</th></tr>
+    ${filas.map(x=>`<tr>${rev?`<td class="pf-noprint"><input type="checkbox" class="cob-chk pf-it" data-id="${esc(x.id)}" checked onchange="pfRecalc()" aria-label="Aprobar"></td>`:''}<td>${x.fecha.slice(8)}/${x.fecha.slice(5,7)}</td><td>${esc(x.desc)}</td><td class="n">${fmtN(x.cantidad)} ${esc(x.unidad)}</td><td class="n">${money(x.precio)}</td><td class="n">${money(x.venta)}</td></tr>`).join('')}</table>
+    <div class="pf-tot" id="pfTot"></div>
+    <div class="pf-pie">${p.estado==='confirmada'?'Confirmada por '+esc((p.log.find(l=>/Confirmó/.test(l.a))||{}).u||'el cliente')+'.':'Documento de revisión, no es factura fiscal.'}${(p.excluidos||[]).length&&!rev?' '+p.excluidos.length+' rubro(s) no aprobados quedan pendientes de cobro.':''}${p.comentario?'<br>Comentario del cliente: '+esc(p.comentario):''}</div></div>`;
+  if(rev) h+=`<div class="field pf-noprint" style="margin-top:10px"><label>Comentario para Door (opcional)</label><textarea id="pfComent" rows="2" maxlength="400" placeholder="Ej. el sobretiempo del martes no fue autorizado"></textarea></div>
+    <div class="ped-acc pf-noprint"><button class="btn btn-green" onclick="confirmarProforma()">Confirmar lo marcado</button><button class="btn btn-ghost" onclick="devolverProforma()">Devolver sin aprobar</button></div>`;
+  h+=`<div class="ped-acc pf-noprint"><button class="btn btn-ghost btn-sm" onclick="imprimirProforma()">Imprimir o guardar PDF</button></div>`;
+  if(!esCliente()) h+=`<div class="ped-log pf-noprint">${(p.log||[]).map(x=>esc(x.t)+' · '+esc(x.u)+' · '+esc(x.a)).join('<br>')}</div>`;
+  document.getElementById('pfBody').innerHTML=h; pfRecalc(); showModal('modalProforma');
+}
+function pfRecalc(){
+  const p=(S.proformas||[]).find(x=>x.id===_pfVer); if(!p) return;
+  const chk=[...document.querySelectorAll('#pfBody .pf-it')], A=chk.length?p.items.filter(it=>chk.some(c=>c.checked&&c.dataset.id===it.id)):pfTotales(p).A;
+  const sub=rd2(A.reduce((a,x)=>a+x.venta,0)), it=rd2(sub*(+p.itbms||0)/100);
+  document.getElementById('pfTot').innerHTML=`${chk.length?`<div><span>Aprobados</span><span>${A.length} de ${p.items.length}</span></div>`:''}<div><span>Subtotal</span><span>${money(sub)}</span></div><div><span>ITBMS ${+p.itbms||0}%</span><span>${money(it)}</span></div><div class="g"><span>Total</span><span>${money(sub+it)}</span></div>`;
+}
+function imprimirProforma(){ document.body.classList.add('pf-print'); const fin=()=>{ document.body.classList.remove('pf-print'); window.removeEventListener('afterprint',fin); }; window.addEventListener('afterprint',fin); window.print(); setTimeout(fin,1500); }
+async function confirmarProforma(){
+  const p=(S.proformas||[]).find(x=>x.id===_pfVer); if(!p||p.estado!=='revision'||!esCliente()) return;
+  const ok=[...document.querySelectorAll('#pfBody .pf-it')].filter(c=>c.checked).map(c=>c.dataset.id);
+  if(!ok.length){ showToast('Marca al menos un rubro, o usa «Devolver sin aprobar»','error'); return; }
+  p.aprobados=ok; p.excluidos=p.items.map(x=>x.id).filter(id=>!ok.includes(id)); p.comentario=(document.getElementById('pfComent')||{}).value||'';
+  p.estado='confirmada'; p.confirmada=Date.now(); const T=pfTotales(p);
+  p.log.push({t:pedAhora(),u:pedQuien(),a:'Confirmó '+ok.length+' de '+p.items.length+' rubros ('+money(T.total)+' con ITBMS)'+(p.excluidos.length?'; '+p.excluidos.length+' quedan sin facturar':'')});
+  await save(); hideModal('modalProforma'); renderCobros();
+  emitirAviso('pf_conf','pf|'+p.id,'Proforma '+p.numero+' confirmada · '+nombreCliente(p.clienteId),ok.length+' de '+p.items.length+' rubros por '+money(T.total)+(p.excluidos.length?' · '+p.excluidos.length+' sin aprobar':''),{accion:'cobros'});
+  showToast('Proforma confirmada: Door ya puede facturarla');
+}
+async function devolverProforma(){
+  const p=(S.proformas||[]).find(x=>x.id===_pfVer); if(!p||p.estado!=='revision'||!esCliente()) return;
+  const c=(document.getElementById('pfComent')||{}).value.trim(); if(!c){ showToast('Escribe en el comentario por qué la devuelves','error'); return; }
+  p.estado='devuelta'; p.comentario=c; p.excluidos=p.items.map(x=>x.id); p.log.push({t:pedAhora(),u:pedQuien(),a:'Devolvió la proforma sin aprobar: '+c});
+  await save(); hideModal('modalProforma'); renderCobros();
+  emitirAviso('pf_conf','pfd|'+p.id,'Proforma '+p.numero+' devuelta · '+nombreCliente(p.clienteId),c,{accion:'cobros'});
+  showToast('Proforma devuelta a Door');
+}
+async function anularProforma(id){
+  const p=(S.proformas||[]).find(x=>x.id===id); if(!p||!esAdminU()) return;
+  const m=prompt('Motivo para anular '+p.numero+' (sus rubros vuelven a quedar sin facturar):'); if(!m||!m.trim()) return;
+  p.estado='anulada'; p.log.push({t:pedAhora(),u:pedQuien(),a:'Anuló la proforma: '+m.trim()}); await save(); renderCobros(); showToast(p.numero+' anulada');
+}
+// Cliente: sus proformas (revisar y confirmar) y generar la de un período
+function htmlProformasCliente(){
+  const mias=(S.proformas||[]).filter(p=>p.clienteId===miCliente()&&p.estado!=='anulada').slice().reverse(), rev=mias.filter(p=>p.estado==='revision');
+  const E=estadoRubros(), pend=operacionPeriodo().rubros.filter(x=>x.clienteId===miCliente()&&x.venta>0&&!(E[x.id]&&['facturado','revision'].includes(E[x.id].e)));
+  document.getElementById('cobAcciones').innerHTML=`<button class="btn btn-green btn-sm" onclick="crearProforma()">Generar proforma del período</button>`;
+  let h=`<div class="info-box">Aquí revisas lo que Door te cobra. En cada proforma marcas lo que apruebas y confirmas; lo que no marques queda pendiente para aclararlo y cobrarse después.</div>`;
+  if(rev.length) h+=`<div class="sec-title" style="margin:6px 0 8px">Por revisar (${rev.length})</div>`+rev.map(pfFila).join('');
+  h+=`<div class="sec-title" style="margin:14px 0 8px">Período</div>`+chipsPeriodo()+`<div class="ped-resumen"><div class="ped-kpi"><b>${money(pend.reduce((a,x)=>a+x.venta,0))}</b><span>Servicios del período aún sin proforma · ${pend.length} rubro(s)</span></div></div>`;
+  const otras=mias.filter(p=>p.estado!=='revision');
+  if(otras.length) h+=`<div class="sec-title" style="margin:14px 0 8px">Historial</div>`+otras.map(pfFila).join('');
+  return h;
+}
+// Al cliente: aviso de proformas nuevas desde la última vez
+async function avisarProformasCliente(){
+  if(!esCliente()||!facturacionOn()) return;
+  const N=(S.proformas||[]).filter(p=>p.clienteId===miCliente()&&p.estado==='revision'&&!p.vistoCliente); if(!N.length) return;
+  showToast(N.length===1?'Tienes la proforma '+N[0].numero+' por revisar':'Tienes '+N.length+' proformas por revisar','info');
+  N.forEach(p=>p.vistoCliente=true); try{ await save(); }catch(e){}
+}
+// Tarifas y costos (administrador)
+function htmlTarifas(){
+  const SV=servicios(), C=S.clientes||[];
+  document.getElementById('cobAcciones').innerHTML=`<button class="btn btn-green btn-sm" onclick="guardarTarifas()">Guardar</button>`;
+  let h=`<div class="info-box">Costo y venta por persona por día de cada servicio. El sobretiempo se calcula por hora: (día ÷ ${fmtN(hpRegular())} h de jornada) × ${getConfig().multSobretiempo} de recargo; sábado y domingo aplican su recargo de Configuración.</div>
+  <div class="sec-title" style="margin:6px 0 8px">Personal por día</div>
+  <div class="rt-scroll"><table class="rt-table cob-tbl" id="trSrv"><tr><th>Servicio</th><th>Posición del marcaje</th><th class="n">Costo por día</th><th class="n">Venta por día</th><th class="n">Margen</th><th></th></tr>`
+  +SV.map((s,i)=>`<tr data-i="${i}"><td><input type="text" value="${esc(s.nombre)}" data-k="nombre"></td><td><select data-k="puesto"><option value="">— (se asigna en la persona)</option>${Object.entries(PUESTOS).map(([k,v])=>`<option value="${k}"${s.puesto===k?' selected':''}>${v}</option>`).join('')}</select></td>
+    <td class="n"><input type="number" min="0" step="0.01" style="max-width:100px" value="${s.costoDia}" data-k="costoDia"></td><td class="n"><input type="number" min="0" step="0.01" style="max-width:100px" value="${s.ventaDia}" data-k="ventaDia"></td>
+    <td class="n">${money(s.ventaDia-s.costoDia)}</td><td>${SV.length>1?`<button class="btn btn-ghost btn-sm" onclick="quitarServicio(${i})" aria-label="Quitar">×</button>`:''}</td></tr>`).join('')
+  +`</table></div><button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="agregarServicio()">+ Servicio</button>`;
+  h+=`<div class="sec-title" style="margin:18px 0 8px">Tarifa de venta por cliente</div><div class="li-sub" style="margin-bottom:6px">Vacío: la venta general. Escribe la tarifa negociada con cada cliente por persona por día.</div>
+  <div class="rt-scroll"><table class="rt-table cob-tbl" id="trCli"><tr><th>Cliente</th>${SV.map(s=>`<th class="n">${esc(s.nombre)}</th>`).join('')}</tr>`
+  +C.map(c=>`<tr data-c="${c.id}"><td>${esc(c.nombre)}</td>${SV.map(s=>{ const v=((S.tarifasCliente||{})[c.id]||{})[s.id]; return `<td class="n"><input type="number" min="0" step="0.01" style="max-width:90px" data-s="${s.id}" placeholder="${s.ventaDia}" value="${v!==undefined&&v!==null&&v!==''?v:''}"></td>`; }).join('')}</tr>`).join('')+`</table></div>`;
+  const TL=S.lineasTipo||[];
+  h+=`<div class="sec-title" style="margin:18px 0 8px">Maquila (tipos de línea)</div>`+(TL.length?TL.map(t=>{ const v=t.venta||{}, un=UNID_COBRO[v.unidad||'paleta'];
+    return `<div class="list-item"><div class="li-info"><div class="li-name">${esc(t.nombre)} · ${esc(nombreCliente(t.clienteId)||'Sin cliente')}</div><div class="li-sub">${+v.precio>0?`Venta ${money(v.precio)} por ${un[0]}${v.unidad!=='paleta'?' ('+fmtN(v.porPallet)+' por pallet)':''} · costeo ${v.costeo==='unidad'?money(v.costoUnidad)+' por '+un[0]:'por el personal de la línea'}`:'<b style="color:var(--amber)">Sin precio de venta: su personal se cobra por día</b>'}</div></div>
+      <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalTipoLinea('${t.id}')">Editar</button></div></div>`; }).join(''):'<div class="li-sub">No hay tipos de línea.</div>')
+    +`<button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="openModalTipoLinea()">+ Tipo de maquila</button>`;
+  h+=`<div class="sec-title" style="margin:18px 0 8px">Proforma</div><div class="field" style="max-width:220px"><label>ITBMS (%)</label><input type="number" id="trItbms" min="0" step="0.5" value="${getConfig().itbms}"></div>`;
+  return h;
+}
+function leerTarifas(){
+  const SV=[...document.querySelectorAll('#trSrv tr[data-i]')].map(r=>{ const o=servicios()[+r.dataset.i]||{}, g=k=>r.querySelector(`[data-k="${k}"]`).value;
+    return {id:o.id||uid(),nombre:g('nombre').trim()||'Servicio',puesto:g('puesto'),costoDia:Math.max(0,+g('costoDia')||0),ventaDia:Math.max(0,+g('ventaDia')||0)}; });
+  const TC={}; document.querySelectorAll('#trCli tr[data-c]').forEach(r=>{ const o={}; r.querySelectorAll('input[data-s]').forEach(i=>{ if(i.value!=='') o[i.dataset.s]=Math.max(0,+i.value||0); }); if(Object.keys(o).length) TC[r.dataset.c]=o; });
+  return {SV,TC};
+}
+function agregarServicio(){ const {SV,TC}=leerTarifas(); SV.push({id:uid(),nombre:'Nuevo servicio',puesto:'',costoDia:0,ventaDia:0}); S.servicios=SV; S.tarifasCliente=TC; renderCobros(); }
+function quitarServicio(i){ const {SV,TC}=leerTarifas(); if(!confirm('¿Quitar el servicio '+SV[i].nombre+'?')) return; SV.splice(i,1); S.servicios=SV; S.tarifasCliente=TC; renderCobros(); }
+async function guardarTarifas(){
+  const {SV,TC}=leerTarifas(), dup=SV.map(s=>s.puesto).filter(Boolean).filter((p,i,a)=>a.indexOf(p)!==i);
+  if(dup.length){ showToast('Cada posición del marcaje va en un solo servicio: '+PUESTOS[dup[0]],'error'); return; }
+  S.servicios=SV; S.tarifasCliente=TC; S.config=Object.assign(getConfig(),{itbms:Math.max(0,+document.getElementById('trItbms').value||0)});
+  await save(); renderCobros(); showToast('Tarifas y costos guardados');
 }
 
 // ═══ PEDIDOS DE PERSONAL DE CLIENTES ═══
@@ -6240,6 +6658,7 @@ function renderAll(){
   updateNotifBadge();
   if(!document.getElementById('viewInsights').classList.contains('hidden'))renderInsights();
   if(!document.getElementById('viewPedidos').classList.contains('hidden'))renderPedidos();
+  if(!document.getElementById('viewCobros').classList.contains('hidden')&&_nav!=='tarifas'&&!document.querySelector('#cobContent input:focus'))renderCobros();
   pintarMenu();
 }
 

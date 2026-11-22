@@ -6,7 +6,7 @@
 // Nada sale del navegador: no hay base de datos ni datos reales.
 // ═══════════════════════════════════════════════════════════════
 (function(){
-  const SRV = window.__SRV, H = 3600000, MIN = 60000, KEY = 'door_demo_v3', SKEY = 'ctrl_horas';
+  const SRV = window.__SRV, H = 3600000, MIN = 60000, KEY = 'door_demo_v4', SKEY = 'ctrl_horas';
   const pad = n => String(n).padStart(2, '0');
   const dstr = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   const at = (f, h, m) => { const [y, mo, d] = f.split('-').map(Number); return new Date(y, mo - 1, d, h, m || 0, 0, 0).getTime(); };
@@ -31,6 +31,8 @@
     { id: 'u5', username: 'atlantico', nombre: 'Carlos Ríos', rol: 'cliente', pass: 'demo123', activo: true }
   ];
   const USUARIOS_CLIENTE = { cliente: 'k1', atlantico: 'k2' };
+  // Planilla y cobros: tarifas negociadas por cliente (venta por persona por día) y cédulas ficticias para la planilla
+  const TARIFAS_CLIENTE = { k1: { ag: 45, operador: 58 }, k2: { linea: 38 } };
   const CLIENTES = [
     { id: 'k1', nombre: 'Importadora Istmo' }, { id: 'k2', nombre: 'Distribuidora Atlántico' },
     { id: 'k3', nombre: 'Comercial Bahía Azul' }, { id: 'k4', nombre: 'Farmacéutica del Canal' }
@@ -45,17 +47,18 @@
   ];
   const T = id => TAREAS.find(t => t.id === id), C = id => CLIENTES.find(c => c.id === id);
   const TIPOS = [
-    { id: 'lt1', nombre: 'Empaque promocional', clienteId: 'k3', prod: 0.5, apoyo: [], excel: null,
+    // venta: cómo se cobra la maquila (por caja, unidad, paleta o bulto) y cómo se costea (por unidad o por el personal de la línea)
+    { id: 'lt1', nombre: 'Empaque promocional', clienteId: 'k3', prod: 0.5, apoyo: [], excel: null, venta: { unidad: 'caja', precio: 0.42, porPallet: 48, costeo: 'personal', costoUnidad: 0 },
       insumos: [{ nombre: 'Cajas', unidad: 'unid', porPallet: 48 }, { nombre: 'Stretch', unidad: 'rollo', porPallet: 0.08 }] },
-    { id: 'lt2', nombre: 'Etiquetado de importación', clienteId: 'k1', prod: 0.45, apoyo: [], excel: null,
+    { id: 'lt2', nombre: 'Etiquetado de importación', clienteId: 'k1', prod: 0.45, apoyo: [], excel: null, venta: { unidad: 'unidad', precio: 0.03, porPallet: 960, costeo: 'unidad', costoUnidad: 0.018 },
       insumos: [{ nombre: 'Etiquetas', unidad: 'unid', porPallet: 960 }, { nombre: 'Stretch', unidad: 'rollo', porPallet: 0.08 }] },
-    { id: 'lt3', nombre: 'Kitting farmacéutico', clienteId: 'k4', prod: 0.35, apoyo: [], excel: null,
+    { id: 'lt3', nombre: 'Kitting farmacéutico', clienteId: 'k4', prod: 0.35, apoyo: [], excel: null, venta: { unidad: 'paleta', precio: 38, porPallet: 1, costeo: 'personal', costoUnidad: 0 },
       insumos: [{ nombre: 'Cajas', unidad: 'unid', porPallet: 40 }, { nombre: 'Insertos', unidad: 'unid', porPallet: 480 }] }
   ];
   const BOD = ['Bodega Principal', 'Bodega 2'];
   const CONFIG = { horaInicio: '08:00', horaFin: '17:00', horasAlmuerzo: 1, multSobretiempo: 1.25, horasSabado: 4, multSabado: 1, horasDomingo: 0, multDomingo: 2,
     tarifaOperador: 4.5, tarifaAG: 3.75, tarifaSupervisor: 7, factorCarga: 1.07, alertaLibreMin: 15, alertaTareaH: 3, alertaParoMin: 15, toleranciaMin: 5, bodegas: BOD,
-    pedidosClientes: true, pedidoCorte: '15:00', marcajeCliente: true };
+    pedidosClientes: true, pedidoCorte: '15:00', marcajeCliente: true, facturacion: true, itbms: 7 };
 
   // Personal ficticio (cédula de prueba para todos: 1234)
   const per = (id, nombre, puesto) => ({ key: SKEY, id, nombre, cedula: '1234', puesto_def: puesto, activo: true, contingente: false, creado_por: 'admin', creado: new Date(NOW - 40 * 24 * H).toISOString() });
@@ -244,7 +247,9 @@
       ped('pp3', 'k3', diaMas(1), [{ tipo: 'ag', cant: 4, conf: 0 }], { inicio: '07:00', fin: '15:00', lugar: 'Patio de contenedores', creado: NOW - 1 * H },
         [{ t: hm(NOW - 1 * H), u: 'Comercial Bahía Azul', a: 'Pidió 4 personas' }])
     ];
-    const state = { colaboradores: [], tareasCat: TAREAS, clientes: CLIENTES, config: CONFIG, pedidosPersonal, usuariosCliente: USUARIOS_CLIENTE, lineasTipo: TIPOS, lineas: lineas.concat(h.lineas),
+    const state = { colaboradores: [], tareasCat: TAREAS, clientes: CLIENTES, config: CONFIG, pedidosPersonal, usuariosCliente: USUARIOS_CLIENTE,
+      tarifasCliente: TARIFAS_CLIENTE, servicios: [], proformas: [],
+      fichas: Object.fromEntries(PERSONAL.map((p, i) => [p.id, { cedula: '8-' + (700 + i * 13) + '-' + (1200 + i * 377) }])), lineasTipo: TIPOS, lineas: lineas.concat(h.lineas),
       turnosHistorial: hist, solicitudes: [], turnosProgramados: [], rutinas: [], plantillas: [], temaHSE: [], causasParo: [], lineasPlan: [], nombresLinea: [],
       turno: h.turno, historial: h.historial, tareasActivas: h.tareasActivas };
     SRV.rows = { [SKEY]: { value: state, version: 1 } };
