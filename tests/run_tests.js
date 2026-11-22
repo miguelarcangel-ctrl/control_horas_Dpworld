@@ -576,6 +576,33 @@ async function newPage(browser, opts = {}) {
   ok(ped.badge && ped.interno, 'pedidos de clientes: la empresa ve los de todos sus clientes con la insignia de por confirmar');
   ok(ped.parcial && ped.motivo, 'pedidos de clientes: confirmar parcial deja historial; rechazar exige motivo');
   ok(ped.cliente, 'pedidos de clientes: el cliente solo entra a sus pedidos y no ve los de otra empresa');
+
+  // Cliente del día en el marcaje (Door): apagado no se pide; encendido es obligatorio y queda en la marca
+  const mcl = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, cfg0 = { ...S.config }, cli0 = S.clientes.slice();
+    SRV.personal.push({ key: STATE_KEY, id: 'pcl1', nombre: 'Prueba Cliente', cedula: '9-999-9999', puesto_def: 'ag', activo: true, contingente: false, creado_por: 'admin' });
+    await cargarPersonal(); await cargarMarcas();
+    S.config.marcajeCliente = false; abrirMarca('pcl1');
+    r.apagado = document.getElementById('mmClienteField').classList.contains('hidden');
+    S.clientes = [{ id: 'kq', nombre: 'Cliente Q' }, { id: 'kr', nombre: 'Cliente R' }]; S.config.marcajeCliente = true;
+    S.pedidosPersonal = (S.pedidosPersonal || []).concat([{ id: 'pq', clienteId: 'kr', fecha: hoyStr(), lineas: [{ tipo: 'ag', cant: 1, conf: 1 }], estado: 'confirmado', log: [] }]);
+    abrirMarca('pcl1');
+    const chips = [...document.querySelectorAll('#mmClientes .chip')].map(c => c.textContent);
+    r.encendido = !document.getElementById('mmClienteField').classList.contains('hidden') && /Cliente R.*Pedido de hoy/.test(chips[0]) && _marca.cliente === 'Cliente R';
+    _marca.cliente = ''; _marca.bodega = bodegas()[0] || ''; pintarMarca();
+    document.getElementById('mmCedula').value = '9-999-9999'; await confirmarMarca();
+    r.obligatorio = /cliente/.test(document.getElementById('mmErr').textContent) && !SRV.marcas.some(m => m.persona_id === 'pcl1');
+    setMarcaCliente(0); await confirmarMarca();
+    const m = SRV.marcas.find(x => x.persona_id === 'pcl1' && x.tipo === 'entrada');
+    r.guarda = !!m && m.cliente === 'Cliente Q' && /Cliente Q/.test(document.getElementById('kiOkSub').textContent);
+    document.getElementById('kiOk').classList.add('hidden');
+    S.config = cfg0; S.clientes = cli0; S.pedidosPersonal = S.pedidosPersonal.filter(p => p.id !== 'pq');
+    SRV.marcas = SRV.marcas.filter(x => x.persona_id !== 'pcl1'); SRV.personal = SRV.personal.filter(x => x.id !== 'pcl1');
+    await cargarPersonal(); await cargarMarcas(); document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden')); await save();
+    return r; });
+  ok(mcl.apagado, 'marcaje: sin la función encendida no pide cliente (DP World)');
+  ok(mcl.encendido, 'marcaje con cliente: primero los clientes con pedido confirmado de hoy y propone ese');
+  ok(mcl.obligatorio && mcl.guarda, 'marcaje con cliente: es obligatorio en la entrada y queda guardado en la marca');
   ok(avs.guarda && avs.filtra, 'avisos: cada interruptor se guarda en el servidor y decide qué avisa (entrada de operador apagada, de supervisor encendida)');
   ok(avs.otro && avs.otroGuarda && avs.botonUsuarios, 'avisos: el administrador elige los avisos de cada usuario desde Usuarios');
   ok(avs.riesgo && avs.mitad && avs.meta && avs.texto && avs.cierre && avs.unaVezServidor, 'avisos de producción: riesgo de no llegar, mitad, meta cumplida y cierre; una sola vez');

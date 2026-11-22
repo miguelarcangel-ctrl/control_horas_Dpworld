@@ -6,7 +6,7 @@
 // Nada sale del navegador: no hay base de datos ni datos reales.
 // ═══════════════════════════════════════════════════════════════
 (function(){
-  const SRV = window.__SRV, H = 3600000, MIN = 60000, KEY = 'door_demo_v2', SKEY = 'ctrl_horas';
+  const SRV = window.__SRV, H = 3600000, MIN = 60000, KEY = 'door_demo_v3', SKEY = 'ctrl_horas';
   const pad = n => String(n).padStart(2, '0');
   const dstr = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   const at = (f, h, m) => { const [y, mo, d] = f.split('-').map(Number); return new Date(y, mo - 1, d, h, m || 0, 0, 0).getTime(); };
@@ -55,7 +55,7 @@
   const BOD = ['Bodega Principal', 'Bodega 2'];
   const CONFIG = { horaInicio: '08:00', horaFin: '17:00', horasAlmuerzo: 1, multSobretiempo: 1.25, horasSabado: 4, multSabado: 1, horasDomingo: 0, multDomingo: 2,
     tarifaOperador: 4.5, tarifaAG: 3.75, tarifaSupervisor: 7, factorCarga: 1.07, alertaLibreMin: 15, alertaTareaH: 3, alertaParoMin: 15, toleranciaMin: 5, bodegas: BOD,
-    pedidosClientes: true, pedidoCorte: '15:00' };
+    pedidosClientes: true, pedidoCorte: '15:00', marcajeCliente: true };
 
   // Personal ficticio (cédula de prueba para todos: 1234)
   const per = (id, nombre, puesto) => ({ key: SKEY, id, nombre, cedula: '1234', puesto_def: puesto, activo: true, contingente: false, creado_por: 'admin', creado: new Date(NOW - 40 * 24 * H).toISOString() });
@@ -75,16 +75,18 @@
   const TURNO_IDS = ['p01', 'p02', 'p04', 'p05', 'p06', 'p07', 'p08', 'p09', 'p10', 'p11', 'p12'];
   const LINEA_IDS = ['p13', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20', 'p21', 'p22', 'p23', 'p24', 'p25', 'p26'];
   const bodegaDe = id => (['p02', 'p07', 'p08', 'p12'].includes(id) ? BOD[1] : BOD[0]);
+  // Cliente para el que trabaja cada persona (lo elige al marcar la entrada)
+  const clienteDe = id => (LINEA_IDS.includes(id) ? 'Distribuidora Atlántico' : ['p10', 'p11', 'p12'].includes(id) ? 'Comercial Bahía Azul' : 'Importadora Istmo');
 
   // ── Marcajes
   function marca(pid, fecha, tipo, ts, extra){
     const p = P(pid), m = Object.assign({ id: ++SRV.marcaSeq, key: SKEY, persona_id: pid, nombre: p.nombre, fecha, tipo, puesto: p.puesto_def,
-      ts: new Date(ts).toISOString(), por: 'admin', anulado: false, motivo: null, corregido_por: null, corregido_en: null, bodega: bodegaDe(pid), push_enviado: true }, extra || {});
+      ts: new Date(ts).toISOString(), por: 'admin', anulado: false, motivo: null, corregido_por: null, corregido_en: null, bodega: bodegaDe(pid), cliente: clienteDe(pid), push_enviado: true }, extra || {});
     SRV.marcas.push(m); return m;
   }
   const copiaMarcas = (pid, fecha) => SRV.marcas.filter(m => m.persona_id === pid && m.fecha === fecha && !m.anulado)
     .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts)).map(m => ({ id: m.id, tipo: m.tipo, ts: Date.parse(m.ts), anulado: false }));
-  const miembro = (pid, fecha) => ({ id: pid, nombre: P(pid).nombre, cargo: CARGO[P(pid).puesto_def], marcaje: true, bodega: bodegaDe(pid), marcas: copiaMarcas(pid, fecha) });
+  const miembro = (pid, fecha) => ({ id: pid, nombre: P(pid).nombre, cargo: CARGO[P(pid).puesto_def], marcaje: true, bodega: bodegaDe(pid), cliente: clienteDe(pid), marcas: copiaMarcas(pid, fecha) });
 
   // ── Tareas del turno (mismos campos que guarda la app al cerrar una actividad)
   function tarea(tid, kid, cols, ini, fin, cantFactor){
@@ -230,6 +232,11 @@
     const ped = (id, cli, fecha, lineas, extra, log) => Object.assign({ id, clienteId: cli, fecha, inicio: '08:00', fin: '17:00', lineas, lugar: '', notas: '',
       estado: 'pendiente', creado: NOW - 3 * H, porUsuario: '', fueraHora: false, respuesta: '', vistoCliente: true, log }, extra);
     const pedidosPersonal = [
+      // Los de hoy, confirmados ayer: en «Pedidos de clientes» se comparan con quienes marcaron para cada cliente
+      ped('ph1', 'k1', HOY, [{ tipo: 'operador', cant: 6, conf: 6 }, { tipo: 'supervisor', cant: 2, conf: 2 }], { estado: 'confirmado', lugar: 'Bodega 1', creado: NOW - 26 * H },
+        [{ t: hm(NOW - 26 * H), u: 'Laura Méndez · Importadora Istmo', a: 'Pidió 8 personas' }, { t: hm(NOW - 25 * H), u: 'Roberto Sánchez', a: 'Confirmó las 8 personas' }]),
+      ped('ph2', 'k2', HOY, [{ tipo: 'linea', cant: 16, conf: 15 }], { estado: 'parcial', lugar: 'Líneas de maquila', creado: NOW - 27 * H, respuesta: 'Podemos cubrir 15 personas' },
+        [{ t: hm(NOW - 27 * H), u: 'Carlos Ríos · Distribuidora Atlántico', a: 'Pidió 16 personas' }, { t: hm(NOW - 25 * H), u: 'Roberto Sánchez', a: 'Confirmó 15 de 16 personas' }]),
       ped('pp1', 'k1', diaMas(-1), [{ tipo: 'ag', cant: 6, conf: 6 }, { tipo: 'operador', cant: 2, conf: 2 }], { estado: 'confirmado', lugar: 'Bodega 1 · recepción', creado: NOW - 30 * H },
         [{ t: hm(NOW - 30 * H), u: 'Laura Méndez · Importadora Istmo', a: 'Pidió 8 personas' }, { t: hm(NOW - 28 * H), u: 'Roberto Sánchez', a: 'Confirmó las 8 personas' }]),
       ped('pp2', 'k2', diaMas(1), [{ tipo: 'linea', cant: 10, conf: 0 }, { tipo: 'supervisor', cant: 1, conf: 0 }], { lugar: 'Línea de empaque', notas: 'Maquila de kits promocionales, se necesita experiencia en empaque', creado: NOW - 2 * H },
