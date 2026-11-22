@@ -516,6 +516,7 @@ body.en-kiosco .toast,body.en-kiosco .dpw-hdr,body.en-kiosco .dpw-drawer,body.en
 .ki-ok.hidden{display:none}.ki-ok.err{background:var(--red)}
 .ki-ok b{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(2.2rem,6vw,4.5rem);letter-spacing:.04em}
 .ki-ok span{display:block;font-size:clamp(1.1rem,2.6vw,1.8rem);margin-top:8px}
+.mm-cli .chip small{display:block;font-size:10px;opacity:.75;letter-spacing:.4px}
 .mm-acciones{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
 .mm-acciones button{padding:16px 10px;font-size:1.05rem;justify-content:center}
 .mm-acciones button.sel{outline:3px solid var(--primary);outline-offset:2px}
@@ -1265,6 +1266,7 @@ body.con-sel .toast{bottom:96px}
     <div class="mm-acciones" id="mmAcciones"></div>
     <div class="field hidden" id="mmPuestoField"><label>Hoy vas a trabajar como</label><div class="chip-wrap" id="mmPuestos"></div></div>
     <div class="field hidden" id="mmBodegaField"><label>¿En qué bodega?</label><div class="chip-wrap" id="mmBodegas"></div></div>
+    <div class="field hidden" id="mmClienteField"><label>¿Para qué cliente trabajas hoy?</label><div class="chip-wrap mm-cli" id="mmClientes"></div></div>
     <div class="field"><label>Tu número de cédula</label><input type="password" id="mmCedula" autocomplete="off" inputmode="text" placeholder="Cédula" onkeydown="if(event.key==='Enter')confirmarMarca()"></div>
     <div class="err-box hidden" id="mmErr"></div>
     <button class="btn btn-green btn-full" id="mmConfirmar" onclick="confirmarMarca()">Confirmar</button>
@@ -1311,6 +1313,7 @@ body.con-sel .toast{bottom:96px}
       <div class="field"><label>Hora</label><input type="time" id="coHora"></div>
     </div>
     <div class="field" id="coBodegaField"><label>Bodega</label><select id="coBodega"></select></div>
+    <div class="field hidden" id="coClienteField"><label>Cliente</label><select id="coCliente"></select></div>
     <div class="field" id="coPuestoField"><label>Posición</label><select id="coPuesto"><option value="operador">Operador</option><option value="ag">Ayudante general</option><option value="supervisor">Supervisor</option><option value="linea">Línea de producción</option><option value="responsable">Responsable de línea</option></select></div>
     <div class="field"><label>Motivo (obligatorio)</label><input type="text" id="coMotivo" placeholder="Ej. Olvidó marcar la salida"></div>
     <label class="li-sub hidden" id="coAnularWrap" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="coAnular"> Anular este marcaje</label>
@@ -1475,7 +1478,7 @@ const SESS_KEY='ch_sesion_'+STATE_KEY, BK_KEY='ch_backup_'+STATE_KEY;
 const RUNTIME_KEYS=['cerrandoId','reabriendoId','editingId','usuarios'];
 
 const DEFAULT_CONFIG={horaInicio:'08:00',horaFin:'17:00',horasAlmuerzo:1,multSobretiempo:1.5,horasSabado:4,multSabado:1.0,horasDomingo:0,multDomingo:2.0,
-  tarifaOperador:50,tarifaAG:36,factorCarga:1.07,alertaLibreMin:15,alertaTareaH:3,alertaParoMin:15,tarifaSupervisor:50,toleranciaMin:5,pedidosClientes:false,pedidoCorte:'15:00',bodegas:['Bodega 1 CLP','Bodega 2 MSL']};
+  tarifaOperador:50,tarifaAG:36,factorCarga:1.07,alertaLibreMin:15,alertaTareaH:3,alertaParoMin:15,tarifaSupervisor:50,toleranciaMin:5,pedidosClientes:false,pedidoCorte:'15:00',marcajeCliente:false,bodegas:['Bodega 1 CLP','Bodega 2 MSL']};
 let S={
   colaboradores:[],tareasCat:[],clientes:[],
   turno:null,tareasActivas:[],historial:[],
@@ -2261,7 +2264,7 @@ function setNav(nav){
   if(esCliente()) nav='pedidos';
   if(nav==='pedidos'&&!pedidosOn()) nav='supervisor';
   document.getElementById('viewPedidos').classList.toggle('hidden',nav!=='pedidos');
-  if(nav==='pedidos') renderPedidos();
+  if(nav==='pedidos'){ renderPedidos(); if(!esCliente()&&marcajeClienteOn()) cargarMarcas().then(()=>{ if(_nav==='pedidos') renderPedidos(); }); }
   document.getElementById('viewLineas').classList.toggle('hidden',nav!=='lineas');
   if(nav==='lineas') renderLineas();
   document.getElementById('viewSupervisor').classList.toggle('hidden',nav!=='supervisor');
@@ -2430,6 +2433,11 @@ function htmlFiltroBodega(){
   const cnt=b=>S.turno.equipo.filter(c=>!salioDelTurno(c)&&(!b||bodegaActual(c)===b)).length;
   return `<div class="chip-wrap bodega-filtro"><span class="li-sub">Bodega:</span><div class="chip${!_bodegaFiltro?' selected':''}" onclick="setBodegaFiltro('')">Todas (${cnt('')})</div>${bodegas().map(b=>`<div class="chip${_bodegaFiltro===b?' selected':''}" onclick="setBodegaFiltro('${esc(b).replace(/'/g,"\\'")}')">${esc(b)} (${cnt(b)})</div>`).join('')}</div>`;
 }
+// Cliente del día: con config.marcajeCliente (empresas que ponen personal donde sus clientes, como Door) cada persona
+// elige al marcar la entrada para qué cliente trabaja ese día (ch_marcajes.cliente, con el nombre del cliente).
+function marcajeClienteOn(){ return !!getConfig().marcajeCliente&&(S.clientes||[]).length>0; }
+// Clientes con pedido confirmado para la fecha (primero en la tablet)
+function clientesConPedido(fecha){ return [...new Set((S.pedidosPersonal||[]).filter(p=>p.fecha===fecha&&['confirmado','parcial'].includes(p.estado)).map(p=>nombreCliente(p.clienteId)).filter(Boolean))]; }
 const chipsBodega=(sel,fn)=>bodegas().map(b=>`<div class="chip${sel===b?' selected':''}" onclick="${fn}('${esc(b).replace(/'/g,"\\'")}')">${esc(b)}</div>`).join('');
 
 // ═══ SOBRETIEMPO ═══
@@ -3098,7 +3106,7 @@ const msTs=ts=>typeof ts==='number'?ts:Date.parse(ts);
 const fechaMenos=(f,d)=>{ const x=new Date(f+'T12:00:00'); x.setDate(x.getDate()-d); return fechaLocal(x); };
 async function cargarPersonal(){ if(!SESSION||esCliente()) return; try{ _personal=await rpc('ch_personal_list',{p_token:SESSION.token,p_key:STATE_KEY})||[]; }catch(e){ console.warn('Personal:',e.message); } }
 async function cargarMarcas(){
-  if(!SESSION||IS_TV) return;
+  if(!SESSION||IS_TV||esCliente()) return;
   const hoy=hoyStr();
   let m; try{ m=await rpc('ch_marcajes',{p_token:SESSION.token,p_key:STATE_KEY,p_desde:fechaMenos(hoy,1),p_hasta:hoy})||[]; }catch(e){ console.warn('Marcajes:',e.message); return; }
   const nuevas=_marcasCargadas?m.filter(x=>!_marcas.some(y=>y.id===x.id)):[];
@@ -3143,7 +3151,7 @@ function diaAsistencia(M, fecha){
   const jornada=horasProductivas(fecha)||0, descanso=jornada<=0, incompleto=!sal&&fecha!==hoyStr();
   const extra=descanso||incompleto?0:Math.max(0,r.h-jornada);
   let tarde=0; if(ent&&!descanso){ const lim=new Date(fecha+'T'+(cfg.horaInicio||'08:00')+':00').getTime()+(cfg.toleranciaMin||5)*60000; tarde=Math.max(0,Math.round((msTs(ent.ts)-lim)/60000)); }
-  return {bodega:(ent&&ent.bodega)||'',salidaCierre:!!(sal&&/cierre/i.test(sal.motivo||'')),ent,sal,salAlm:get('salida_almuerzo')[0],regAlm:get('regreso_almuerzo').slice(-1)[0],horas:r.h,abierta:r.abierta,extra,jornada,descanso,incompleto,tarde,puesto:ent&&ent.puesto,corregido:M.some(m=>m.corregido_por)};
+  return {bodega:(ent&&ent.bodega)||'',cliente:(ent&&ent.cliente)||'',salidaCierre:!!(sal&&/cierre/i.test(sal.motivo||'')),ent,sal,salAlm:get('salida_almuerzo')[0],regAlm:get('regreso_almuerzo').slice(-1)[0],horas:r.h,abierta:r.abierta,extra,jornada,descanso,incompleto,tarde,puesto:ent&&ent.puesto,corregido:M.some(m=>m.corregido_por)};
 }
 
 // ── Turno: el equipo se arma con quienes marcan (operador, ayudante, supervisor); la línea va aparte
@@ -3155,7 +3163,7 @@ function aplicarMarcasAlTurno(){
   _marcas.filter(m=>!m.anulado&&m.fecha===T.fecha&&CARGO_DE[m.puesto]).sort((a,b)=>msTs(a.ts)-msTs(b.ts)).forEach(m=>{
     if(T.marcasAplicadas[m.id]) return;
     let e=T.equipo.find(c=>c.id===m.persona_id); const ts=msTs(m.ts);
-    if(m.tipo==='entrada'){ if(!e){ e={id:m.persona_id,nombre:m.nombre,cargo:CARGO_DE[m.puesto],marcaje:true,bodega:m.bodega||''}; T.equipo.push(e); T.horasProd=(T.horasProd||0)+(T.hpPorPersona||8); } else if(m.bodega) e.bodega=m.bodega; }
+    if(m.tipo==='entrada'){ if(!e){ e={id:m.persona_id,nombre:m.nombre,cargo:CARGO_DE[m.puesto],marcaje:true,bodega:m.bodega||'',cliente:m.cliente||''}; T.equipo.push(e); T.horasProd=(T.horasProd||0)+(T.hpPorPersona||8); } else { if(m.bodega) e.bodega=m.bodega; if(m.cliente) e.cliente=m.cliente; } }
     else if(e&&m.tipo==='salida_almuerzo'){ const a=actDe(e.id); if(!(a&&a.causa==='almuerzo')){ cerrarActividad([e.id],ts);
       S.tareasActivas.push({id:'mk'+m.id,tareaId:'_almuerzo',tarea:'Almuerzo',clienteId:null,cliente:'Interno',colaboradores:[e],inicio:ts,fin:null,prod:0,unidad:'',sinProd:true,isEspecial:true,causa:'almuerzo',por:'marcaje'}); } }
     else if(e&&m.tipo==='regreso_almuerzo'){ const a=actDe(e.id); if(a&&a.causa==='almuerzo') cerrarActividad([e.id],ts); }
@@ -3166,7 +3174,9 @@ function aplicarMarcasAlTurno(){
   T.equipo.forEach(e=>{ const mm=_marcas.filter(m=>m.persona_id===e.id&&m.fecha===T.fecha&&CARGO_DE[m.puesto]).sort((a,b)=>msTs(a.ts)-msTs(b.ts)).map(m=>({id:m.id,tipo:m.tipo,ts:msTs(m.ts),anulado:!!m.anulado}));
     if(mm.length&&JSON.stringify(mm)!==JSON.stringify(e.marcas||[])){ e.marcas=mm; e.marcaje=true; cambio=true; }
     const ent=_marcas.filter(m=>m.persona_id===e.id&&m.fecha===T.fecha&&m.tipo==='entrada'&&!m.anulado&&m.bodega).pop();
-    if(ent&&e.bodega!==ent.bodega){ e.bodega=ent.bodega; cambio=true; } });
+    if(ent&&e.bodega!==ent.bodega){ e.bodega=ent.bodega; cambio=true; }
+    const entC=_marcas.filter(m=>m.persona_id===e.id&&m.fecha===T.fecha&&m.tipo==='entrada'&&!m.anulado&&m.cliente).pop();
+    if(entC&&e.cliente!==entC.cliente){ e.cliente=entC.cliente; cambio=true; } });
   if(cambio){ renderEquipo(); renderHistorial(); }
   return cambio;
 }
@@ -3174,8 +3184,8 @@ function aplicarMarcasAlTurno(){
 function personasParaTurno(){
   const L=S.colaboradores.map(c=>({...c}));
   presentes(['operador','ag','supervisor']).forEach(p=>{ const e=estadoMarca(p.id), c=L.find(x=>x.id===p.id);
-    const bd=(e.entrada&&e.entrada.bodega)||'';
-    if(c){ c.cargo=CARGO_DE[e.puesto]||c.cargo; c.presente=true; c.bodega=bd; } else L.push({id:p.id,nombre:p.nombre,cargo:CARGO_DE[e.puesto],presente:true,bodega:bd}); });
+    const bd=(e.entrada&&e.entrada.bodega)||'', cl=(e.entrada&&e.entrada.cliente)||'';
+    if(c){ c.cargo=CARGO_DE[e.puesto]||c.cargo; c.presente=true; c.bodega=bd; c.cliente=cl; } else L.push({id:p.id,nombre:p.nombre,cargo:CARGO_DE[e.puesto],presente:true,bodega:bd,cliente:cl}); });
   return L;
 }
 
@@ -3183,7 +3193,7 @@ function personasParaTurno(){
 const supMarcado=()=>presentes(['supervisor']).length>0;
 const MSG_SIN_MARCAS='No se puede iniciar el turno: nadie ha marcado entrada en la tablet de marcaje.\n\nEl personal debe marcar su entrada primero. Si alguien no pudo marcar, el administrador puede registrarle la entrada en Asistencia.';
 const personasMarcadas=()=>personasParaTurno().filter(c=>c.presente);
-const equipoMarcado=ids=>personasMarcadas().filter(c=>ids.includes(c.id)).map(c=>({id:c.id,nombre:c.nombre,cargo:c.cargo,marcaje:true,bodega:c.bodega||''}));
+const equipoMarcado=ids=>personasMarcadas().filter(c=>ids.includes(c.id)).map(c=>({id:c.id,nombre:c.nombre,cargo:c.cargo,marcaje:true,bodega:c.bodega||'',cliente:c.cliente||''}));
 function pintarSinMarcas(hintId, btnId, n){
   const h=document.getElementById(hintId), b=document.getElementById(btnId);
   const listo=n>0;
@@ -3239,7 +3249,7 @@ function renderKiosco(){
   const etiqueta={fuera:'Sin marcar',presente:'Trabajando',almuerzo:'En almuerzo',salio:'Salió'};
   document.getElementById('kiGrid').innerHTML=L.map(p=>{ const e=estadoMarca(p.id);
     const det=e.estado==='presente'?' desde '+horaHM(msTs(e.ultima.ts)):e.estado==='almuerzo'?' desde '+horaHM(msTs(e.ultima.ts)):e.estado==='salio'?' a las '+horaHM(msTs(e.ultima.ts)):e.sinSalida?' · no marcó salida el '+e.sinSalida.fecha.slice(8)+'/'+e.sinSalida.fecha.slice(5,7):'';
-    const bd=e.estado!=='fuera'&&e.entrada&&e.entrada.bodega?' · '+e.entrada.bodega:'';
+    const bd=(e.estado!=='fuera'&&e.entrada&&e.entrada.bodega?' · '+e.entrada.bodega:'')+(e.estado!=='fuera'&&e.entrada&&e.entrada.cliente?' · '+e.entrada.cliente:'');
     return `<button class="ki-p est-${e.estado}" onclick="abrirMarca('${p.id}')"><b>${esc(p.nombre)}</b><span>${etiqueta[e.estado]}${det}${e.puesto&&e.estado!=='fuera'?' · '+(PUESTOS[e.puesto]||''):''}${esc(bd)}</span></button>`; }).join('')
     ||'<div class="empty-text">No hay personal con cédula registrada. El administrador puede usar «Alta de persona».</div>';
   document.getElementById('kiPresentes').textContent=presentes().length+' personas en la bodega';
@@ -3252,7 +3262,8 @@ function abrirMarca(pid){
   // Propone la posición del último día que trabajó (o la habitual)
   const ult=[..._marcas].reverse().find(m=>m.persona_id===pid&&m.tipo==='entrada'&&!m.anulado);
   const ultB=(ult&&ult.bodega&&bodegas().includes(ult.bodega))?ult.bodega:(bodegas().length===1?bodegas()[0]:'');
-  _marca={pid,tipo:posibles.length===1?posibles[0]:null,puesto:(ult&&ult.puesto)||p.puesto_def||'operador',bodega:ultB};
+  const conPed=clientesConPedido(hoyStr()), ultC=(ult&&ult.cliente&&S.clientes.some(c=>c.nombre===ult.cliente))?ult.cliente:(conPed.length===1?conPed[0]:(S.clientes.length===1?S.clientes[0].nombre:''));
+  _marca={pid,tipo:posibles.length===1?posibles[0]:null,puesto:(ult&&ult.puesto)||p.puesto_def||'operador',bodega:ultB,cliente:ultC};
   document.getElementById('mmNombre').textContent=p.nombre;
   document.getElementById('mmEstado').textContent=e.estado==='presente'?'Trabajando desde '+horaHM(msTs(e.ultima.ts))+' · '+(PUESTOS[e.puesto]||''):e.estado==='almuerzo'?'En almuerzo desde '+horaHM(msTs(e.ultima.ts)):e.estado==='salio'?'Ya marcó su salida a las '+horaHM(msTs(e.ultima.ts))+'. Si vuelve a entrar, marca Entrada.':'Aún no marca hoy.';
   document.getElementById('mmCedula').value=''; document.getElementById('mmErr').classList.add('hidden');
@@ -3265,20 +3276,27 @@ function pintarMarca(posibles){
   document.getElementById('mmPuestos').innerHTML=Object.entries(PUESTOS).map(([k,v])=>`<div class="chip${_marca.puesto===k?' selected':''}" onclick="_marca.puesto='${k}';pintarMarca()">${v}</div>`).join('');
   document.getElementById('mmBodegaField').classList.toggle('hidden',_marca.tipo!=='entrada'||!bodegas().length);
   document.getElementById('mmBodegas').innerHTML=chipsBodega(_marca.bodega,'setMarcaBodega');
+  const conCli=marcajeClienteOn();
+  document.getElementById('mmClienteField').classList.toggle('hidden',_marca.tipo!=='entrada'||!conCli);
+  if(conCli){ const conPed=clientesConPedido(hoyStr()), L=[...S.clientes].sort((a,b)=>(conPed.includes(b.nombre)-conPed.includes(a.nombre))||a.nombre.localeCompare(b.nombre));
+    document.getElementById('mmClientes').innerHTML=L.map((c,i)=>`<div class="chip${_marca.cliente===c.nombre?' selected':''}" onclick="setMarcaCliente(${S.clientes.indexOf(c)})">${esc(c.nombre)}${conPed.includes(c.nombre)?'<small>Pedido de hoy</small>':''}</div>`).join(''); }
 }
 function setMarcaBodega(b){ _marca.bodega=b; pintarMarca(); }
+function setMarcaCliente(i){ const c=S.clientes[i]; if(c){ _marca.cliente=c.nombre; pintarMarca(); } }
 async function confirmarMarca(){
   const ced=document.getElementById('mmCedula').value.trim(), err=document.getElementById('mmErr');
   if(!_marca.tipo){ err.textContent='Elige qué vas a marcar'; err.classList.remove('hidden'); return; }
   if(!ced){ err.textContent='Escribe tu cédula'; err.classList.remove('hidden'); return; }
   if(_marca.tipo==='entrada'&&bodegas().length&&!_marca.bodega){ err.textContent='Elige en qué bodega vas a trabajar'; err.classList.remove('hidden'); return; }
+  if(_marca.tipo==='entrada'&&marcajeClienteOn()&&!_marca.cliente){ err.textContent='Elige para qué cliente vas a trabajar hoy'; err.classList.remove('hidden'); return; }
   const btn=document.getElementById('mmConfirmar'); btn.disabled=true;
   try{
     const m=await rpc('ch_marcar',{p_token:SESSION.token,p_key:STATE_KEY,p_persona:_marca.pid,p_cedula:ced,p_tipo:_marca.tipo,p_puesto:_marca.tipo==='entrada'?_marca.puesto:null});
     if(m.tipo==='entrada'&&_marca.bodega){ try{ await rpc('ch_marca_bodega',{p_token:SESSION.token,p_key:STATE_KEY,p_id:m.id,p_bodega:_marca.bodega}); m.bodega=_marca.bodega; }catch(e){ console.warn('Bodega:',e.message); } }
+    if(m.tipo==='entrada'&&marcajeClienteOn()&&_marca.cliente){ try{ await rpc('ch_marca_cliente',{p_token:SESSION.token,p_key:STATE_KEY,p_id:m.id,p_cliente:_marca.cliente}); m.cliente=_marca.cliente; }catch(e){ console.warn('Cliente:',e.message); } }
     hideModal('modalMarca');
     const nom=m.nombre.split(' ')[0], hh=horaHM(msTs(m.ts));
-    const txt={entrada:['Bienvenido, '+nom,'Entrada '+hh+' · '+(PUESTOS[m.puesto]||'')+(m.bodega?' · '+m.bodega:'')],salida_almuerzo:['Buen provecho, '+nom,'Salida a almuerzo '+hh],regreso_almuerzo:['De vuelta, '+nom,'Regreso de almuerzo '+hh],salida:['Hasta luego, '+nom,'Salida '+hh]}[m.tipo];
+    const txt={entrada:['Bienvenido, '+nom,'Entrada '+hh+' · '+(PUESTOS[m.puesto]||'')+(m.bodega?' · '+m.bodega:'')+(m.cliente?' · '+m.cliente:'')],salida_almuerzo:['Buen provecho, '+nom,'Salida a almuerzo '+hh],regreso_almuerzo:['De vuelta, '+nom,'Regreso de almuerzo '+hh],salida:['Hasta luego, '+nom,'Salida '+hh]}[m.tipo];
     mostrarOkKiosco(txt[0],txt[1]);
     funcionPush({accion:'marca',token:SESSION.token,key:STATE_KEY,marcaId:m.id}).catch(e=>console.warn('Aviso de llegada:',e));
     await cargarMarcas();
@@ -3387,7 +3405,7 @@ function verAsistencia(pid){
   document.getElementById('asTitulo').textContent=o.nombre+' · '+_asist.desde+' a '+_asist.hasta;
   let h=`<div class="li-sub"><b>${fmtN(o.horas)} h</b> en ${o.D.length} día(s) · extra ${fmtN(o.extra)} h · ${o.tardes} tardanza(s)</div>`;
   h+=o.D.sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(d=>{ const M=marcasDe(pid,_asist.marcas).filter(m=>m.fecha===d.fecha);
-    return `<div class="ins-row"><div class="ins-name">${etiquetaDia(d.fecha)} · ${d.fecha}<small>${PUESTOS[d.puesto]||''}${d.bodega?' · '+esc(d.bodega):''}${d.descanso?' · día de descanso':''}${d.tarde?' · '+d.tarde+' min tarde':''}${d.corregido?' · con corrección':''}</small></div>
+    return `<div class="ins-row"><div class="ins-name">${etiquetaDia(d.fecha)} · ${d.fecha}<small>${PUESTOS[d.puesto]||''}${d.bodega?' · '+esc(d.bodega):''}${d.cliente?' · '+esc(d.cliente):''}${d.descanso?' · día de descanso':''}${d.tarde?' · '+d.tarde+' min tarde':''}${d.corregido?' · con corrección':''}</small></div>
       <div class="ins-nums">${M.map(m=>`<span>${TIPOS_MARCA[m.tipo]} <b>${horaHM(msTs(m.ts))}</b>${esAdmin?` <a href="#" onclick="event.preventDefault();abrirCorreccion(${m.id})">corregir</a>`:''}</span>`).join('')}</div>
       <div class="ins-nums"><span>Horas <b>${fmtN(d.horas)}</b></span>${d.salidaCierre?`<span><b style="color:var(--amber)">${esc(d.sal.motivo)}</b></span>`:''}${d.extra>0.05?`<span>Extra <b>${fmtN(d.extra)}</b>${d.extraSin>0.05?` <b style="color:var(--amber)">(${fmtN(d.extraSin)} sin autorizar)</b>`:''}</span>`:''}${!d.sal&&d.fecha!==hoyStr()?'<span><b style="color:var(--amber)">Sin salida</b></span>':''}
       ${esAdmin?`<a href="#" onclick="event.preventDefault();abrirCorreccion(null,'${d.fecha}')">+ agregar marcaje</a>`:''}</div></div>`; }).join('');
@@ -3403,6 +3421,9 @@ function abrirCorreccion(id, fecha){
   document.getElementById('coHora').value=tvPad(d.getHours())+':'+tvPad(d.getMinutes());
   document.getElementById('coPuesto').value=(m&&m.puesto)||'operador';
   document.getElementById('coBodega').innerHTML='<option value="">—</option>'+bodegas().map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join(''); document.getElementById('coBodega').value=(m&&m.bodega)||'';
+  const coC=document.getElementById('coCliente'), mC=(m&&m.cliente)||'';
+  document.getElementById('coClienteField').classList.toggle('hidden',!marcajeClienteOn());
+  coC.innerHTML='<option value="">—</option>'+[...new Set([...S.clientes.map(c=>c.nombre),mC].filter(Boolean))].map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join(''); coC.value=mC;
   document.getElementById('coMotivo').value=''; document.getElementById('coAnular').checked=false;
   document.getElementById('coAnularWrap').classList.toggle('hidden',!m);
   showModal('modalCorreccion');
@@ -3418,18 +3439,20 @@ async function guardarCorreccion(){
     const nid=await rpc('ch_marcaje_admin',{p_token:SESSION.token,p_key:STATE_KEY,p_id:_coEdit.id,p_persona:_asVer,p_fecha:_coEdit.fecha,p_tipo:tipo,p_ts:new Date(ts).toISOString(),
       p_puesto:tipo==='entrada'?document.getElementById('coPuesto').value:((m&&m.puesto)||(ent&&ent.puesto)||null),p_anulado:document.getElementById('coAnular').checked,p_motivo:motivo});
     const bd=document.getElementById('coBodega').value; if(tipo==='entrada'&&(nid||_coEdit.id)&&bd!==((m&&m.bodega)||'')) await rpc('ch_marca_bodega',{p_token:SESSION.token,p_key:STATE_KEY,p_id:nid||_coEdit.id,p_bodega:bd});
+    const cl=document.getElementById('coCliente').value; if(marcajeClienteOn()&&tipo==='entrada'&&(nid||_coEdit.id)&&cl!==((m&&m.cliente)||'')) await rpc('ch_marca_cliente',{p_token:SESSION.token,p_key:STATE_KEY,p_id:nid||_coEdit.id,p_cliente:cl});
     hideModal('modalCorreccion'); await cargarAsistencia(_asist.desde,_asist.hasta); await cargarMarcas(); verAsistencia(_asVer); showToast('Marcaje corregido','success');
   }catch(e){ showToast('No se pudo corregir: '+e.message,'error'); }
 }
 function exportarAsistencia(){
   const R=resumenAsistencia(), wb=XLSX.utils.book_new(), r2=n=>Math.round((n||0)*100)/100, hh=m=>m?horaHM(msTs(m.ts)):'';
-  const dia=[['Fecha','Persona','Posición','Bodega','Entrada','Salida a almuerzo','Regreso de almuerzo','Salida','Horas trabajadas','Jornada (h)','Horas extra','Extra autorizado','Extra sin autorizar','Tardanza (min)','Observaciones']];
-  R.forEach(o=>o.D.sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(d=>dia.push([d.fecha,o.nombre,PUESTOS[d.puesto]||'',d.bodega||'',hh(d.ent),hh(d.salAlm),hh(d.regAlm),hh(d.sal),r2(d.horas),d.jornada,r2(d.extra),r2(d.extraAut),r2(d.extraSin),d.tarde||'',[!d.sal&&d.fecha!==hoyStr()?'Sin salida (no suma extra)':'',d.salidaCierre?(d.sal.motivo||'Salida por cierre sin marcaje'):'',d.descanso?'Día de descanso (recargo del día)':'',d.corregido&&!d.salidaCierre?'Con corrección':''].filter(Boolean).join(' · ')])));
+  const conC=marcajeClienteOn(), cC=(a,v)=>{ if(conC) a.splice(4,0,v); return a; }, cR=(a,v)=>{ if(conC) a.splice(6,0,v); return a; };
+  const dia=[cC(['Fecha','Persona','Posición','Bodega','Entrada','Salida a almuerzo','Regreso de almuerzo','Salida','Horas trabajadas','Jornada (h)','Horas extra','Extra autorizado','Extra sin autorizar','Tardanza (min)','Observaciones'],'Cliente')];
+  R.forEach(o=>o.D.sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(d=>dia.push(cC([d.fecha,o.nombre,PUESTOS[d.puesto]||'',d.bodega||'',hh(d.ent),hh(d.salAlm),hh(d.regAlm),hh(d.sal),r2(d.horas),d.jornada,r2(d.extra),r2(d.extraAut),r2(d.extraSin),d.tarde||'',[!d.sal&&d.fecha!==hoyStr()?'Sin salida (no suma extra)':'',d.salidaCierre?(d.sal.motivo||'Salida por cierre sin marcaje'):'',d.descanso?'Día de descanso (recargo del día)':'',d.corregido&&!d.salidaCierre?'Con corrección':''].filter(Boolean).join(' · ')],d.cliente||''))));
   const res=[['Persona','Días trabajados','Horas trabajadas','Horas extra','Extra sin autorizar','Tardanzas','Minutos de tardanza','Días sin salida','Salidas por cierre sin marcaje']];
   R.forEach(o=>res.push([o.nombre,o.D.length,r2(o.horas),r2(o.extra),r2(o.extraSin),o.tardes,o.minTarde,o.incompletos,o.cierres||0]));
   const T=totalAsistencia(R); res.push(['TOTAL',T.dias,r2(T.horas),r2(T.extra),r2(T.extraSin),T.tardes,T.minTarde,T.incompletos,T.cierres]);
-  const raw=[['Fecha','Persona','Marcaje','Hora','Posición','Bodega','Registrado por','Anulado','Motivo de corrección','Corregido por','Corregido el']];
-  _asist.marcas.forEach(m=>raw.push([m.fecha,m.nombre,TIPOS_MARCA[m.tipo],new Date(msTs(m.ts)).toLocaleString('es-PA'),PUESTOS[m.puesto]||'',m.bodega||'',m.por||'',m.anulado?'Sí':'',m.motivo||'',m.corregido_por||'',m.corregido_en?new Date(m.corregido_en).toLocaleString('es-PA'):'']));
+  const raw=[cR(['Fecha','Persona','Marcaje','Hora','Posición','Bodega','Registrado por','Anulado','Motivo de corrección','Corregido por','Corregido el'],'Cliente')];
+  _asist.marcas.forEach(m=>raw.push(cR([m.fecha,m.nombre,TIPOS_MARCA[m.tipo],new Date(msTs(m.ts)).toLocaleString('es-PA'),PUESTOS[m.puesto]||'',m.bodega||'',m.por||'',m.anulado?'Sí':'',m.motivo||'',m.corregido_por||'',m.corregido_en?new Date(m.corregido_en).toLocaleString('es-PA'):''],m.cliente||'')));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(res),'Resumen por persona');
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(dia),'Asistencia diaria');
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(raw),'Marcajes');
@@ -3564,7 +3587,7 @@ function renderEquipo(){
       <button onclick="sumarCant('${a.id}',1)">+1</button><button onclick="sumarCant('${a.id}',5)">+5</button></div>`:'';
     return `<div class="pc st-${est}${_sel.has(c.id)?' sel':''}" data-pid="${c.id}" onclick="${est==='fuera'?'':`togglePersona('${c.id}')`}">
       <div class="pc-top"><div class="pc-av" style="background:${COLORS[i%COLORS.length]}">${iniciales(c.nombre)}</div>
-        <div style="min-width:0;flex:1"><div class="pc-name">${esc(c.nombre)}</div><div class="pc-role">${{operador:'Operador',ag:'Ayudante General',supervisor:'Supervisor'}[c.cargo]||'Operador'}${c.marcas&&c.marcas.length?' · entró '+horaHM((c.marcas.find(m=>m.tipo==='entrada'&&!m.anulado)||{}).ts):''}${c.bodega&&hayBodegas()?' · '+esc(c.bodega):''}${(sobreActivo()||{personas:[]}).personas.includes(c.id)&&!fuera?'<span class="pc-st">Sobretiempo</span>':''}</div></div></div>
+        <div style="min-width:0;flex:1"><div class="pc-name">${esc(c.nombre)}</div><div class="pc-role">${{operador:'Operador',ag:'Ayudante General',supervisor:'Supervisor'}[c.cargo]||'Operador'}${c.marcas&&c.marcas.length?' · entró '+horaHM((c.marcas.find(m=>m.tipo==='entrada'&&!m.anulado)||{}).ts):''}${c.bodega&&hayBodegas()?' · '+esc(c.bodega):''}${c.cliente&&marcajeClienteOn()?' · '+esc(c.cliente):''}${(sobreActivo()||{personas:[]}).personas.includes(c.id)&&!fuera?'<span class="pc-st">Sobretiempo</span>':''}</div></div></div>
       <div class="pc-est">${info}</div>
       <div class="pc-timer" id="pt_${c.id}">${fuera?'':msHMS(Date.now()-(a?a.inicio:libreDesde(c.id)))}</div>${cnt}</div>`;
   }).join('');
@@ -3589,6 +3612,9 @@ function abrirAsignar(tdId){
   if(!_sel.size){ showToast('Toca primero a las personas','info'); return; }
   const ult=S.turno.ultCliente||(S.historial.slice().reverse().find(h=>h.clienteId)||{}).clienteId;
   _asig={cli:S.clientes.some(c=>c.id===ult)?ult:(S.clientes[0]||{}).id,hace:0,tdId:tdId||null};
+  // Cliente: el que las personas eligieron al marcar, si todas trabajan hoy para el mismo
+  const cs=[...new Set(S.turno.equipo.filter(c=>_sel.has(c.id)).map(c=>c.cliente).filter(Boolean))], kc=cs.length===1&&S.clientes.find(c=>c.nombre===cs[0]);
+  if(kc) _asig.cli=kc.id;
   const td=tdId&&(S.turno.tareasDia||[]).find(x=>x.id===tdId); if(td&&td.clienteId) _asig.cli=td.clienteId;
   const nombres=S.turno.equipo.filter(c=>_sel.has(c.id)).map(c=>c.nombre.split(' ')[0]);
   document.getElementById('asigTitulo').textContent=''+nombres.join(', ');
@@ -4371,6 +4397,18 @@ function renderPedidos(){
   // Resumen por día: lo pedido frente al personal activo de la empresa
   const dias=[...new Set(proximos.filter(p=>p.estado!=='cancelado'&&p.estado!=='rechazado').map(p=>p.fecha))].slice(0,4);
   const activos=t=>_personal.filter(x=>x.activo!==false&&(!t||x.puesto_def===t)).length;
+  // Hoy: lo confirmado a cada cliente frente a quienes marcaron entrada para ese cliente en la tablet
+  if(marcajeClienteOn()){
+    const ent=_marcas.filter(m=>m.fecha===hoy&&m.tipo==='entrada'&&!m.anulado), porC={};
+    ent.forEach(m=>{ const k=m.cliente||'Sin cliente'; (porC[k]=porC[k]||new Set()).add(m.persona_id); });
+    const confHoy={}; L.filter(p=>p.fecha===hoy&&['confirmado','parcial'].includes(p.estado)).forEach(p=>{ const k=nombreCliente(p.clienteId); confHoy[k]=(confHoy[k]||0)+pedTot(p,'conf'); });
+    const nombres=[...new Set([...Object.keys(confHoy),...Object.keys(porC)])].sort((a,b)=>(a==='Sin cliente')-(b==='Sin cliente')||a.localeCompare(b));
+    if(nombres.length){
+      h+=`<div class="sec-title" style="margin:4px 0 8px">Hoy · personal que marcó por cliente</div><div class="ped-resumen">`+nombres.map(n=>{ const mc=porC[n]?porC[n].size:0, c=confHoy[n];
+        const col=c==null?'':mc<c?'var(--amber)':'var(--green)';
+        return `<div class="ped-kpi"><b style="${col?'color:'+col:''}">${mc}${c!=null?' / '+c:''}</b><span>${esc(n)}${c!=null?' · marcaron / confirmadas':' · marcaron (sin pedido)'}</span></div>`; }).join('')+`</div>`;
+    }
+  }
   if(!dias.length) h+='<div class="info-box">No hay pedidos de clientes para los próximos días.</div>';
   dias.forEach(f=>{ const ps=proximos.filter(p=>p.fecha===f&&p.estado!=='cancelado'&&p.estado!=='rechazado');
     const pedidas=ps.reduce((s,p)=>s+pedTot(p,'cant'),0), conf=ps.filter(p=>p.estado!=='pendiente').reduce((s,p)=>s+pedTot(p,'conf'),0), porConf=ps.filter(p=>p.estado==='pendiente').reduce((s,p)=>s+pedTot(p,'cant'),0);
