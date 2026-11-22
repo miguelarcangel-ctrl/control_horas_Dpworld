@@ -6,7 +6,7 @@
 // Nada sale del navegador: no hay base de datos ni datos reales.
 // ═══════════════════════════════════════════════════════════════
 (function(){
-  const SRV = window.__SRV, H = 3600000, MIN = 60000, KEY = 'door_demo_v1', SKEY = 'ctrl_horas';
+  const SRV = window.__SRV, H = 3600000, MIN = 60000, KEY = 'door_demo_v2', SKEY = 'ctrl_horas';
   const pad = n => String(n).padStart(2, '0');
   const dstr = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   const at = (f, h, m) => { const [y, mo, d] = f.split('-').map(Number); return new Date(y, mo - 1, d, h, m || 0, 0, 0).getTime(); };
@@ -25,8 +25,12 @@
   const USERS = [
     { id: 'u1', username: 'admin', nombre: 'Administrador Demo', rol: 'admin', pass: 'demo123', activo: true },
     { id: 'u2', username: 'supervisor', nombre: 'Roberto Sánchez', rol: 'supervisor', pass: 'demo123', activo: true },
-    { id: 'u3', username: 'linea', nombre: 'Daniela Pinzón', rol: 'responsable', pass: 'demo123', activo: true }
+    { id: 'u3', username: 'linea', nombre: 'Daniela Pinzón', rol: 'responsable', pass: 'demo123', activo: true },
+    // Clientes de Door: cada uno entra con su propia sesión y pide el personal del día siguiente
+    { id: 'u4', username: 'cliente', nombre: 'Laura Méndez', rol: 'cliente', pass: 'demo123', activo: true },
+    { id: 'u5', username: 'atlantico', nombre: 'Carlos Ríos', rol: 'cliente', pass: 'demo123', activo: true }
   ];
+  const USUARIOS_CLIENTE = { cliente: 'k1', atlantico: 'k2' };
   const CLIENTES = [
     { id: 'k1', nombre: 'Importadora Istmo' }, { id: 'k2', nombre: 'Distribuidora Atlántico' },
     { id: 'k3', nombre: 'Comercial Bahía Azul' }, { id: 'k4', nombre: 'Farmacéutica del Canal' }
@@ -50,7 +54,8 @@
   ];
   const BOD = ['Bodega Principal', 'Bodega 2'];
   const CONFIG = { horaInicio: '08:00', horaFin: '17:00', horasAlmuerzo: 1, multSobretiempo: 1.25, horasSabado: 4, multSabado: 1, horasDomingo: 0, multDomingo: 2,
-    tarifaOperador: 4.5, tarifaAG: 3.75, tarifaSupervisor: 7, factorCarga: 1.07, alertaLibreMin: 15, alertaTareaH: 3, alertaParoMin: 15, toleranciaMin: 5, bodegas: BOD };
+    tarifaOperador: 4.5, tarifaAG: 3.75, tarifaSupervisor: 7, factorCarga: 1.07, alertaLibreMin: 15, alertaTareaH: 3, alertaParoMin: 15, toleranciaMin: 5, bodegas: BOD,
+    pedidosClientes: true, pedidoCorte: '15:00' };
 
   // Personal ficticio (cédula de prueba para todos: 1234)
   const per = (id, nombre, puesto) => ({ key: SKEY, id, nombre, cedula: '1234', puesto_def: puesto, activo: true, contingente: false, creado_por: 'admin', creado: new Date(NOW - 40 * 24 * H).toISOString() });
@@ -219,7 +224,20 @@
     const hist = [], lineas = [];
     dias.forEach((f, k) => { const r = diaCerrado(f, k); hist.push(r.turno); lineas.push(...r.lineas); });
     const h = diaHoy();
-    const state = { colaboradores: [], tareasCat: TAREAS, clientes: CLIENTES, config: CONFIG, lineasTipo: TIPOS, lineas: lineas.concat(h.lineas),
+    // Pedidos de personal de los clientes: uno respondido de ayer y los de mañana por confirmar
+    const diaMas = n => { const x = new Date(NOW); x.setDate(x.getDate() + n); return dstr(x); };
+    const hm = t => dstr(new Date(t)) + ' ' + pad(new Date(t).getHours()) + ':' + pad(new Date(t).getMinutes());
+    const ped = (id, cli, fecha, lineas, extra, log) => Object.assign({ id, clienteId: cli, fecha, inicio: '08:00', fin: '17:00', lineas, lugar: '', notas: '',
+      estado: 'pendiente', creado: NOW - 3 * H, porUsuario: '', fueraHora: false, respuesta: '', vistoCliente: true, log }, extra);
+    const pedidosPersonal = [
+      ped('pp1', 'k1', diaMas(-1), [{ tipo: 'ag', cant: 6, conf: 6 }, { tipo: 'operador', cant: 2, conf: 2 }], { estado: 'confirmado', lugar: 'Bodega 1 · recepción', creado: NOW - 30 * H },
+        [{ t: hm(NOW - 30 * H), u: 'Laura Méndez · Importadora Istmo', a: 'Pidió 8 personas' }, { t: hm(NOW - 28 * H), u: 'Roberto Sánchez', a: 'Confirmó las 8 personas' }]),
+      ped('pp2', 'k2', diaMas(1), [{ tipo: 'linea', cant: 10, conf: 0 }, { tipo: 'supervisor', cant: 1, conf: 0 }], { lugar: 'Línea de empaque', notas: 'Maquila de kits promocionales, se necesita experiencia en empaque', creado: NOW - 2 * H },
+        [{ t: hm(NOW - 2 * H), u: 'Carlos Ríos · Distribuidora Atlántico', a: 'Pidió 11 personas' }]),
+      ped('pp3', 'k3', diaMas(1), [{ tipo: 'ag', cant: 4, conf: 0 }], { inicio: '07:00', fin: '15:00', lugar: 'Patio de contenedores', creado: NOW - 1 * H },
+        [{ t: hm(NOW - 1 * H), u: 'Comercial Bahía Azul', a: 'Pidió 4 personas' }])
+    ];
+    const state = { colaboradores: [], tareasCat: TAREAS, clientes: CLIENTES, config: CONFIG, pedidosPersonal, usuariosCliente: USUARIOS_CLIENTE, lineasTipo: TIPOS, lineas: lineas.concat(h.lineas),
       turnosHistorial: hist, solicitudes: [], turnosProgramados: [], rutinas: [], plantillas: [], temaHSE: [], causasParo: [], lineasPlan: [], nombresLinea: [],
       turno: h.turno, historial: h.historial, tareasActivas: h.tareasActivas };
     SRV.rows = { [SKEY]: { value: state, version: 1 } };
