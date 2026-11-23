@@ -516,6 +516,15 @@ body.en-kiosco .toast,body.en-kiosco .dpw-hdr,body.en-kiosco .dpw-drawer,body.en
 .ki-ok.hidden{display:none}.ki-ok.err{background:var(--red)}
 .ki-ok b{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(2.2rem,6vw,4.5rem);letter-spacing:.04em}
 .ki-ok span{display:block;font-size:clamp(1.1rem,2.6vw,1.8rem);margin-top:8px}
+.cat-bar{max-width:560px;margin:0 auto;padding:12px 12px 0}
+.cat-bar .cat-t{font:700 11px 'Barlow Condensed',sans-serif;letter-spacing:1.4px;text-transform:uppercase;color:var(--t3);margin:0 2px 6px}
+.cat-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.cat-tab{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:8px 13px;border-radius:999px;border:1px solid var(--b1);background:var(--card);color:var(--t2);font:700 12.5px 'Barlow Condensed',sans-serif;letter-spacing:.6px;text-transform:uppercase;cursor:pointer;white-space:nowrap}
+.cat-tab:hover{color:var(--t)}
+.cat-tab.on{background:var(--accent);border-color:var(--accent);color:var(--on-green,#fff)}
+.cat-tab .n{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font:800 10.5px/18px 'Barlow',sans-serif;text-align:center}
+.cat-tab.acc{border-style:dashed}
+@media (min-width:1024px){.cat-bar{max-width:1360px;padding:18px 28px 0}}
 .ins-cab{margin:2px 2px 12px}.ins-cab-g{font:700 10px 'Barlow Condensed',sans-serif;letter-spacing:1.2px;text-transform:uppercase;color:var(--t3)}.ins-cab h2{margin:2px 0 0;font-family:'Barlow Condensed',sans-serif;font-size:1.35rem;letter-spacing:.6px;text-transform:uppercase}
 .tc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin:2px 0 12px}
 .tc-card{border:1px solid var(--b1);border-radius:10px;padding:9px 11px;min-width:0}
@@ -648,7 +657,7 @@ body.con-sel .toast{bottom:96px}
   .turno-panel:has(#secPendientes.hidden):has(#secTareasDia[style*="none"]) .tp-main>.tp-lineas{grid-column:1/-1}
   .sec-hdr{padding:12px 16px}
   .sec-body{padding:14px 16px}
-  .ins-grid{display:block;column-count:2;column-gap:16px}
+  .ins-grid{display:block;column-count:1}   /* una sección por pestaña: a todo el ancho */
   .ins-grid>*{break-inside:avoid;margin-bottom:16px}
   .ins-kpis{column-span:all;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
   .ins-kpis .stat-row{display:contents}
@@ -727,6 +736,8 @@ body.con-sel .toast{bottom:96px}
   </nav>
 
   <div class="modo-prueba-bar hidden" id="modoPruebaBar">MODO PRUEBA · datos de ensayo</div>
+  <!-- CATEGORÍA ACTUAL Y SUS PESTAÑAS (el menú lleva las categorías; cada sección es una pestaña) -->
+  <div id="catBar" class="cat-bar hidden"></div>
   <!-- SUPERVISOR VIEW -->
   <div id="viewSupervisor" class="main">
     <div class="no-turno" id="noTurnoPanel">
@@ -1870,7 +1881,7 @@ function pasosTutorial(){
     P.push({t:'Listo',d:'Puedes volver a ver este tutorial desde el menú, en «Ver tutorial».'});
     return P;
   }
-  P.push({sel:'.dpw-burger',t:'Menú',d:'Aquí están todas las secciones'+(rol==='admin'?' (Turno y Líneas arriba; Reportes, Personal y Configuración en submenús que se despliegan)':rol==='supervisor'?' (Turno, Líneas y el alta de personal de contingente)':' (Líneas de producción)')+' y los ajustes: Avisos y este tutorial.'});
+  P.push({sel:'.dpw-burger',t:'Menú',d:'Aquí están todas las secciones'+(rol==='admin'?' por categoría: Operación del día, Personal, Productividad y costos, Clientes y cobros y Configuración. Dentro de cada una, sus pestañas arriba':rol==='supervisor'?' (Turno, Líneas y el alta de personal de contingente)':' (Líneas de producción)')+' y los ajustes: Avisos y este tutorial.'});
   P.push({sel:'[data-dpw="tema"]',t:'Tema claro u oscuro',d:'Cambia los colores de la app según la luz del lugar. Se recuerda en este equipo.'});
   if(rol!=='responsable'){
     if(!S.turno){
@@ -2335,55 +2346,86 @@ document.addEventListener('dpw:tema',e=>showToast('Tema '+(e.detail==='light'?'c
 pintarAvisos();
 
 // Menú desplegable: todas las secciones de la app (molde Last Mile, sin íconos)
-// Lo que antes era «Insights», repartido en el menú: [título, grupo del menú, pista]
+// Lo que antes era «Insights», repartido en secciones (pestañas de las categorías): [título]
 var SECCIONES_INS={   // var: el menú se pinta antes de esta línea
-  resumen:['Resumen y costos','Reportes','tiempo, costos y turno en vivo'],
-  historico:['Histórico de turnos','Reportes','y reaperturas'],
-  exportar:['Exportar a Excel','Reportes','reportería completa'],
-  personal:['Personal y marcaje','Personal','altas, cédulas y estado'],
-  asistencia:['Asistencia y horas','Personal','marcajes por período'],
-  clientes:['Clientes','Configuración',''],
-  tareas:['Catálogo de tareas','Configuración','productividad estándar'],
-  lineasCfg:['Líneas y maquila','Configuración','tipos de línea y paros'],
-  plantillas:['Plantillas y planes','Configuración','turnos típicos y toolbox'],
-  usuarios:['Usuarios','Configuración','accesos y avisos'],
-  config:['Horario y costos','Configuración','jornada, tarifas y alertas'],
+  resumen:['Resumen'], prodTareas:['Por tarea'], prodPersonas:['Por persona'], lineasRes:['Líneas'], costosCli:['Costos por cliente'],
+  historico:['Histórico de turnos'], exportar:['Exportar a Excel'],
+  personal:['Personal'], asistencia:['Asistencia y horas'],
+  clientes:['Clientes'],
+  tareas:['Catálogo de tareas'], lineasCfg:['Líneas y maquila'], plantillas:['Plantillas y planes'], config:['Horario y recargos'], usuarios:['Usuarios y accesos'],
 };
+// Categorías del menú y sus pestañas: [clave, nombre, visible(), insignia(), acción en lugar de pantalla]
+// clave: una vista (setNav) o 'ins:<sección>'. Las acciones (Vista TV, alta de contingente, marcaje en tablet) abren algo aparte.
+var CATS=[
+  {id:'operacion',t:'Operación del día',tabs:()=>[
+    ['supervisor','Turno',()=>!esResponsable()],
+    ['lineas','Líneas de producción',()=>esResponsable()||(S.lineasTipo||[]).length||currentUser.rol==='admin'],
+    ['pedidos','Pedidos de clientes',()=>pedidosOn()&&!esResponsable(),()=>pedidosBadge()],
+    ['tv','Vista TV →',()=>currentUser.rol==='admin',null,()=>openDashboard()]]},
+  {id:'personal',t:'Personal',tabs:()=>[
+    ['ins:personal','Personal',()=>currentUser.rol==='admin'],
+    ['ins:asistencia','Asistencia y horas',()=>currentUser.rol==='admin'],
+    ['planilla','Planilla',()=>facturacionOn()&&['admin','supervisor'].includes(currentUser.rol)],
+    ['contingente','Alta de contingente →',()=>currentUser.rol==='supervisor',null,()=>altaContingente()],
+    ['marcaje','Marcaje en esta tablet →',()=>currentUser.rol==='admin',null,()=>activarKiosco()]]},
+  {id:'productividad',t:'Productividad y costos',tabs:()=>[
+    ['ins:resumen','Resumen',()=>currentUser.rol==='admin'],
+    ['ins:prodTareas','Por tarea',()=>currentUser.rol==='admin'],
+    ['ins:prodPersonas','Por persona',()=>currentUser.rol==='admin'],
+    ['ins:lineasRes','Líneas',()=>currentUser.rol==='admin'&&(S.lineasTipo||[]).length],
+    ['ins:costosCli','Costos por cliente',()=>currentUser.rol==='admin'],
+    ['ins:historico','Histórico de turnos',()=>currentUser.rol==='admin',()=>(S.solicitudes||[]).filter(x=>x.estado==='pendiente').length],
+    ['ins:exportar','Exportar a Excel',()=>currentUser.rol==='admin']]},
+  {id:'clientes',t:'Clientes y cobros',tabs:()=>[
+    ['ins:clientes','Clientes',()=>currentUser.rol==='admin'],
+    ['cobros','Cobros y proformas',()=>currentUser.rol==='admin'&&facturacionOn(),()=>(S.proformas||[]).filter(p=>p.estado==='aprobada'||(p.estado==='devuelta'&&!p.vistaAdmin)).length],
+    ['tarifas','Servicios y tarifas',()=>currentUser.rol==='admin'&&facturacionOn()]]},
+  {id:'config',t:'Configuración',tabs:()=>[
+    ['ins:tareas','Catálogo de tareas',()=>currentUser.rol==='admin'],
+    ['ins:lineasCfg','Líneas y maquila',()=>currentUser.rol==='admin'],
+    ['ins:plantillas','Plantillas y planes',()=>currentUser.rol==='admin'],
+    ['ins:config','Horario y recargos',()=>currentUser.rol==='admin'],
+    ['ins:usuarios','Usuarios y accesos',()=>currentUser.rol==='admin']]},
+];
+function tabsDe(c){ if(!currentUser||esCliente()||IS_TV) return []; return c.tabs().filter(x=>{ try{ return !!x[2](); }catch(e){ return false; } }); }
+const navKey=()=>_nav==='insights'?'ins:'+_insSec:_nav;
+function catDe(key){ return CATS.find(c=>c.tabs().some(x=>x[0]===key)); }
+function irTab(key){ const c=catDe(key), x=c&&c.tabs().find(t=>t[0]===key); if(x&&x[4]){ x[4](); return; }
+  try{ if(c) localStorage.setItem('ch_cat_'+c.id,key); }catch(e){}
+  if(key.startsWith('ins:')) abrirSeccion(key.slice(4)); else setNav(key); }
+function irCategoria(id){ const c=CATS.find(x=>x.id===id), A=tabsDe(c), T=A.filter(x=>!x[4]);
+  if(!T.length){ if(A.length) A[0][4](); return; }   // categoría con solo acciones (p. ej. alta de contingente): la ejecuta
+  let k=''; try{ k=localStorage.getItem('ch_cat_'+id)||''; }catch(e){} irTab(T.some(x=>x[0]===k)?k:T[0][0]); }
+function pintarCatBar(){
+  const el=document.getElementById('catBar'); if(!el) return;
+  const key=navKey(), c=!esCliente()&&catDe(key), T=c?tabsDe(c):[];
+  if(!c||T.length<2||enKiosco()){ el.classList.add('hidden'); el.innerHTML=''; return; }
+  el.classList.remove('hidden');
+  el.innerHTML=`<div class="cat-t">${esc(c.t)}</div><div class="cat-tabs" role="tablist">${T.map(x=>{ const n=x[3]?+x[3]()||0:0;
+    return `<button type="button" role="tab" class="cat-tab${x[0]===key?' on':''}${x[4]?' acc':''}" aria-selected="${x[0]===key}" onclick="irTab('${x[0]}')">${esc(x[1])}${n?`<span class="n">${n>99?'99+':n}</span>`:''}</button>`; }).join('')}</div>`;
+  const on=el.querySelector('.cat-tab.on'); if(on&&on.scrollIntoView) try{ on.scrollIntoView({block:'nearest',inline:'nearest'}); }catch(e){}
+}
 var _insSec='resumen';
 function abrirSeccion(k){ _insSec=SECCIONES_INS[k]?k:'resumen'; setNav('insights'); }
 const ROL_NOMBRE={admin:'Administrador',supervisor:'Supervisor',responsable:'Responsable de línea',cliente:'Cliente'};
 var _nav='supervisor'; // var: pintarAvisos() la usa antes de esta línea
 function pintarMenu(){
-  if(!window.DPW||!SECCIONES_INS) return;   // al arrancar se llama antes de definir las secciones; se repinta enseguida
-  const st=avisosEstado(), pend=(S.solicitudes||[]).filter(x=>x.estado==='pendiente').length;
-  const adm=!!currentUser&&currentUser.rol==='admin', sup=!!currentUser&&currentUser.rol==='supervisor', interno=!!currentUser&&!esCliente();
-  const ins=(k,extra)=>Object.assign({id:'ins-'+k,label:SECCIONES_INS[k][0],group:SECCIONES_INS[k][1],hint:SECCIONES_INS[k][2],hidden:!adm||IS_TV,on:()=>abrirSeccion(k)},extra||{});
-  // Arriba, sin grupo: lo del día a día. Debajo, submenús desplegables por tema.
-  DPW.menu([
-    // Cliente
+  if(!window.DPW||!SECCIONES_INS||!CATS) return;   // al arrancar se llama antes de definir las secciones; se repinta enseguida
+  const st=avisosEstado(), interno=!!currentUser&&!esCliente(), key=currentUser?navKey():'', cAct=currentUser&&!esCliente()&&catDe(key);
+  const items=[
+    // Cliente: su menú corto, sin categorías
     {id:'miturno',label:'Mi turno',hint:esCliente()&&avanzadoDe(miCliente())?'versión avanzada':'tu personal de hoy',hidden:!esCliente()||!marcajeClienteOn(),on:()=>setNav('miturno')},
-    // Operación
-    {id:'supervisor',label:'Turno',hint:'tablero del día',hidden:!currentUser||esResponsable()||esCliente(),on:()=>setNav('supervisor')},
-    {id:'lineas',label:'Líneas de producción',hidden:!currentUser||esCliente()||(!esResponsable()&&!(S.lineasTipo||[]).length&&!adm),on:()=>setNav('lineas')},
-    {id:'pedidos',label:esCliente()?'Mis pedidos de personal':'Pedidos de clientes',badge:pedidosBadge()||0,hidden:!currentUser||!pedidosOn()||IS_TV||esResponsable(),on:()=>setNav('pedidos')},
+    {id:'pedidos',label:'Mis pedidos de personal',hidden:!esCliente()||!pedidosOn(),on:()=>setNav('pedidos')},
     {id:'proformas',label:'Mis proformas',badge:esCliente()&&facturacionOn()?(S.proformas||[]).filter(p=>p.clienteId===miCliente()&&p.estado==='revision').length:0,hidden:!esCliente()||!facturacionOn(),on:()=>setNav('proformas')},
-    // Reportes
-    ins('resumen'), ins('historico',{badge:pend||0}), ins('exportar'),
-    {id:'tv',label:'Vista TV',group:'Reportes',hint:'pantalla completa',hidden:!adm,on:openDashboard},
-    // Personal
-    ins('personal'), ins('asistencia'),
-    {id:'planilla',label:'Planilla',group:'Personal',hint:'cédula, supervisor, costo',hidden:!currentUser||!facturacionOn()||IS_TV||!(adm||sup),on:()=>setNav('planilla')},
-    {id:'contingente',label:'Alta de personal de contingente',group:'Personal',hint:'para que pueda marcar',hidden:!sup||IS_TV,on:()=>altaContingente()},
-    {id:'marcaje',label:'Marcaje en esta tablet',group:'Personal',hint:'modo quiosco',hidden:!adm||IS_TV,on:activarKiosco},
-    // Cobros (Door)
-    {id:'cobros',label:'Cobros y proformas',group:'Cobros',hint:'por facturar y por cobrar',badge:adm&&facturacionOn()?(S.proformas||[]).filter(p=>p.estado==='aprobada'||(p.estado==='devuelta'&&!p.vistaAdmin)).length:0,hidden:!adm||!facturacionOn()||IS_TV,on:()=>setNav('cobros')},
-    {id:'tarifas',label:'Tarifas y costos',group:'Cobros',hint:'servicios, maquila, clientes',hidden:!adm||!facturacionOn()||IS_TV,on:()=>setNav('tarifas')},
-    // Configuración
-    ins('clientes'), ins('tareas'), ins('lineasCfg'), ins('plantillas'), ins('usuarios'), ins('config'),
-    // Ajustes
-    {id:'avisos',label:'Avisos',group:'Ajustes',hint:st==='denied'?'Bloqueados en este equipo':st==='granted'?'Elegir qué avisa':'Activar y elegir',hidden:IS_TV||!interno,on:()=>abrirAvisos()},
-    {id:'tutorial',label:'Ver tutorial',group:'Ajustes',hint:'qué es cada cosa',hidden:IS_TV||!currentUser,on:()=>{ DPW.cerrarMenu&&DPW.cerrarMenu(); iniciarTutorial(); }}
-  ],_nav==='insights'?'ins-'+_insSec:_nav,{plegable:true});
+  ];
+  // Equipo de la empresa: una fila por categoría; dentro, sus pestañas
+  CATS.forEach(c=>{ const T=interno?tabsDe(c):[], V=T.filter(x=>!x[4]);
+    items.push({id:'cat-'+c.id,label:c.t,hint:T.length>1||!V.length?T.map(x=>x[1].replace(' →','')).slice(0,3).join(' · ')+(T.length>3?'…':''):'',badge:T.reduce((a,x)=>a+(x[3]?+x[3]()||0:0),0),hidden:!T.length,on:()=>irCategoria(c.id)}); });
+  items.push(
+    {id:'avisos',label:'Avisos',group:'Ayuda',hint:st==='denied'?'Bloqueados en este equipo':st==='granted'?'Elegir qué avisa':'Activar y elegir',hidden:IS_TV||!interno,on:()=>abrirAvisos()},
+    {id:'tutorial',label:'Ver tutorial',group:'Ayuda',hint:'qué es cada cosa',hidden:IS_TV||!currentUser,on:()=>{ DPW.cerrarMenu&&DPW.cerrarMenu(); iniciarTutorial(); }});
+  DPW.menu(items,cAct?'cat-'+cAct.id:_nav,{});
+  pintarCatBar();
 }
 function esResponsable(){ return !!currentUser&&currentUser.rol==='responsable'; }
 function esCliente(){ return !!currentUser&&currentUser.rol==='cliente'; }
@@ -3231,31 +3273,70 @@ async function guardarCausas(){
 }
 async function eliminarTipoLinea(id){ if(!confirm('¿Eliminar este tipo de línea? Lo ya registrado se conserva.')) return; S.lineasTipo=S.lineasTipo.filter(t=>t.id!==id); renderInsights(); await save(); }
 // Insights: tipos y resultados de las líneas
-function buildLineasSection(){
-  const T=S.lineasTipo||[], L=(S.lineas||[]).filter(l=>l.estado!=='pendiente');
+// modo 'cfg' (Configuración: tipos y causas) · 'res' (Productividad: resultados, paros, insumos) · sin modo: todo
+function buildLineasSection(modo){
+  const T=S.lineasTipo||[], L=(S.lineas||[]).filter(l=>l.estado!=='pendiente'), CFG=modo!=='res', RES=modo!=='cfg';
   let h=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sLinCfg','cLinCfg')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Líneas de producción</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalTipoLinea()">+ Tipo</button><span class="chevron open" id="cLinCfg">▼</span></div></div><div class="sec-body" id="sLinCfg">`;
-  if(!T.length) h+=`<div class="warn-box">Crea los tipos de línea (por ejemplo Inserto botella, Canastilla) con su productividad (pallets por persona-hora). Luego los supervisores podrán planificarlas y arrancarlas desde el tablero.</div>`;
-  T.forEach(t=>{ const mk=t.excel&&maestroRow(t.excel), ap=(t.apoyo||[]).filter(a=>+a.cant>0);
+  if(CFG&&!T.length) h+=`<div class="warn-box">Crea los tipos de línea (por ejemplo Inserto botella, Canastilla) con su productividad (pallets por persona-hora). Luego los supervisores podrán planificarlas y arrancarlas desde el tablero.</div>`;
+  if(CFG) T.forEach(t=>{ const mk=t.excel&&maestroRow(t.excel), ap=(t.apoyo||[]).filter(a=>+a.cant>0);
     h+=`<div class="list-item"><div class="li-info"><div class="li-name">${esc(t.nombre)}</div><div class="li-sub">${esc((S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||'Sin cliente')} · ${t.prod} pallets por persona-hora${mk?' · Excel: '+esc(mk.actividad):''}</div></div>
     <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalTipoLinea('${t.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarTipoLinea('${t.id}')" aria-label="Eliminar tipo">×</button></div></div>`; });
-  if(L.length){
+  if(RES&&L.length){
     const por={}; L.forEach(l=>{ const o=por[l.nombre]||(por[l.nombre]={n:0,pal:0,meta:0,hPal:0,hTot:0,pers:0,hOp:0}); const r=ritmoLinea(l); o.n++; o.pal+=r.tot; o.meta+=l.meta||0; o.hPal+=r.hPal; o.hTot+=r.hTot; o.pers+=l.personas.length; o.hOp+=apoyoOperadores(l.id).total; });
     h+=`<table class="rt-table"><tr><th>Línea</th><th>Días</th><th>Pallets</th><th>Meta</th><th>Cumpl.</th><th>Personas prom.</th><th>Pallets/persona-h</th><th>Horas operadores</th></tr>`+
       Object.entries(por).map(([n,o])=>`<tr><td>${esc(n)}</td><td>${o.n}</td><td>${o.pal}</td><td>${o.meta}</td><td><b style="color:${o.pal>=o.meta?'var(--green)':'var(--amber)'}">${o.meta?Math.round(o.pal/o.meta*100):0}%</b></td><td>${fmtN(o.pers/o.n)}</td><td>${o.hTot?fmtN(o.pal/o.hTot):'—'}</td><td>${fmtN(o.hOp)}</td></tr>`).join('')+`</table>
       <div class="li-sub">Horas operadores: horas-persona de tareas del turno regular marcadas como apoyo a la línea (abastecimiento, montacargas…).</div>`;
   }
   // Causas de paro (configurables) y paros por causa
-  h+=`<div class="sub-ttl" style="margin-top:6px">Causas de paro</div><div class="list-item"><div class="li-info"><div class="li-sub">${causasParo().map(esc).join(' · ')}</div></div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalCausas()">Editar</button></div></div>`;
+  if(CFG) h+=`<div class="sub-ttl" style="margin-top:6px">Causas de paro</div><div class="list-item"><div class="li-info"><div class="li-sub">${causasParo().map(esc).join(' · ')}</div></div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalCausas()">Editar</button></div></div>`;
   const pc=Object.entries(parosPorCausa(L)).sort((a,b)=>b[1]-a[1]);
-  if(pc.length){ const tot=pc.reduce((a,x)=>a+x[1],0);
+  if(RES&&pc.length){ const tot=pc.reduce((a,x)=>a+x[1],0);
     h+=`<table class="rt-table"><tr><th>Causa de paro</th><th>Horas</th><th>%</th></tr>`+pc.map(([c,hh])=>`<tr><td>${esc(c)}</td><td>${fmtN(hh)}</td><td><div style="display:flex;align-items:center;gap:6px"><div class="pbar-wrap" style="flex:1"><div class="pbar-fill pa" style="width:${hh/tot*100}%"></div></div>${Math.round(hh/tot*100)}%</div></td></tr>`).join('')+`</table>`; }
   // Insumos: esperado contra consumo real (líneas cerradas con sobrante)
   const ins={}; L.forEach(l=>(l.insumos||[]).forEach(i=>{ const e=estadoInsumo(i,l), k=l.nombre+' · '+i.nombre, o=ins[k]||(ins[k]={u:i.unidad,esp:0,ent:0,real:0,espR:0});
     o.esp+=e.esp; o.ent+=e.ent; if(e.real!=null){ o.real+=e.real; o.espR+=e.esp; } }));
   const ik=Object.entries(ins).filter(([,o])=>o.ent>0);
-  if(ik.length) h+=`<table class="rt-table"><tr><th>Insumo</th><th>Esperado</th><th>Entregado</th><th>Consumo real</th><th>Diferencia</th></tr>`+ik.map(([k,o])=>{ const d=o.espR?(o.real-o.espR)/o.espR*100:null;
+  if(RES&&ik.length) h+=`<table class="rt-table"><tr><th>Insumo</th><th>Esperado</th><th>Entregado</th><th>Consumo real</th><th>Diferencia</th></tr>`+ik.map(([k,o])=>{ const d=o.espR?(o.real-o.espR)/o.espR*100:null;
     return `<tr><td>${esc(k)}</td><td>${fmtN(o.esp)} ${esc(o.u)}</td><td>${fmtN(o.ent)}</td><td>${o.espR?fmtN(o.real):'—'}</td><td>${d==null?'Sin sobrante':`<b style="color:${Math.abs(d)<=3?'var(--green)':'var(--amber)'}">${d>0?'+':''}${Math.round(d)}%</b>`}</td></tr>`; }).join('')+`</table>
     <div class="li-sub">Consumo real = entregado − sobrante. Diferencia frente a lo esperado (pallets × consumo por pallet): positivo = merma o exceso.</div>`;
+  if(RES&&!CFG&&!L.length) h+='<div class="empty-text">Todavía no hay líneas cerradas.</div>';
+  return h+`</div></div>`;
+}
+// Turnos de un período (histórico y el de hoy), para productividad y costos
+let _prodRango='mes';
+function turnosEnRango(){
+  const hoy=hoyStr(), d=new Date(), ini=_prodRango==='todo'?'0000':_prodRango==='mesAnt'?fechaLocal(new Date(d.getFullYear(),d.getMonth()-1,1)):fechaLocal(new Date(d.getFullYear(),d.getMonth(),1)),
+    fin=_prodRango==='mesAnt'?fechaLocal(new Date(d.getFullYear(),d.getMonth(),0)):hoy;
+  const T=(S.turnosHistorial||[]).filter(t=>t.fecha>=ini&&t.fecha<=fin).map(t=>({t,k:engTurnoCerrado(t),hist:t.historial||[]}));
+  if(S.turno&&S.turno.fecha>=ini&&S.turno.fecha<=fin){ const k=engVivo(); if(k) T.push({t:S.turno,k,hist:S.historial||[]}); }
+  return T;
+}
+function chipsRangoProd(){ return `<div class="chip-wrap" style="margin-bottom:10px">${[['mes','Este mes'],['mesAnt','Mes anterior'],['todo','Todo']].map(([k,n])=>`<div class="chip${_prodRango===k?' selected':''}" onclick="_prodRango='${k}';renderInsights()">${n}</div>`).join('')}</div>`; }
+function buildProdTareasSection(){
+  const G={};
+  turnosEnRango().forEach(({k,hist})=>hist.forEach(ta=>{ if(esAlmuerzo(ta)||ta.isEspecial) return; const g=G[ta.tarea]||(G[ta.tarea]={n:0,hp:0,cant:0,unidad:ta.unidad||'',prod:ta.prod||0,eS:0,eN:0,costo:0,cli:new Set()});
+    g.n++; g.hp+=k.horasPersonaTarea(ta); g.cant+=+ta.cant||0; g.costo+=k.costoTarea(ta); if(ta.efic!=null){ g.eS+=ta.efic; g.eN++; } if(ta.cliente) g.cli.add(ta.cliente); }));
+  const L=Object.entries(G).sort((a,b)=>b[1].costo-a[1].costo);
+  let h=`<div class="sec"><div class="sec-hdr"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Productividad y costo por tarea</span></div></div><div class="sec-body">`+chipsRangoProd();
+  h+=L.length?`<div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Tarea</th><th class="n">Veces</th><th class="n">Horas-persona</th><th class="n">Cantidad</th><th class="n">Real (u/h)</th><th class="n">Estándar</th><th class="n">Eficiencia</th><th class="n">Costo</th><th class="n">Costo por unidad</th></tr>`
+    +L.map(([n,g])=>{ const e=g.eN?Math.round(g.eS/g.eN):null; return `<tr><td>${esc(n)}<div class="li-sub">${esc([...g.cli].slice(0,3).join(', '))}</div></td><td class="n">${g.n}</td><td class="n">${fmtN(g.hp)}</td><td class="n">${g.cant?fmtN(g.cant)+' '+esc(g.unidad):'—'}</td><td class="n">${g.cant&&g.hp?fmtN(g.cant/g.hp):'—'}</td><td class="n">${g.prod||'—'}</td>
+      <td class="n">${e!=null?`<b style="color:${e>=90?'var(--green)':e>=70?'var(--amber)':'var(--red-t)'}">${e}%</b>`:'—'}</td><td class="n">$${g.costo.toFixed(2)}</td><td class="n">${g.cant?'$'+(g.costo/g.cant).toFixed(3):'—'}</td></tr>`; }).join('')+`</table></div>
+      <div class="li-sub">Real = cantidad ÷ horas-persona. Eficiencia = promedio de cada ejecución frente al estándar del catálogo. Costo = horas-persona a la tarifa de cada cargo.</div>`
+    :'<div class="empty-text">Sin tareas en el período.</div>';
+  return h+`</div></div>`;
+}
+function buildProdPersonasSection(){
+  const G={};
+  turnosEnRango().forEach(({k,hist})=>{ Object.values(k.per||{}).forEach(p=>{ const g=G[p.c.nombre]||(G[p.c.nombre]={cargo:p.c.cargo,turnos:0,prod:0,apoyo:0,noprod:0,libre:0,extra:0,costo:0,eS:0,eN:0,tareas:0}); g.turnos++; g.prod+=p.prod; g.apoyo+=p.apoyo; g.noprod+=p.noprod; g.libre+=p.libre; g.extra+=p.extra; g.costo+=p.pagado; });
+    hist.forEach(ta=>{ if(ta.isEspecial||esAlmuerzo(ta)) return; (ta.colaboradores||[]).forEach(c=>{ const g=G[c.nombre]; if(!g) return; g.tareas++; if(ta.efic!=null){ g.eS+=ta.efic; g.eN++; } }); }); });
+  const L=Object.entries(G).sort((a,b)=>a[0].localeCompare(b[0]));
+  let h=`<div class="sec"><div class="sec-hdr"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Productividad por persona</span></div></div><div class="sec-body">`+chipsRangoProd();
+  h+=L.length?`<div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Persona</th><th class="n">Turnos</th><th class="n">Tareas</th><th class="n">Productivas</th><th class="n">Apoyo</th><th class="n">Pausas</th><th class="n">Sin registrar</th><th class="n">% productivo</th><th class="n">Eficiencia</th><th class="n">Costo pagado</th></tr>`
+    +L.map(([n,g])=>{ const b=g.prod+g.apoyo+g.noprod+g.libre, pp=b?Math.round((g.prod+g.apoyo)/b*100):0, e=g.eN?Math.round(g.eS/g.eN):null;
+      return `<tr><td>${esc(n)}<div class="li-sub">${esc(cargoNombre(g.cargo))}</div></td><td class="n">${g.turnos}</td><td class="n">${g.tareas}</td><td class="n">${fmtN(g.prod)} h</td><td class="n">${fmtN(g.apoyo)} h</td><td class="n">${fmtN(g.noprod)} h</td><td class="n"${g.libre>0.5?' style="color:var(--amber);font-weight:700"':''}>${fmtN(g.libre)} h</td>
+        <td class="n"><b style="color:${pp>=85?'var(--green)':pp>=70?'var(--amber)':'var(--red-t)'}">${pp}%</b></td><td class="n">${e!=null?e+'%':'—'}</td><td class="n">$${g.costo.toFixed(2)}</td></tr>`; }).join('')+`</table></div>
+      <div class="li-sub">% productivo = horas en tareas (productivas y de apoyo) ÷ horas pagadas. Sin registrar = tiempo sin tarea ni pausa.</div>`
+    :'<div class="empty-text">Sin turnos en el período.</div>';
   return h+`</div></div>`;
 }
 
@@ -5304,7 +5385,13 @@ function renderInsights(){
   // Distribución del tiempo pagado (admin): productivo · apoyo · no productivo por causa · sin registrar
   if(isAdmin) h+=buildTiempoSection();
   corte('lineasCfg');
-  if(isAdmin) h+=buildLineasSection();
+  if(isAdmin) h+=buildLineasSection('cfg');
+  corte('lineasRes');
+  if(isAdmin) h+=buildLineasSection('res');
+  corte('prodTareas');
+  if(isAdmin) h+=buildProdTareasSection();
+  corte('prodPersonas');
+  if(isAdmin) h+=buildProdPersonasSection();
   corte('personal');
   if(isAdmin) h+=buildPersonalSection();
   corte('asistencia');
@@ -5360,6 +5447,7 @@ function renderInsights(){
     </div></div>`;
   }
 
+  corte('costosCli');
   // Costos por cliente
   const cliMap={};const _addCli=(t,k)=>{if(esAlmuerzo(t))return;const cli=t.cliente||'N/A';if(!cliMap[cli])cliMap[cli]={tareas:0,horas:0,costo:0};cliMap[cli].tareas++;cliMap[cli].horas+=k.horasPersonaTarea(t);cliMap[cli].costo+=k.costoTarea(t);};
   S.turnosHistorial.forEach(tu=>{const k=engTurnoCerrado(tu);(tu.historial||[]).forEach(t=>_addCli(t,k));});
@@ -5556,8 +5644,7 @@ function renderInsights(){
 
   corte(null);
   const sec=SECCIONES_INS[_insSec]?_insSec:'resumen';
-  el.innerHTML=`<div class="ins-cab"><span class="ins-cab-g">${esc(SECCIONES_INS[sec][1])}</span><h2>${esc(SECCIONES_INS[sec][0])}</h2></div>`
-    +`<div class="ins-grid">${PZ[sec]||'<div class="empty"><div class="empty-text">Todavía no hay nada en esta sección.</div></div>'}</div>`;
+  el.innerHTML=`<div class="ins-grid">${PZ[sec]||'<div class="empty"><div class="empty-text">Todavía no hay nada en esta sección.</div></div>'}</div>`;
   } catch(err) {
     console.error('renderInsights error:', err);
     el.innerHTML=`<div style="padding:20px;background:rgba(232,0,61,.1);border-radius:10px;color:var(--red-t);font-size:.85rem">
