@@ -1112,6 +1112,15 @@ body.con-sel .toast{bottom:96px}
   </div>
 </div>
 
+<div class="overlay hidden" id="modalPfAccion">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title" id="paTitulo">Registrar factura</span><span class="modal-close" onclick="hideModal('modalPfAccion')">×</span></div>
+    <div id="paBody"></div>
+    <div class="err-box hidden" id="paErr"></div>
+    <button class="btn btn-green btn-full" id="paBtn">Guardar</button>
+  </div>
+</div>
+
 <div class="overlay hidden" id="modalPedidoResp">
   <div class="modal">
     <div class="modal-hdr"><span class="modal-title" id="prTitulo">Confirmar pedido</span><span class="modal-close" onclick="hideModal('modalPedidoResp')">×</span></div>
@@ -1540,7 +1549,7 @@ const SESS_KEY='ch_sesion_'+STATE_KEY, BK_KEY='ch_backup_'+STATE_KEY;
 const RUNTIME_KEYS=['cerrandoId','reabriendoId','editingId','usuarios'];
 
 const DEFAULT_CONFIG={horaInicio:'08:00',horaFin:'17:00',horasAlmuerzo:1,multSobretiempo:1.5,horasSabado:4,multSabado:1.0,horasDomingo:0,multDomingo:2.0,
-  tarifaOperador:50,tarifaAG:36,factorCarga:1.07,alertaLibreMin:15,alertaTareaH:3,alertaParoMin:15,tarifaSupervisor:50,toleranciaMin:5,pedidosClientes:false,pedidoCorte:'15:00',marcajeCliente:false,facturacion:false,itbms:7,bodegas:['Bodega 1 CLP','Bodega 2 MSL']};
+  tarifaOperador:50,tarifaAG:36,factorCarga:1.07,alertaLibreMin:15,alertaTareaH:3,alertaParoMin:15,tarifaSupervisor:50,toleranciaMin:5,pedidosClientes:false,pedidoCorte:'15:00',marcajeCliente:false,facturacion:false,itbms:7,creditoDias:30,bodegas:['Bodega 1 CLP','Bodega 2 MSL']};
 let S={
   colaboradores:[],tareasCat:[],clientes:[],
   turno:null,tareasActivas:[],historial:[],
@@ -1710,6 +1719,7 @@ function persistable(){
 function normalizeS(){
   ['clientes','tareasCat','colaboradores','solicitudes','pedidosPersonal','servicios','proformas','turnosProgramados','turnosHistorial','tareasActivas','historial','rutinas','plantillas','temaHSE','maestro','lineasTipo','lineasPlan','nombresLinea','lineas','causasParo']
     .forEach(k=>{ if(!Array.isArray(S[k])) S[k]=[]; });
+  (S.proformas||[]).forEach(p=>{ if(p.estado==='confirmada') p.estado='aprobada'; });   // versión anterior: «confirmada» = aprobada por el cliente
   ['usuariosCliente','tarifasCliente','fichas'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object'||Array.isArray(S[k])) S[k]={}; });
   S.config=getConfig();
   migrarLineas();
@@ -2051,7 +2061,7 @@ const AVISOS_CAT=[
     ['ped_cancel','Pedido cancelado por el cliente'],
   ]},
   {g:'Cobros',solo:()=>facturacionOn(),items:[
-    ['pf_conf','Proforma confirmada o devuelta por el cliente','Cuántos rubros aprobó y el total'],
+    ['pf_conf','Proforma aprobada (por facturar) o devuelta por el cliente','Cuántos rubros aprobó y el total'],
   ]},
 ];
 const AVISOS_DEF={
@@ -2320,7 +2330,7 @@ function pintarMenu(){
     {id:'insights',label:'Insights',badge:pend||0,hidden:!currentUser||currentUser.rol!=='admin',on:()=>setNav('insights')},
     {id:'tv',label:'Vista TV',hint:'pantalla completa',hidden:!currentUser||currentUser.rol!=='admin',on:openDashboard},
     {id:'planilla',label:'Planilla',group:'Planilla y cobros',hint:'asistencia, cédula y supervisor',hidden:!currentUser||!facturacionOn()||IS_TV||!['admin','supervisor'].includes(currentUser.rol),on:()=>setNav('planilla')},
-    {id:'cobros',label:'Cobros y proformas',group:'Planilla y cobros',hint:'facturado y sin facturar',badge:esAdminU()&&facturacionOn()?(S.proformas||[]).filter(p=>p.estado==='devuelta'&&!p.vistaAdmin).length:0,hidden:!esAdminU()||!facturacionOn()||IS_TV,on:()=>setNav('cobros')},
+    {id:'cobros',label:'Cobros y proformas',group:'Planilla y cobros',hint:'facturado y sin facturar',badge:esAdminU()&&facturacionOn()?(S.proformas||[]).filter(p=>p.estado==='aprobada'||(p.estado==='devuelta'&&!p.vistaAdmin)).length:0,hidden:!esAdminU()||!facturacionOn()||IS_TV,on:()=>setNav('cobros')},
     {id:'tarifas',label:'Tarifas y costos',group:'Planilla y cobros',hint:'servicios y maquila',hidden:!esAdminU()||!facturacionOn()||IS_TV,on:()=>setNav('tarifas')},
     {id:'marcaje',label:'Marcaje en esta tablet',group:'Ajustes',hint:'modo quiosco',hidden:!currentUser||currentUser.rol!=='admin'||IS_TV,on:activarKiosco},
     {id:'contingente',label:'Alta de personal de contingente',group:'Personal',hint:'para que pueda marcar',hidden:!currentUser||currentUser.rol!=='supervisor'||IS_TV,on:()=>altaContingente()},
@@ -4509,13 +4519,18 @@ function operacionPeriodo(){
 // Estado de cobro de cada rubro según las proformas
 function estadoRubros(){
   const m={}, P=(S.proformas||[]).filter(p=>p.estado!=='anulada');
-  P.filter(p=>p.estado==='confirmada').forEach(p=>(p.aprobados||[]).forEach(id=>m[id]={e:'facturado',pf:p}));
+  P.filter(p=>PF_APROB.includes(p.estado)).forEach(p=>(p.aprobados||[]).forEach(id=>m[id]={e:RUB_DE_PF[p.estado],pf:p}));
   P.filter(p=>p.estado==='revision').forEach(p=>(p.items||[]).forEach(it=>{ if(!m[it.id]) m[it.id]={e:'revision',pf:p}; }));
   P.forEach(p=>(p.excluidos||[]).forEach(id=>{ if(!m[id]) m[id]={e:'sin',excl:p}; }));
   return m;
 }
-const EST_RUB={sin:['Sin facturar','ba'],revision:['En revisión del cliente','bgy'],facturado:['Facturado','bg']};
-const EST_PF={revision:['En revisión del cliente','ba'],confirmada:['Confirmada','bg'],devuelta:['Devuelta sin aprobar','br'],anulada:['Anulada','bgy']};
+// Camino de una proforma: en revisión del cliente → aprobada (por facturar) → facturada (por cobrar) → cobrada
+const PF_APROB=['aprobada','facturada','cobrada'], RUB_DE_PF={aprobada:'porfacturar',facturada:'facturado',cobrada:'cobrado'};
+const EST_RUB={sin:['Sin facturar','ba'],revision:['En revisión del cliente','bgy'],porfacturar:['Por facturar','br'],facturado:['Facturado · por cobrar','bgy'],cobrado:['Cobrado','bg']};
+const EST_PF={revision:['En revisión del cliente','ba'],aprobada:['Aprobada · por facturar','br'],facturada:['Facturada · por cobrar','ba'],cobrada:['Cobrada','bg'],devuelta:['Devuelta sin aprobar','br'],anulada:['Anulada','bgy']};
+const pfCobrado=p=>rd2((p.abonos||[]).reduce((a,x)=>a+(+x.monto||0),0));
+const pfSaldo=p=>rd2(pfTotales(p).total-pfCobrado(p));
+const pfVencida=p=>p.estado==='facturada'&&p.factura&&p.factura.vence<hoyStr()&&pfSaldo(p)>0.005;
 function filtrarPorCliente(L,campo){ return _cob.fCli?L.filter(x=>x[campo||'clienteId']===_cob.fCli):L; }
 
 // ── Pantallas
@@ -4593,22 +4608,28 @@ function exportarPlanilla(){
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sup),'Por supervisor');
   if(din){ const ru=[['Fecha','Cliente','Rubro','Cantidad','Unidad','Precio','Venta','Costo','Margen','Estado']], E=estadoRubros();
     filtrarPorCliente(O.rubros).forEach(x=>{ const e=E[x.id]; ru.push([x.fecha,nombreCliente(x.clienteId)||'Sin cliente',x.desc,x.cantidad,x.unidad,x.precio,x.venta,x.costo,rd2(x.venta-x.costo),e?(EST_RUB[e.e][0]+(e.pf?' '+e.pf.numero:'')):'Sin facturar']); });
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ru),'Rubros por cobrar'); }
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ru),'Rubros por cobrar');
+    const pf=[['Proforma','Cliente','Desde','Hasta','Estado','Rubros aprobados','Subtotal','ITBMS','Total','Factura','Fecha factura','Vence','Cobrado','Saldo','Vencida']];
+    filtrarPorCliente(S.proformas||[]).forEach(p=>{ const T=pfTotales(p); pf.push([p.numero,nombreCliente(p.clienteId),p.desde,p.hasta,(EST_PF[p.estado]||[p.estado])[0],T.A.length,T.sub,T.itbms,T.total,p.factura?p.factura.numero:'',p.factura?p.factura.fecha:'',p.factura?p.factura.vence:'',pfCobrado(p),PF_APROB.includes(p.estado)&&p.estado!=='aprobada'?pfSaldo(p):'',pfVencida(p)?'Sí':'']); });
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(pf),'Proformas y cobros'); }
   XLSX.writeFile(wb,`Planilla_${_cob.desde}_a_${_cob.hasta}.xlsx`);
 }
 // Cobros (administrador): rubros por estado y proformas
 function htmlCobros(){
   const O=operacionPeriodo(), E=estadoRubros(), est=_cob.fEst;
-  // Facturado: lo guardado en las proformas confirmadas (lo que se cobró, aunque la operación cambie después)
-  const fact=[]; (S.proformas||[]).filter(p=>p.estado==='confirmada').forEach(p=>p.items.filter(it=>(p.aprobados||[]).includes(it.id)&&it.fecha>=_cob.desde&&it.fecha<=_cob.hasta).forEach(it=>fact.push({...it,clienteId:p.clienteId,_e:'facturado',_pf:p})));
-  const vivos=O.rubros.filter(x=>!(E[x.id]&&E[x.id].e==='facturado')).map(x=>({...x,_e:E[x.id]?E[x.id].e:'sin',_pf:E[x.id]&&(E[x.id].pf||E[x.id].excl)}));
+  // Aprobado, facturado y cobrado: lo guardado en la proforma (lo que se aprobó, aunque la operación cambie después)
+  const fact=[]; (S.proformas||[]).filter(p=>PF_APROB.includes(p.estado)).forEach(p=>p.items.filter(it=>(p.aprobados||[]).includes(it.id)&&it.fecha>=_cob.desde&&it.fecha<=_cob.hasta).forEach(it=>fact.push({...it,clienteId:p.clienteId,_e:RUB_DE_PF[p.estado],_pf:p})));
+  const vivos=O.rubros.filter(x=>!(E[x.id]&&RUB_DE_PF[(E[x.id].pf||{}).estado]&&E[x.id].e!=='sin')).map(x=>({...x,_e:E[x.id]?E[x.id].e:'sin',_pf:E[x.id]&&(E[x.id].pf||E[x.id].excl)}));
   const todos=filtrarPorCliente([...vivos,...fact]), L=est==='todos'?todos:todos.filter(x=>x._e===est);
   const sum=(A,k)=>A.reduce((a,x)=>a+(x[k]||0),0), por=e=>todos.filter(x=>x._e===e);
   const sinCli=todos.filter(x=>!x.clienteId&&x._e==='sin');
   let h=chipsPeriodo();
-  h+=`<div class="ped-resumen">${['sin','revision','facturado'].map(e=>`<div class="ped-kpi" style="cursor:pointer;${est===e?'border-color:var(--accent)':''}" onclick="_cob.fEst='${e}';renderCobros()"><b>${money(sum(por(e),'venta'))}</b><span>${EST_RUB[e][0]} · ${por(e).length} rubro(s)</span></div>`).join('')}
+  // Por cobrar (de todas las facturas, sin importar el período): saldo y vencido
+  const PFc=filtrarPorCliente(S.proformas||[]).filter(p=>p.estado==='facturada'), saldo=PFc.reduce((a,p)=>a+pfSaldo(p),0), venc=PFc.filter(pfVencida).reduce((a,p)=>a+pfSaldo(p),0);
+  h+=`<div class="ped-resumen">${['sin','revision','porfacturar','facturado','cobrado'].map(e=>`<div class="ped-kpi" style="cursor:pointer;${est===e?'border-color:var(--accent)':''}" onclick="_cob.fEst='${e}';renderCobros()"><b>${money(sum(por(e),'venta'))}</b><span>${EST_RUB[e][0]} · ${por(e).length} rubro(s)</span></div>`).join('')}
+    <div class="ped-kpi"><b style="${venc>0.005?'color:var(--red-t)':''}">${money(saldo)}</b><span>Saldo por cobrar (con ITBMS)${venc>0.005?' · <b style="color:var(--red-t)">'+money(venc)+' vencido</b>':''}</span></div>
     <div class="ped-kpi"><b style="color:${sum(todos,'venta')-sum(todos,'costo')<0?'var(--red-t)':'var(--green)'}">${money(sum(todos,'venta')-sum(todos,'costo'))}</b><span>Margen del período (venta ${money(sum(todos,'venta'))} − costo ${money(sum(todos,'costo'))})</span></div></div>`;
-  h+=`<div class="cob-tabs">${[['sin','Sin facturar'],['revision','En revisión'],['facturado','Facturado'],['todos','Todos']].map(([k,n])=>`<div class="chip${est===k?' selected':''}" onclick="_cob.fEst='${k}';renderCobros()">${n}</div>`).join('')}</div>`;
+  h+=`<div class="cob-tabs">${[['sin','Sin facturar'],['revision','En revisión'],['porfacturar','Por facturar'],['facturado','Facturado'],['cobrado','Cobrado'],['todos','Todos']].map(([k,n])=>`<div class="chip${est===k?' selected':''}" onclick="_cob.fEst='${k}';renderCobros()">${n}</div>`).join('')}</div>`;
   const abiertos=O.filas.filter(r=>!r.maq&&r.horas>0.01&&!r.sal&&(!_cob.fCli||r.clienteId===_cob.fCli)).length, lAb=O.lineas.filter(l=>l.estado!=='cerrada'&&(!_cob.fCli||l.clienteId===_cob.fCli)).length;
   if(abiertos||lAb) h+=`<div class="li-sub" style="margin-bottom:8px">Todavía no se cobran ${abiertos?abiertos+' día(s)-persona sin salida marcada':''}${abiertos&&lAb?' ni ':''}${lAb?lAb+' línea(s) sin cerrar':''}: entran cuando se cierren.</div>`;
   if(sinCli.length) h+=`<div class="warn-box">${sinCli.length} rubro(s) sin cliente (personas que marcaron sin elegir cliente). Corrige el cliente en Asistencia para poder cobrarlos.</div>`;
@@ -4620,21 +4641,26 @@ function htmlCobros(){
       <td><span class="badge ${EST_RUB[x._e][1]}">${EST_RUB[x._e][0]}</span>${x._pf?` <a href="#" onclick="event.preventDefault();verProforma('${x._pf.id}')">${esc(x._pf.numero)}</a>`:''}${x._e==='sin'&&x._pf?' <span class="li-sub">(no aprobado)</span>':''}</td></tr>`).join('')
     +`<tr class="tot"><td colspan="5">Total (${L.length})</td><td class="n">${money(sum(L,'venta'))}</td><td class="n">${money(sum(L,'costo'))}</td><td class="n">${money(sum(L,'venta')-sum(L,'costo'))}</td><td></td></tr></table></div>`
     :'<div class="empty-text">Nada en este estado para el período.</div>';
-  const PF=filtrarPorCliente(S.proformas||[]).slice().reverse();
-  h+=`<div class="sec-title" style="margin:18px 0 8px">Proformas</div>`+(PF.length?PF.map(p=>pfFila(p)).join(''):'<div class="li-sub">Todavía no hay proformas.</div>');
+  const ORD={aprobada:0,devuelta:1,facturada:2,revision:3,cobrada:4,anulada:5}, PF=filtrarPorCliente(S.proformas||[]).slice().reverse().sort((a,b)=>(ORD[a.estado]??9)-(ORD[b.estado]??9)||(pfVencida(b)-pfVencida(a)));
+  const nPF=PF.filter(p=>p.estado==='aprobada').length;
+  h+=`<div class="sec-title" style="margin:18px 0 8px">Proformas${nPF?' · '+nPF+' por facturar':''}</div>`+(PF.length?PF.map(p=>pfFila(p)).join(''):'<div class="li-sub">Todavía no hay proformas.</div>');
   return h;
 }
-function pfTotales(p){ const A=(p.estado==='confirmada'?p.items.filter(it=>(p.aprobados||[]).includes(it.id)):p.items), sub=rd2(A.reduce((a,x)=>a+x.venta,0)), it=rd2(sub*(+p.itbms||0)/100); return {A,sub,itbms:it,total:rd2(sub+it)}; }
+function pfTotales(p){ const A=(PF_APROB.includes(p.estado)?p.items.filter(it=>(p.aprobados||[]).includes(it.id)):p.items), sub=rd2(A.reduce((a,x)=>a+x.venta,0)), it=rd2(sub*(+p.itbms||0)/100); return {A,sub,itbms:it,total:rd2(sub+it)}; }
 function pfFila(p){
   const [et,eb]=EST_PF[p.estado]||[p.estado,'bgy'], T=pfTotales(p);
   return `<div class="list-item"><div class="li-info"><div class="li-name">${esc(p.numero)} · ${esc(nombreCliente(p.clienteId))} <span class="badge ${eb}">${et}</span></div>
-    <div class="li-sub">${p.desde} a ${p.hasta} · ${T.A.length} rubro(s) · ${money(T.total)}${p.estado==='confirmada'&&(p.excluidos||[]).length?' · '+p.excluidos.length+' sin aprobar (siguen por cobrar)':''}</div></div>
-    <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="verProforma('${p.id}')">${esCliente()&&p.estado==='revision'?'Revisar':'Ver'}</button>${esAdminU()&&['revision','confirmada'].includes(p.estado)?`<button class="btn btn-red btn-sm" onclick="anularProforma('${p.id}')">Anular</button>`:''}</div></div>`;
+    <div class="li-sub">${p.desde} a ${p.hasta} · ${T.A.length} rubro(s) · ${money(T.total)}${PF_APROB.includes(p.estado)&&(p.excluidos||[]).length?' · '+p.excluidos.length+' sin aprobar (siguen por cobrar)':''}</div>
+    ${p.factura?`<div class="li-sub">Factura <b>${esc(p.factura.numero)}</b> del ${esc(p.factura.fecha)} · vence ${esc(p.factura.vence)}${p.estado==='facturada'?' · saldo <b>'+money(pfSaldo(p))+'</b>'+(pfCobrado(p)>0?' (abonado '+money(pfCobrado(p))+')':''):''}${pfVencida(p)?' <span class="badge br">Vencida</span>':''}</div>`:''}</div>
+    <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="verProforma('${p.id}')">${esCliente()&&p.estado==='revision'?'Revisar':'Ver'}</button>
+      ${esAdminU()&&p.estado==='aprobada'?`<button class="btn btn-green btn-sm" onclick="abrirFactura('${p.id}')">Registrar factura</button>`:''}
+      ${esAdminU()&&p.estado==='facturada'?`<button class="btn btn-green btn-sm" onclick="abrirCobro('${p.id}')">Registrar cobro</button>`:''}
+      ${esAdminU()&&['revision','aprobada'].includes(p.estado)?`<button class="btn btn-red btn-sm" onclick="anularProforma('${p.id}')">Anular</button>`:''}</div></div>`;
 }
 function sigNumeroPF(){ const n=(S.proformas||[]).reduce((a,p)=>Math.max(a,parseInt(String(p.numero).replace(/\D/g,''))||0),0)+1; return 'PF-'+String(n).padStart(4,'0'); }
 async function crearProforma(){
   const cli=esCliente()?miCliente():_cob.fCli; if(!cli){ showToast('Elige el cliente','error'); return; }
-  const E=estadoRubros(), items=operacionPeriodo().rubros.filter(x=>x.clienteId===cli&&x.venta>0&&!(E[x.id]&&['facturado','revision'].includes(E[x.id].e)));
+  const E=estadoRubros(), items=operacionPeriodo().rubros.filter(x=>x.clienteId===cli&&x.venta>0&&!(E[x.id]&&E[x.id].e!=='sin'));
   if(!items.length){ showToast('No hay nada sin facturar de '+nombreCliente(cli)+' en el período','info'); return; }
   const tot=rd2(items.reduce((a,x)=>a+x.venta,0));
   if(!confirm('Proforma de '+nombreCliente(cli)+' del '+_cob.desde+' al '+_cob.hasta+':\n'+items.length+' rubro(s) por '+money(tot)+' más ITBMS.\n\n'+(esCliente()?'Después marcas lo que apruebas y confirmas.':'Se envía al cliente para que la revise y confirme.'))) return;
@@ -4657,7 +4683,8 @@ function verProforma(id){
     <table><tr>${rev?'<th class="pf-noprint"><input type="checkbox" class="cob-chk" checked onchange="document.querySelectorAll(\'#pfBody .pf-it\').forEach(c=>c.checked=this.checked);pfRecalc()" aria-label="Marcar todo"></th>':''}<th>Fecha</th><th>Descripción</th><th class="n">Cantidad</th><th class="n">Precio</th><th class="n">Importe</th></tr>
     ${filas.map(x=>`<tr>${rev?`<td class="pf-noprint"><input type="checkbox" class="cob-chk pf-it" data-id="${esc(x.id)}" checked onchange="pfRecalc()" aria-label="Aprobar"></td>`:''}<td>${x.fecha.slice(8)}/${x.fecha.slice(5,7)}</td><td>${esc(x.desc)}</td><td class="n">${fmtN(x.cantidad)} ${esc(x.unidad)}</td><td class="n">${money(x.precio)}</td><td class="n">${money(x.venta)}</td></tr>`).join('')}</table>
     <div class="pf-tot" id="pfTot"></div>
-    <div class="pf-pie">${p.estado==='confirmada'?'Confirmada por '+esc((p.log.find(l=>/Confirmó/.test(l.a))||{}).u||'el cliente')+'.':'Documento de revisión, no es factura fiscal.'}${(p.excluidos||[]).length&&!rev?' '+p.excluidos.length+' rubro(s) no aprobados quedan pendientes de cobro.':''}${p.comentario?'<br>Comentario del cliente: '+esc(p.comentario):''}</div></div>`;
+    ${p.factura?`<div class="pf-tot"><div><span>Factura fiscal</span><span>${esc(p.factura.numero)}</span></div><div><span>Fecha · vence</span><span>${esc(p.factura.fecha)} · ${esc(p.factura.vence)}</span></div>${(p.abonos||[]).map(a=>`<div><span>Pago ${esc(a.fecha)}${a.ref?' · '+esc(a.ref):''}</span><span>− ${money(a.monto)}</span></div>`).join('')}<div class="g"><span>Saldo</span><span>${money(pfSaldo(p))}</span></div></div>`:''}
+    <div class="pf-pie">${PF_APROB.includes(p.estado)?'Aprobada por '+esc((p.log.find(l=>/Confirmó/.test(l.a))||{}).u||'el cliente')+'.'+(p.estado==='aprobada'?' Door está emitiendo la factura fiscal.':''):'Documento de revisión, no es factura fiscal.'}${(p.excluidos||[]).length&&!rev?' '+p.excluidos.length+' rubro(s) no aprobados quedan pendientes de cobro.':''}${p.comentario?'<br>Comentario del cliente: '+esc(p.comentario):''}</div></div>`;
   if(rev) h+=`<div class="field pf-noprint" style="margin-top:10px"><label>Comentario para Door (opcional)</label><textarea id="pfComent" rows="2" maxlength="400" placeholder="Ej. el sobretiempo del martes no fue autorizado"></textarea></div>
     <div class="ped-acc pf-noprint"><button class="btn btn-green" onclick="confirmarProforma()">Confirmar lo marcado</button><button class="btn btn-ghost" onclick="devolverProforma()">Devolver sin aprobar</button></div>`;
   h+=`<div class="ped-acc pf-noprint"><button class="btn btn-ghost btn-sm" onclick="imprimirProforma()">Imprimir o guardar PDF</button></div>`;
@@ -4676,11 +4703,11 @@ async function confirmarProforma(){
   const ok=[...document.querySelectorAll('#pfBody .pf-it')].filter(c=>c.checked).map(c=>c.dataset.id);
   if(!ok.length){ showToast('Marca al menos un rubro, o usa «Devolver sin aprobar»','error'); return; }
   p.aprobados=ok; p.excluidos=p.items.map(x=>x.id).filter(id=>!ok.includes(id)); p.comentario=(document.getElementById('pfComent')||{}).value||'';
-  p.estado='confirmada'; p.confirmada=Date.now(); const T=pfTotales(p);
+  p.estado='aprobada'; p.aprobada=Date.now(); p.vistaAdmin=false; const T=pfTotales(p);
   p.log.push({t:pedAhora(),u:pedQuien(),a:'Confirmó '+ok.length+' de '+p.items.length+' rubros ('+money(T.total)+' con ITBMS)'+(p.excluidos.length?'; '+p.excluidos.length+' quedan sin facturar':'')});
   await save(); hideModal('modalProforma'); renderCobros();
-  emitirAviso('pf_conf','pf|'+p.id,'Proforma '+p.numero+' confirmada · '+nombreCliente(p.clienteId),ok.length+' de '+p.items.length+' rubros por '+money(T.total)+(p.excluidos.length?' · '+p.excluidos.length+' sin aprobar':''),{accion:'cobros'});
-  showToast('Proforma confirmada: Door ya puede facturarla');
+  emitirAviso('pf_conf','pf|'+p.id,'Proforma '+p.numero+' aprobada: por facturar · '+nombreCliente(p.clienteId),ok.length+' de '+p.items.length+' rubros por '+money(T.total)+(p.excluidos.length?' · '+p.excluidos.length+' sin aprobar':''),{accion:'cobros'});
+  showToast('Proforma aprobada: Door emitirá la factura');
 }
 async function devolverProforma(){
   const p=(S.proformas||[]).find(x=>x.id===_pfVer); if(!p||p.estado!=='revision'||!esCliente()) return;
@@ -4691,27 +4718,81 @@ async function devolverProforma(){
   showToast('Proforma devuelta a Door');
 }
 async function anularProforma(id){
-  const p=(S.proformas||[]).find(x=>x.id===id); if(!p||!esAdminU()) return;
+  const p=(S.proformas||[]).find(x=>x.id===id); if(!p||!esAdminU()||!['revision','aprobada'].includes(p.estado)) return;
   const m=prompt('Motivo para anular '+p.numero+' (sus rubros vuelven a quedar sin facturar):'); if(!m||!m.trim()) return;
   p.estado='anulada'; p.log.push({t:pedAhora(),u:pedQuien(),a:'Anuló la proforma: '+m.trim()}); await save(); renderCobros(); showToast(p.numero+' anulada');
 }
 // Cliente: sus proformas (revisar y confirmar) y generar la de un período
 function htmlProformasCliente(){
   const mias=(S.proformas||[]).filter(p=>p.clienteId===miCliente()&&p.estado!=='anulada').slice().reverse(), rev=mias.filter(p=>p.estado==='revision');
-  const E=estadoRubros(), pend=operacionPeriodo().rubros.filter(x=>x.clienteId===miCliente()&&x.venta>0&&!(E[x.id]&&['facturado','revision'].includes(E[x.id].e)));
+  const E=estadoRubros(), pend=operacionPeriodo().rubros.filter(x=>x.clienteId===miCliente()&&x.venta>0&&!(E[x.id]&&E[x.id].e!=='sin'));
+  const fac=mias.filter(p=>p.estado==='facturada'), porPagar=fac.reduce((a,p)=>a+pfSaldo(p),0), venc=fac.filter(pfVencida).reduce((a,p)=>a+pfSaldo(p),0);
   document.getElementById('cobAcciones').innerHTML=`<button class="btn btn-green btn-sm" onclick="crearProforma()">Generar proforma del período</button>`;
   let h=`<div class="info-box">Aquí revisas lo que Door te cobra. En cada proforma marcas lo que apruebas y confirmas; lo que no marques queda pendiente para aclararlo y cobrarse después.</div>`;
   if(rev.length) h+=`<div class="sec-title" style="margin:6px 0 8px">Por revisar (${rev.length})</div>`+rev.map(pfFila).join('');
+  if(fac.length) h+=`<div class="ped-resumen" style="margin-top:10px"><div class="ped-kpi"><b style="${venc>0.005?'color:var(--red-t)':''}">${money(porPagar)}</b><span>Por pagar a Door · ${fac.length} factura(s)${venc>0.005?' · '+money(venc)+' vencido':''}</span></div></div>`;
   h+=`<div class="sec-title" style="margin:14px 0 8px">Período</div>`+chipsPeriodo()+`<div class="ped-resumen"><div class="ped-kpi"><b>${money(pend.reduce((a,x)=>a+x.venta,0))}</b><span>Servicios del período aún sin proforma · ${pend.length} rubro(s)</span></div></div>`;
   const otras=mias.filter(p=>p.estado!=='revision');
   if(otras.length) h+=`<div class="sec-title" style="margin:14px 0 8px">Historial</div>`+otras.map(pfFila).join('');
   return h;
 }
+// Administrador: registrar la factura fiscal de una proforma aprobada y los cobros (abonos) de una facturada
+function abrirFactura(id){
+  const p=(S.proformas||[]).find(x=>x.id===id); if(!p||p.estado!=='aprobada'||!esAdminU()) return;
+  const T=pfTotales(p), cd=+getConfig().creditoDias||0;
+  document.getElementById('paTitulo').textContent='Registrar factura · '+p.numero;
+  document.getElementById('paBody').innerHTML=`<div class="info-box">${esc(nombreCliente(p.clienteId))} · ${T.A.length} rubro(s) aprobados · <b>${money(T.total)}</b> con ITBMS</div>
+    <div class="field"><label>Número de factura fiscal</label><input type="text" id="paNum" maxlength="40" placeholder="Ej. 0001-00012345"></div>
+    <div class="field-row"><div class="field"><label>Fecha de la factura</label><input type="date" id="paFecha" value="${hoyStr()}"></div>
+      <div class="field"><label>Días de crédito</label><input type="number" id="paCred" min="0" step="1" value="${cd}"></div></div>`;
+  document.getElementById('paBtn').textContent='Guardar factura'; document.getElementById('paBtn').onclick=()=>guardarFactura(id);
+  document.getElementById('paErr').classList.add('hidden'); showModal('modalPfAccion'); setTimeout(()=>{ const e=document.getElementById('paNum'); if(e) e.focus(); },150);
+}
+async function guardarFactura(id){
+  const p=(S.proformas||[]).find(x=>x.id===id), err=document.getElementById('paErr'), fail=m=>{ err.textContent=m; err.classList.remove('hidden'); };
+  if(!p||p.estado!=='aprobada') return;
+  const num=document.getElementById('paNum').value.trim(), f=document.getElementById('paFecha').value, cd=Math.max(0,parseInt(document.getElementById('paCred').value)||0);
+  if(!num) return fail('Escribe el número de la factura fiscal');
+  if((S.proformas||[]).some(x=>x.id!==id&&x.factura&&x.factura.numero===num&&x.estado!=='anulada')) return fail('Esa factura ya está registrada en otra proforma');
+  if(!f) return fail('Indica la fecha de la factura');
+  const v=new Date(f+'T12:00:00'); v.setDate(v.getDate()+cd);
+  p.factura={numero:num,fecha:f,vence:fechaLocal(v),credito:cd,por:currentUser.nombre,ts:Date.now()}; p.estado='facturada'; p.vistoCliente=false; p.abonos=p.abonos||[];
+  p.log.push({t:pedAhora(),u:pedQuien(),a:'Registró la factura '+num+' del '+f+' ('+money(pfTotales(p).total)+', vence '+p.factura.vence+')'});
+  await save(); hideModal('modalPfAccion'); renderCobros(); pintarMenu(); showToast('Factura '+num+' registrada: queda por cobrar');
+}
+function abrirCobro(id){
+  const p=(S.proformas||[]).find(x=>x.id===id); if(!p||p.estado!=='facturada'||!esAdminU()) return;
+  const s=pfSaldo(p);
+  document.getElementById('paTitulo').textContent='Registrar cobro · '+p.numero;
+  document.getElementById('paBody').innerHTML=`<div class="info-box">${esc(nombreCliente(p.clienteId))} · factura <b>${esc(p.factura.numero)}</b> · saldo <b>${money(s)}</b>${pfVencida(p)?' · <b style="color:var(--red-t)">vencida el '+esc(p.factura.vence)+'</b>':' · vence '+esc(p.factura.vence)}</div>
+    <div class="field-row"><div class="field"><label>Fecha del pago</label><input type="date" id="paFecha" value="${hoyStr()}"></div>
+      <div class="field"><label>Monto ($)</label><input type="number" id="paMonto" min="0.01" step="0.01" value="${s.toFixed(2)}"></div></div>
+    <div class="field-row"><div class="field"><label>Forma de pago</label><select id="paForma"><option>Transferencia / ACH</option><option>Cheque</option><option>Depósito</option><option>Efectivo</option></select></div>
+      <div class="field"><label>Referencia</label><input type="text" id="paRef" maxlength="60" placeholder="Nº de transferencia o cheque"></div></div>
+    <div class="li-sub">Si el pago es menor al saldo queda como abono y la factura sigue por cobrar.</div>`;
+  document.getElementById('paBtn').textContent='Guardar cobro'; document.getElementById('paBtn').onclick=()=>guardarCobro(id);
+  document.getElementById('paErr').classList.add('hidden'); showModal('modalPfAccion');
+}
+async function guardarCobro(id){
+  const p=(S.proformas||[]).find(x=>x.id===id), err=document.getElementById('paErr'), fail=m=>{ err.textContent=m; err.classList.remove('hidden'); };
+  if(!p||p.estado!=='facturada') return;
+  const f=document.getElementById('paFecha').value, m=rd2(+document.getElementById('paMonto').value||0), ref=document.getElementById('paRef').value.trim(), forma=document.getElementById('paForma').value, s=pfSaldo(p);
+  if(!f) return fail('Indica la fecha del pago'); if(!(m>0)) return fail('Indica el monto cobrado');
+  if(m>s+0.005) return fail('El monto pasa el saldo de la factura ('+money(s)+')');
+  if(!ref) return fail('Escribe la referencia del pago');
+  (p.abonos=p.abonos||[]).push({fecha:f,monto:m,forma,ref,por:currentUser.nombre,ts:Date.now()});
+  const sal=pfSaldo(p); if(sal<=0.005){ p.estado='cobrada'; p.cobrada=Date.now(); }
+  p.log.push({t:pedAhora(),u:pedQuien(),a:(sal<=0.005?'Registró el cobro final ':'Registró un abono ')+money(m)+' ('+forma+' '+ref+')'+(sal>0.005?'; saldo '+money(sal):'')});
+  await save(); hideModal('modalPfAccion'); renderCobros(); showToast(sal<=0.005?'Factura '+p.factura.numero+' cobrada':'Abono registrado · saldo '+money(sal));
+}
+
 // Al cliente: aviso de proformas nuevas desde la última vez
 async function avisarProformasCliente(){
   if(!esCliente()||!facturacionOn()) return;
-  const N=(S.proformas||[]).filter(p=>p.clienteId===miCliente()&&p.estado==='revision'&&!p.vistoCliente); if(!N.length) return;
-  showToast(N.length===1?'Tienes la proforma '+N[0].numero+' por revisar':'Tienes '+N.length+' proformas por revisar','info');
+  const N=(S.proformas||[]).filter(p=>p.clienteId===miCliente()&&['revision','facturada'].includes(p.estado)&&!p.vistoCliente); if(!N.length) return;
+  const R=N.filter(p=>p.estado==='revision'), F=N.filter(p=>p.estado==='facturada');
+  if(R.length) showToast(R.length===1?'Tienes la proforma '+R[0].numero+' por revisar':'Tienes '+R.length+' proformas por revisar','info');
+  F.forEach(p=>showToast('Door emitió la factura '+p.factura.numero+' de la proforma '+p.numero+' · vence '+p.factura.vence,'info'));
   N.forEach(p=>p.vistoCliente=true); try{ await save(); }catch(e){}
 }
 // Tarifas y costos (administrador)
@@ -4733,7 +4814,8 @@ function htmlTarifas(){
     return `<div class="list-item"><div class="li-info"><div class="li-name">${esc(t.nombre)} · ${esc(nombreCliente(t.clienteId)||'Sin cliente')}</div><div class="li-sub">${+v.precio>0?`Venta ${money(v.precio)} por ${un[0]}${v.unidad!=='paleta'?' ('+fmtN(v.porPallet)+' por pallet)':''} · costeo ${v.costeo==='unidad'?money(v.costoUnidad)+' por '+un[0]:'por el personal de la línea'}`:'<b style="color:var(--amber)">Sin precio de venta: su personal se cobra por día</b>'}</div></div>
       <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalTipoLinea('${t.id}')">Editar</button></div></div>`; }).join(''):'<div class="li-sub">No hay tipos de línea.</div>')
     +`<button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="openModalTipoLinea()">+ Tipo de maquila</button>`;
-  h+=`<div class="sec-title" style="margin:18px 0 8px">Proforma</div><div class="field" style="max-width:220px"><label>ITBMS (%)</label><input type="number" id="trItbms" min="0" step="0.5" value="${getConfig().itbms}"></div>`;
+  h+=`<div class="sec-title" style="margin:18px 0 8px">Proforma y factura</div><div class="field-row" style="max-width:460px"><div class="field"><label>ITBMS (%)</label><input type="number" id="trItbms" min="0" step="0.5" value="${getConfig().itbms}"></div>
+    <div class="field"><label>Días de crédito</label><input type="number" id="trCred" min="0" step="1" value="${getConfig().creditoDias}"></div></div>`;
   return h;
 }
 function leerTarifas(){
@@ -4747,7 +4829,7 @@ function quitarServicio(i){ const {SV,TC}=leerTarifas(); if(!confirm('¿Quitar e
 async function guardarTarifas(){
   const {SV,TC}=leerTarifas(), dup=SV.map(s=>s.puesto).filter(Boolean).filter((p,i,a)=>a.indexOf(p)!==i);
   if(dup.length){ showToast('Cada posición del marcaje va en un solo servicio: '+PUESTOS[dup[0]],'error'); return; }
-  S.servicios=SV; S.tarifasCliente=TC; S.config=Object.assign(getConfig(),{itbms:Math.max(0,+document.getElementById('trItbms').value||0)});
+  S.servicios=SV; S.tarifasCliente=TC; S.config=Object.assign(getConfig(),{itbms:Math.max(0,+document.getElementById('trItbms').value||0),creditoDias:Math.max(0,parseInt(document.getElementById('trCred').value)||0)});
   await save(); renderCobros(); showToast('Tarifas y costos guardados');
 }
 

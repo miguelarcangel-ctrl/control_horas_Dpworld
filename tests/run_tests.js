@@ -635,8 +635,21 @@ async function newPage(browser, opts = {}) {
     verProforma(p.id); r.sinCostos = !/Costo|Margen/.test(document.getElementById('pfBody').innerText);
     document.querySelector(`#pfBody .pf-it[data-id="${ex.id}"]`).checked = false; await confirmarProforma();
     const E = estadoRubros();
-    r.confirma = p.estado === 'confirmada' && E[pd.id].e === 'facturado' && E[ex.id].e === 'sin' && pfTotales(p).total === rd2((p.items.filter(i => i.id !== ex.id).reduce((a, i) => a + i.venta, 0)) * 1.07);
-    currentUser = yo; setNav('cobros'); _cob.marcas = M; await crearProforma(); hideModal('modalProforma');
+    r.confirma = p.estado === 'aprobada' && E[pd.id].e === 'porfacturar' && E[ex.id].e === 'sin' && pfTotales(p).total === rd2((p.items.filter(i => i.id !== ex.id).reduce((a, i) => a + i.venta, 0)) * 1.07);
+    currentUser = yo; setNav('cobros'); _cob.marcas = M;
+    // Administrador: registra la factura fiscal (pasa a por cobrar) y los cobros (abono y pago final)
+    abrirFactura(p.id); document.getElementById('paNum').value = ''; await guardarFactura(p.id);
+    const sinNum = p.estado === 'aprobada' && !document.getElementById('paErr').classList.contains('hidden');
+    document.getElementById('paNum').value = 'F-001'; document.getElementById('paFecha').value = '2026-11-20'; document.getElementById('paCred').value = '30'; await guardarFactura(p.id);
+    r.factura = sinNum && p.estado === 'facturada' && p.factura.numero === 'F-001' && p.factura.vence === '2026-12-20' && estadoRubros()[pd.id].e === 'facturado';
+    const tot = pfTotales(p).total;
+    abrirCobro(p.id); document.getElementById('paMonto').value = '10'; document.getElementById('paRef').value = 'ACH-1'; await guardarCobro(p.id);
+    const abono = p.estado === 'facturada' && pfSaldo(p) === rd2(tot - 10);
+    abrirCobro(p.id); document.getElementById('paMonto').value = String(pfSaldo(p) + 5); document.getElementById('paRef').value = 'ACH-2'; await guardarCobro(p.id);
+    const pasado = p.estado === 'facturada' && !document.getElementById('paErr').classList.contains('hidden');
+    document.getElementById('paMonto').value = String(pfSaldo(p)); await guardarCobro(p.id);
+    r.cobro = abono && pasado && p.estado === 'cobrada' && pfSaldo(p) === 0 && estadoRubros()[pd.id].e === 'cobrado' && p.abonos.length === 2;
+    hideModal('modalPfAccion'); await crearProforma(); hideModal('modalProforma');
     r.pendiente = S.proformas.length === 2 && S.proformas[1].items.length === 1 && S.proformas[1].items[0].id === ex.id;
     window.confirm = c0; S.config = cfg0; Object.assign(S, bk); _cob = { desde: null, hasta: null, marcas: [], cargando: false, tab: 'detalle', fCli: '', fBod: '', fEst: 'sin' };
     document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden')); setNav('supervisor'); await save();
@@ -645,7 +658,9 @@ async function newPage(browser, opts = {}) {
   ok(fac.planilla, 'planilla: cédula, cliente y supervisor de la misma bodega; la cuadrilla de maquila no se cobra por día');
   ok(fac.rubros, 'cobros: persona-día con tarifa del cliente, sobretiempo por hora con recargo y maquila por caja costeada por unidad');
   ok(fac.proforma && fac.sinCostos, 'proforma: junta lo sin facturar del cliente y el cliente no ve costos');
-  ok(fac.confirma && fac.pendiente, 'proforma: lo marcado queda facturado (con ITBMS) y lo no marcado sigue por cobrar en la siguiente');
+  ok(fac.confirma && fac.pendiente, 'proforma: lo aprobado queda por facturar (con ITBMS) y lo no marcado sigue por cobrar en la siguiente');
+  ok(fac.factura, 'factura: el administrador registra el número fiscal (obligatorio) y el vencimiento por días de crédito');
+  ok(fac.cobro, 'cobro: abonos parciales, no deja pasar el saldo y al completar queda cobrada');
   ok(avs.guarda && avs.filtra, 'avisos: cada interruptor se guarda en el servidor y decide qué avisa (entrada de operador apagada, de supervisor encendida)');
   ok(avs.otro && avs.otroGuarda && avs.botonUsuarios, 'avisos: el administrador elige los avisos de cada usuario desde Usuarios');
   ok(avs.riesgo && avs.mitad && avs.meta && avs.texto && avs.cierre && avs.unaVezServidor, 'avisos de producción: riesgo de no llegar, mitad, meta cumplida y cierre; una sola vez');
