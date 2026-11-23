@@ -22,22 +22,50 @@ function setOpen(open){
 DPW.abrirMenu=()=>setOpen(true);
 DPW.cerrarMenu=()=>setOpen(false);
 
-/* items: [{id, label, on(), badge?, hint?, group?, hidden?}] · los grupos se separan con un título pequeño */
-DPW.menu=function(list,active){
-  items=list||[];if(active!==undefined)activeId=active;
+/* items: [{id, label, on(), badge?, hint?, group?, hidden?}] · los grupos se separan con un título pequeño.
+   opciones (tercer parámetro, opcional): {plegable:true} → cada grupo es un submenú desplegable (▼) con la suma de
+   las insignias de sus filas. Se abre solo el grupo de la vista activa y lo que el usuario abre o cierra se recuerda
+   en este equipo. Las filas sin grupo quedan siempre a la vista, arriba. Sin opciones, el menú es el de siempre. */
+let opciones={};
+const KEY_ABIERTOS='dpw_menu_abiertos:'+location.pathname;
+let abiertosMem={};   // respaldo si el navegador no deja guardar (modo privado)
+function abiertos(){try{const v=localStorage.getItem(KEY_ABIERTOS);return v?(JSON.parse(v)||{}):abiertosMem;}catch(e){return abiertosMem;}}
+function guardarAbiertos(o){abiertosMem=o;try{localStorage.setItem(KEY_ABIERTOS,JSON.stringify(o));}catch(e){}}
+function filaHtml(it,i){
+  const on=it.id===activeId;
+  return '<button type="button" class="dpw-item'+(on?' active':'')+'" data-dpw-i="'+i+'"'+(on?' aria-current="page"':'')+'>'+
+    '<span>'+esc(it.label)+'</span>'+(it.badge?'<span class="dpw-badge">'+esc(it.badge)+'</span>':it.hint?'<small>'+esc(it.hint)+'</small>':'')+'</button>';
+}
+DPW.menu=function(list,active,opts){
+  items=list||[];if(active!==undefined)activeId=active;if(opts!==undefined)opciones=opts||{};
   const box=$('dpwItems');if(!box)return;
   let html='',grp=null;
-  items.forEach((it,i)=>{
-    if(it.hidden)return;
-    if(it.group&&it.group!==grp){grp=it.group;html+='<div class="dpw-group">'+esc(grp)+'</div>';}
-    const on=it.id===activeId;
-    html+='<button type="button" class="dpw-item'+(on?' active':'')+'" data-dpw-i="'+i+'"'+(on?' aria-current="page"':'')+'>'+
-      '<span>'+esc(it.label)+'</span>'+(it.badge?'<span class="dpw-badge">'+esc(it.badge)+'</span>':it.hint?'<small>'+esc(it.hint)+'</small>':'')+'</button>';
-  });
+  if(opciones.plegable){
+    const G=[],porG={},ab=abiertos();
+    items.forEach((it,i)=>{ if(it.hidden)return; if(!it.group){html+=filaHtml(it,i);return;}
+      if(!porG[it.group]){porG[it.group]=[];G.push(it.group);} porG[it.group].push([it,i]); });
+    G.forEach((g,gi)=>{
+      const F=porG[g],act=F.some(([it])=>it.id===activeId),abierto=ab[g]!==undefined?ab[g]:act,n=F.reduce((s,[it])=>s+(+it.badge||0),0);
+      html+='<button type="button" class="dpw-gbtn'+(act?' has-active':'')+'" data-dpw-g="'+esc(g)+'" aria-expanded="'+abierto+'" aria-controls="dpwSub'+gi+'">'+
+        '<span>'+esc(g)+'</span>'+(n?'<span class="dpw-badge">'+(n>99?'99+':n)+'</span>':'')+'<i aria-hidden="true">▼</i></button>'+
+        '<div class="dpw-sub" id="dpwSub'+gi+'"'+(abierto?'':' hidden')+'>'+F.map(([it,i])=>filaHtml(it,i)).join('')+'</div>';
+    });
+  } else {
+    items.forEach((it,i)=>{
+      if(it.hidden)return;
+      if(it.group&&it.group!==grp){grp=it.group;html+='<div class="dpw-group">'+esc(grp)+'</div>';}
+      html+=filaHtml(it,i);
+    });
+  }
   box.innerHTML=html;
   const n=items.reduce((s,it)=>s+(!it.hidden&&+it.badge||0),0);
   document.querySelectorAll('[data-dpw="menu"]').forEach(b=>{if(n)b.setAttribute('data-n',n>99?'99+':n);else b.removeAttribute('data-n');});
 };
+function alternarGrupo(btn){
+  const g=btn.dataset.dpwG,sub=$(btn.getAttribute('aria-controls')),abrir=btn.getAttribute('aria-expanded')!=='true';
+  btn.setAttribute('aria-expanded',String(abrir));if(sub)sub.hidden=!abrir;
+  const o=abiertos();o[g]=abrir;guardarAbiertos(o);
+}
 DPW.activo=function(id){activeId=id;DPW.menu(items);};
 DPW.quien=function(etiqueta,valor){const w=$('dpwWho');if(w)w.innerHTML='<span>'+esc(etiqueta||'Sesión')+'</span><b>'+esc(valor)+'</b>';};
 
@@ -91,7 +119,8 @@ DPW.escena=function(nombre,root){
 };
 
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-dpw],[data-dpw-i]');if(!t)return;
+  const t=e.target.closest('[data-dpw],[data-dpw-i],[data-dpw-g]');if(!t)return;
+  if(t.dataset.dpwG!==undefined){alternarGrupo(t);return;}
   if(t.dataset.dpwI!==undefined){const it=items[+t.dataset.dpwI];setOpen(false);if(it&&it.on)it.on();return;}
   if(t.dataset.dpw==='menu')setOpen(!isOpen());
   else if(t.dataset.dpw==='menu-close')setOpen(false);
