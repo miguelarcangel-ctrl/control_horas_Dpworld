@@ -6,7 +6,7 @@
 // Nada sale del navegador: no hay base de datos ni datos reales.
 // ═══════════════════════════════════════════════════════════════
 (function(){
-  const SRV = window.__SRV, H = 3600000, MIN = 60000, KEY = 'door_demo_v4', SKEY = 'ctrl_horas';
+  const SRV = window.__SRV, H = 3600000, MIN = 60000, KEY = 'door_demo_v5', SKEY = 'ctrl_horas';
   const pad = n => String(n).padStart(2, '0');
   const dstr = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   const at = (f, h, m) => { const [y, mo, d] = f.split('-').map(Number); return new Date(y, mo - 1, d, h, m || 0, 0, 0).getTime(); };
@@ -249,6 +249,7 @@
     ];
     const state = { colaboradores: [], tareasCat: TAREAS, clientes: CLIENTES, config: CONFIG, pedidosPersonal, usuariosCliente: USUARIOS_CLIENTE,
       tarifasCliente: TARIFAS_CLIENTE, servicios: [], proformas: [],
+      clientesAvanzado: { k1: true }, solicitudesAvanzado: {},   // Importadora Istmo ve Mi turno avanzado; Atlántico, el básico
       fichas: Object.fromEntries(PERSONAL.map((p, i) => [p.id, { cedula: '8-' + (700 + i * 13) + '-' + (1200 + i * 377) }])), lineasTipo: TIPOS, lineas: lineas.concat(h.lineas),
       turnosHistorial: hist, solicitudes: [], turnosProgramados: [], rutinas: [], plantillas: [], temaHSE: [], causasParo: [], lineasPlan: [], nombresLinea: [],
       turno: h.turno, historial: h.historial, tareasActivas: h.tareasActivas };

@@ -661,6 +661,42 @@ async function newPage(browser, opts = {}) {
   ok(fac.confirma && fac.pendiente, 'proforma: lo aprobado queda por facturar (con ITBMS) y lo no marcado sigue por cobrar en la siguiente');
   ok(fac.factura, 'factura: el administrador registra el número fiscal (obligatorio) y el vencimiento por días de crédito');
   ok(fac.cobro, 'cobro: abonos parciales, no deja pasar el saldo y al completar queda cobrada');
+
+  // Turno por cliente: filtro del supervisor y Mi turno del cliente (básica o avanzada según el administrador)
+  const tpc = await page.evaluate(async () => {
+    const r = {}, yo = currentUser, cfg0 = { ...S.config }, bk = {}, turno0 = S.turno, act0 = S.tareasActivas, hist0 = S.historial;
+    ['clientes', 'usuariosCliente', 'clientesAvanzado', 'solicitudesAvanzado', 'pedidosPersonal'].forEach(k => bk[k] = JSON.parse(JSON.stringify(S[k] || {})));
+    S.config.marcajeCliente = true; S.config.pedidosClientes = true; S.config.facturacion = true;
+    S.clientes = [{ id: 'kA', nombre: 'Cli A' }, { id: 'kB', nombre: 'Cli B' }]; S.usuariosCliente = { cla: 'kA' }; S.clientesAvanzado = {}; S.solicitudesAvanzado = {};
+    const hoy = hoyStr(), ini = Date.now() - 2 * 3600000;
+    S.turno = { id: 'tT', fecha: hoy, inicio: ini, equipo: [{ id: 'q1', nombre: 'Uno A', cargo: 'ag', cliente: 'Cli A' }, { id: 'q2', nombre: 'Dos A', cargo: 'ag', cliente: 'Cli A' }, { id: 'q3', nombre: 'Tres B', cargo: 'operador', cliente: 'Cli B' }], tareasDia: [] };
+    S.tareasActivas = [{ id: 'ta1', tareaId: 'x', tarea: 'Picking A', clienteId: 'kA', cliente: 'Cli A', colaboradores: [{ id: 'q1', nombre: 'Uno A' }], inicio: ini, fin: null, cantAcum: 50, unidad: 'caja' }];
+    S.historial = [];
+    S.pedidosPersonal = [{ id: 'pz', clienteId: 'kA', fecha: hoy, lineas: [{ tipo: 'ag', cant: 3, conf: 3 }], estado: 'confirmado', log: [] }];
+    setNav('supervisor'); setClienteFiltro('Cli A');
+    const R = resumenClientesTurno(), a = R.find(g => g.n === 'Cli A');
+    r.filtro = document.querySelectorAll('#equipoList .pc').length === 2 && a.pres === 2 && a.tarea === 1 && a.libre === 1 && a.conf === 3;
+    _sel = new Set(['q2']); abrirAsignar(); r.asigna = _asig.cli === 'kA'; hideModal('modalAsignar'); setClienteFiltro('');
+    // Cliente: los marcajes llegan filtrados por su nombre
+    const ts = h => new Date(Date.now() - h * 3600000).toISOString();
+    const M = [{ id: 901, persona_id: 'q1', nombre: 'Uno A', fecha: hoy, tipo: 'entrada', puesto: 'ag', ts: ts(2), cliente: 'Cli A', anulado: false },
+      { id: 902, persona_id: 'q3', nombre: 'Tres B', fecha: hoy, tipo: 'entrada', puesto: 'operador', ts: ts(2), cliente: 'Cli B', anulado: false }];
+    window.__SRV.marcas.push(...M.map(m => ({ ...m, key: STATE_KEY })));
+    currentUser = { ...yo, rol: 'cliente', username: 'cla', nombre: 'Cliente A' };
+    setNav('supervisor'); await cargarMiTurno(hoy);
+    const txt = () => document.getElementById('cobContent').innerText;
+    r.basica = _nav === 'miturno' && /Uno A/.test(txt()) && !/Tres B/.test(txt()) && !/Tareas y productividad/i.test(txt()) && /Solicitar la versión avanzada/i.test(txt());
+    await solicitarAvanzado(); r.solicita = !!S.solicitudesAvanzado.kA;
+    currentUser = yo; await toggleAvanzado('kA', true); r.activa = avanzadoDe('kA') && !S.solicitudesAvanzado.kA;
+    currentUser = { ...yo, rol: 'cliente', username: 'cla', nombre: 'Cliente A' }; setNav('miturno'); await cargarMiTurno(hoy);
+    r.avanzada = /Tareas y productividad/i.test(txt()) && /Picking A/.test(txt()) && /Costo del día a tu tarifa/i.test(txt());
+    currentUser = yo; window.__SRV.marcas = window.__SRV.marcas.filter(m => m.id !== 901 && m.id !== 902);
+    S.config = cfg0; Object.assign(S, bk); S.turno = turno0; S.tareasActivas = act0; S.historial = hist0; _mt = { fecha: null, marcas: [], cargando: false };
+    setNav('supervisor'); await save(); renderAll();
+    return r; });
+  ok(tpc.filtro && tpc.asigna, 'turno por cliente: el supervisor filtra el tablero, ve el resumen frente a lo confirmado y al asignar se propone el cliente');
+  ok(tpc.basica && tpc.solicita, 'Mi turno básico: el cliente ve solo su personal, sin tareas, y puede solicitar la versión avanzada');
+  ok(tpc.activa && tpc.avanzada, 'Mi turno avanzado: el administrador la enciende por cliente y el cliente ve tareas, productividad y costo del día');
   ok(avs.guarda && avs.filtra, 'avisos: cada interruptor se guarda en el servidor y decide qué avisa (entrada de operador apagada, de supervisor encendida)');
   ok(avs.otro && avs.otroGuarda && avs.botonUsuarios, 'avisos: el administrador elige los avisos de cada usuario desde Usuarios');
   ok(avs.riesgo && avs.mitad && avs.meta && avs.texto && avs.cierre && avs.unaVezServidor, 'avisos de producción: riesgo de no llegar, mitad, meta cumplida y cierre; una sola vez');

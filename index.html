@@ -1553,7 +1553,7 @@ const DEFAULT_CONFIG={horaInicio:'08:00',horaFin:'17:00',horasAlmuerzo:1,multSob
 let S={
   colaboradores:[],tareasCat:[],clientes:[],
   turno:null,tareasActivas:[],historial:[],
-  turnosHistorial:[],solicitudes:[],turnosProgramados:[],pedidosPersonal:[],usuariosCliente:{},servicios:[],proformas:[],tarifasCliente:{},fichas:{},
+  turnosHistorial:[],solicitudes:[],turnosProgramados:[],pedidosPersonal:[],usuariosCliente:{},servicios:[],proformas:[],tarifasCliente:{},fichas:{},clientesAvanzado:{},solicitudesAvanzado:{},
   rutinas:[],plantillas:[],
   temaHSE:[],  // catálogo de cápsulas HSE para Toolbox
   cerrandoId:null,reabriendoId:null,editingId:null,
@@ -1720,7 +1720,7 @@ function normalizeS(){
   ['clientes','tareasCat','colaboradores','solicitudes','pedidosPersonal','servicios','proformas','turnosProgramados','turnosHistorial','tareasActivas','historial','rutinas','plantillas','temaHSE','maestro','lineasTipo','lineasPlan','nombresLinea','lineas','causasParo']
     .forEach(k=>{ if(!Array.isArray(S[k])) S[k]=[]; });
   (S.proformas||[]).forEach(p=>{ if(p.estado==='confirmada') p.estado='aprobada'; });   // versión anterior: «confirmada» = aprobada por el cliente
-  ['usuariosCliente','tarifasCliente','fichas'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object'||Array.isArray(S[k])) S[k]={}; });
+  ['usuariosCliente','tarifasCliente','fichas','clientesAvanzado','solicitudesAvanzado'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object'||Array.isArray(S[k])) S[k]={}; });
   S.config=getConfig();
   migrarLineas();
   S.tareasCat.forEach(t=>{if(!t.efic)t.efic=85; if(esSupervision(t.nombre)){ t.sinProd=true; t.prod=0; t.clase='apoyo'; } if(!t.clase) t.clase=/supervis|limpiez|capacitac|toolbox|reuni|acomodo|gestion de almacen/i.test(normTxt(t.nombre))?'apoyo':'productiva';});
@@ -1827,8 +1827,8 @@ async function startApp(){
   document.getElementById('appScreen').classList.remove('hidden');
   document.getElementById('hdrUser').textContent=currentUser.nombre;
   DPW.quien('Sesión',currentUser.nombre+' · '+(ROL_NOMBRE[currentUser.rol]||currentUser.rol));
-  setNav(esResponsable()?'lineas':esCliente()?'pedidos':'supervisor');
-  if(esCliente()){ renderAll(); avisarRespuestasCliente(); avisarProformasCliente(); if(tutorialPendiente()) setTimeout(()=>{ if(!_tour&&tutorialPendiente()) iniciarTutorial(); },900); return; }
+  setNav(esResponsable()?'lineas':esCliente()?(marcajeClienteOn()?'miturno':'pedidos'):'supervisor');
+  if(esCliente()){ renderAll(); avisarRespuestasCliente(); avisarProformasCliente(); avisarAvanzadoCliente(); if(tutorialPendiente()) setTimeout(()=>{ if(!_tour&&tutorialPendiente()) iniciarTutorial(); },900); return; }
   cargarMisAvisos(); cargarPersonal().then(cargarMarcas).then(()=>{ suscribirPush().then(revisarRegistroAvisos); if(enKiosco()){ if(currentUser.rol==='admin') entrarKiosco(); else try{ localStorage.removeItem(KIOSCO_KEY); }catch(e){} } });
   if(_lineasMigradas){ _lineasMigradas=false; save(); }
   const now=new Date();
@@ -1849,6 +1849,7 @@ function pasosTutorial(){
   if(rol==='cliente'){
     P.push({sel:'.dpw-burger',t:'Menú',d:'Aquí están tus pedidos de personal, el tema y este tutorial.'});
     P.push({nav:'pedidos',sel:'#pedAcciones button',t:'Pedir personal',d:'Indica el día, el horario, cuántas personas y de qué tipo, y dónde van a trabajar. Pide antes de la hora límite ('+getConfig().pedidoCorte+') del día anterior.'});
+    if(marcajeClienteOn()) P.push({nav:'miturno',sel:'#cobContent',t:'Mi turno',d:'Tu personal del día: quién llegó frente a lo confirmado, quién trabaja, sus horas y tus líneas de producción.'+(avanzadoDe(miCliente())?' Con la versión avanzada ves también qué hace cada persona, las tareas con su productividad y el costo del día.':' La versión avanzada (tareas, productividad y costo) la activa Door: puedes solicitarla aquí.')});
     if(facturacionOn()) P.push({nav:'proformas',sel:'#cobContent',t:'Tus proformas',d:'Door te envía la proforma del período (o la generas tú). Marcas lo que apruebas y confirmas; lo que no marques queda pendiente de aclarar.'});
     P.push({nav:'pedidos',sel:'#pedidosContent',t:'Tus pedidos',d:'Cada pedido muestra su estado: por confirmar, confirmado (o parcial, con cuántas personas van) o rechazado con el motivo. Mientras esté por confirmar lo puedes cancelar.'});
     P.push({t:'Listo',d:'Puedes volver a ver este tutorial desde el menú, en «Ver tutorial».'});
@@ -2059,13 +2060,14 @@ const AVISOS_CAT=[
   {g:'Pedidos de clientes',solo:()=>pedidosOn(),items:[
     ['ped_nuevo','Pedido de personal de un cliente','Qué empresa, para qué día y cuántas personas'],
     ['ped_cancel','Pedido cancelado por el cliente'],
+    ['cli_avz','Un cliente pide la versión avanzada de Mi turno'],
   ]},
   {g:'Cobros',solo:()=>facturacionOn(),items:[
     ['pf_conf','Proforma aprobada (por facturar) o devuelta por el cliente','Cuántos rubros aprobó y el total'],
   ]},
 ];
 const AVISOS_DEF={
-  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre','tur_sobre','tur_reap','per_alta','tur_sin_abrir','ped_nuevo','ped_cancel','pf_conf'],
+  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre','tur_sobre','tur_reap','per_alta','tur_sin_abrir','ped_nuevo','ped_cancel','pf_conf','cli_avz'],
   supervisor:['ent_sup','ent_op','alm_reg','lin_riesgo','lin_paro','tur_sin_abrir','tur_libre','tur_larga','tur_pend','tur_sobre','tur_sobre_fin','ped_nuevo','ped_cancel'],
   responsable:['ent_resp','ent_lin','alm_reg','tur_sin_abrir','lin_arranca','lin_mitad','lin_meta','lin_riesgo','lin_paro','lin_insumo'],
 };
@@ -2191,6 +2193,7 @@ function manejarAviso(data){
   if(data.accion==='avisos'){ abrirAvisos(); return; }
   if(data.accion==='pedido'){ setNav('pedidos'); return; }
   if(data.accion==='cobros'){ setNav('cobros'); return; }
+  if(data.accion==='tarifas'){ setNav('tarifas'); return; }
   if(data.accion==='cerrar'){ setNav('supervisor'); if(S.turno) prepCerrarTurno(); return; }
   if(data.accion==='abrir'){ if(esResponsable()){ setNav('lineas'); return; } setNav('supervisor'); if(!S.turno) showModal('modalAbrirTurno'); return; }
   if(data.accion==='reap'||data.accion==='personal'){ if(currentUser&&currentUser.rol==='admin') setNav('insights'); return; }
@@ -2324,6 +2327,7 @@ function pintarMenu(){
   const st=avisosEstado(), pend=(S.solicitudes||[]).filter(x=>x.estado==='pendiente').length;
   DPW.menu([
     {id:'pedidos',label:esCliente()?'Mis pedidos de personal':'Pedidos de clientes',badge:pedidosBadge()||0,hidden:!currentUser||!pedidosOn()||IS_TV||esResponsable(),on:()=>setNav('pedidos')},
+    {id:'miturno',label:'Mi turno',hint:esCliente()&&avanzadoDe(miCliente())?'versión avanzada':'tu personal de hoy',hidden:!esCliente()||!marcajeClienteOn(),on:()=>setNav('miturno')},
     {id:'proformas',label:'Mis proformas',badge:esCliente()&&facturacionOn()?(S.proformas||[]).filter(p=>p.clienteId===miCliente()&&p.estado==='revision').length:0,hidden:!esCliente()||!facturacionOn(),on:()=>setNav('proformas')},
     {id:'supervisor',label:'Turno',hidden:esResponsable()||esCliente(),on:()=>setNav('supervisor')},
     {id:'lineas',label:'Líneas de producción',hidden:!currentUser||esCliente()||(!esResponsable()&&!(S.lineasTipo||[]).length&&currentUser.rol!=='admin'),on:()=>setNav('lineas')},
@@ -2342,11 +2346,11 @@ function esResponsable(){ return !!currentUser&&currentUser.rol==='responsable';
 function esCliente(){ return !!currentUser&&currentUser.rol==='cliente'; }
 function setNav(nav){
   if(esResponsable()&&nav!=='lineas') nav='lineas';
-  if(esCliente()&&!(nav==='proformas'&&facturacionOn())) nav='pedidos';
+  if(esCliente()&&!((nav==='proformas'&&facturacionOn())||(nav==='miturno'&&marcajeClienteOn()))) nav=marcajeClienteOn()?'miturno':'pedidos';
   if(nav==='pedidos'&&!pedidosOn()) nav='supervisor';
   const navCob=['planilla','cobros','tarifas','proformas'].includes(nav);
   if(navCob&&!facturacionOn()) nav='supervisor';
-  document.getElementById('viewCobros').classList.toggle('hidden',!['planilla','cobros','tarifas','proformas'].includes(nav));
+  document.getElementById('viewCobros').classList.toggle('hidden',!['planilla','cobros','tarifas','proformas','miturno'].includes(nav));
   document.getElementById('viewPedidos').classList.toggle('hidden',nav!=='pedidos');
   if(nav==='pedidos'){ renderPedidos(); if(!esCliente()&&marcajeClienteOn()) cargarMarcas().then(()=>{ if(_nav==='pedidos') renderPedidos(); }); }
   document.getElementById('viewLineas').classList.toggle('hidden',nav!=='lineas');
@@ -2354,6 +2358,7 @@ function setNav(nav){
   document.getElementById('viewSupervisor').classList.toggle('hidden',nav!=='supervisor');
   document.getElementById('viewInsights').classList.toggle('hidden',nav!=='insights');
   _nav=nav; document.body.dataset.nav=nav; pintarMenu(); pintarAvisosApp(); window.scrollTo(0,0);
+  if(nav==='miturno') renderCobros();
   if(['planilla','cobros','tarifas','proformas'].includes(nav)){ if(nav==='cobros') (S.proformas||[]).forEach(p=>{ if(p.estado==='devuelta') p.vistaAdmin=true; }); renderCobros(); }
   if(nav==='insights'){ renderInsights(); if(currentUser?.rol==='admin'){ refreshUsuarios().then(renderInsights); cargarPersonal().then(renderInsights); } }
 }
@@ -2518,6 +2523,31 @@ function htmlFiltroBodega(){
   const cnt=b=>S.turno.equipo.filter(c=>!salioDelTurno(c)&&(!b||bodegaActual(c)===b)).length;
   return `<div class="chip-wrap bodega-filtro"><span class="li-sub">Bodega:</span><div class="chip${!_bodegaFiltro?' selected':''}" onclick="setBodegaFiltro('')">Todas (${cnt('')})</div>${bodegas().map(b=>`<div class="chip${_bodegaFiltro===b?' selected':''}" onclick="setBodegaFiltro('${esc(b).replace(/'/g,"\\'")}')">${esc(b)} (${cnt(b)})</div>`).join('')}</div>`;
 }
+// ── Turno por cliente (Door): el turno del día se ve por cliente según para quién marcó cada persona
+let _clienteFiltro=''; try{ _clienteFiltro=localStorage.getItem('ch_cliente_filtro')||''; }catch(e){}
+function setClienteFiltro(n){ _clienteFiltro=n; try{ localStorage.setItem('ch_cliente_filtro',n); }catch(e){} limpiarSel(); renderEquipo(); renderHistorial(); }
+function enFiltroCli(n){ return !_clienteFiltro||!marcajeClienteOn()||(n||'Sin cliente')===_clienteFiltro; }
+function horasHoyPersona(pid){ const M=_marcas.filter(m=>m.persona_id===pid&&m.fecha===hoyStr()&&!m.anulado); return M.length?diaAsistencia(M,hoyStr()).horas:0; }
+function resumenClientesTurno(){
+  if(!S.turno) return [];
+  const G={}, conf={};
+  (S.pedidosPersonal||[]).filter(p=>p.fecha===S.turno.fecha&&['confirmado','parcial'].includes(p.estado)).forEach(p=>{ const n=nombreCliente(p.clienteId); conf[n]=(conf[n]||0)+pedTot(p,'conf'); });
+  S.turno.equipo.forEach(c=>{ const n=c.cliente||'Sin cliente', g=G[n]||(G[n]={n,pres:0,tarea:0,libre:0,pausa:0,salio:0,horas:0,sup:new Set()}), a=actDe(c.id), f=salioDelTurno(c);
+    if(f) g.salio++; else { g.pres++; if(!a) g.libre++; else if(a.isEspecial) g.pausa++; else g.tarea++; }
+    if(c.cargo==='supervisor') g.sup.add(c.nombre.split(' ')[0]); g.horas+=horasHoyPersona(c.id); });
+  Object.keys(conf).forEach(n=>{ if(!G[n]) G[n]={n,pres:0,tarea:0,libre:0,pausa:0,salio:0,horas:0,sup:new Set()}; });
+  return Object.values(G).map(g=>({...g,conf:conf[g.n]})).sort((a,b)=>(a.n==='Sin cliente')-(b.n==='Sin cliente')||a.n.localeCompare(b.n));
+}
+function htmlFiltroCliente(){
+  if(!marcajeClienteOn()||!S.turno) return '';
+  const R=resumenClientesTurno(); if(!R.length) return '';
+  let h=`<div class="chip-wrap bodega-filtro"><span class="li-sub">Cliente:</span><div class="chip${!_clienteFiltro?' selected':''}" onclick="setClienteFiltro('')">Todos</div>${R.map(g=>`<div class="chip${_clienteFiltro===g.n?' selected':''}" onclick="setClienteFiltro('${esc(g.n).replace(/'/g,"\'")}')">${esc(g.n)} (${g.pres})</div>`).join('')}</div>`;
+  const V=_clienteFiltro?R.filter(g=>g.n===_clienteFiltro):R;
+  h+=`<div class="rt-scroll" style="margin-bottom:10px"><table class="rt-table cob-tbl"><tr><th>Cliente</th><th class="n">Confirmadas</th><th class="n">Presentes</th><th class="n">En tarea</th><th class="n">Libres</th><th class="n">En pausa</th><th class="n">Salieron</th><th class="n">Horas hoy</th><th>Supervisor</th></tr>`
+    +V.map(g=>`<tr><td${g.n==='Sin cliente'?' class="warn"':''}>${esc(g.n)}</td><td class="n">${g.conf!=null?g.conf:'—'}</td><td class="n" style="${g.conf!=null&&g.pres+g.salio<g.conf?'color:var(--amber);font-weight:700':''}">${g.pres}</td><td class="n">${g.tarea}</td><td class="n"${g.libre?' style="color:var(--amber);font-weight:700"':''}>${g.libre}</td><td class="n">${g.pausa}</td><td class="n">${g.salio}</td><td class="n">${fmtN(g.horas)}</td><td>${esc([...g.sup].join(', ')||'—')}</td></tr>`).join('')+`</table></div>`;
+  return h;
+}
+
 // Cliente del día: con config.marcajeCliente (empresas que ponen personal donde sus clientes, como Door) cada persona
 // elige al marcar la entrada para qué cliente trabaja ese día (ch_marcajes.cliente, con el nombre del cliente).
 function marcajeClienteOn(){ return !!getConfig().marcajeCliente&&(S.clientes||[]).length>0; }
@@ -3658,7 +3688,7 @@ async function trasCambio(msg){
 
 // Selección
 function togglePersona(pid){ _sel.has(pid)?_sel.delete(pid):_sel.add(pid); pintarSel(); }
-function selLibres(){ _sel=new Set(S.turno.equipo.filter(c=>!actDe(c.id)&&!salioDelTurno(c)&&c.cargo!=='supervisor'&&enFiltro(bodegaActual(c))).map(c=>c.id)); if(!_sel.size) showToast('No hay personas libres','info'); pintarSel(); }
+function selLibres(){ _sel=new Set(S.turno.equipo.filter(c=>!actDe(c.id)&&!salioDelTurno(c)&&c.cargo!=='supervisor'&&enFiltro(bodegaActual(c))&&enFiltroCli(c.cliente)).map(c=>c.id)); if(!_sel.size) showToast('No hay personas libres','info'); pintarSel(); }
 function limpiarSel(){ _sel.clear(); pintarSel(); }
 function pintarSel(){
   document.querySelectorAll('#equipoList .pc').forEach(el=>el.classList.toggle('sel',_sel.has(el.dataset.pid)));
@@ -3673,10 +3703,10 @@ function renderEquipo(){
   const el=document.getElementById('equipoList'); if(!el) return;
   if(!S.turno){ el.innerHTML=''; limpiarSel(); return; }
   [..._sel].forEach(id=>{ if(!S.turno.equipo.some(c=>c.id===id)) _sel.delete(id); });
-  const bf=document.getElementById('bodegaFiltro'); if(bf) bf.innerHTML=htmlFiltroBodega();
-  const visibles=S.turno.equipo.filter(c=>enFiltro(bodegaActual(c)));
-  if(!visibles.length&&S.turno.equipo.length){ el.innerHTML=`<div class="empty-text">Nadie en ${esc(_bodegaFiltro)} ahora mismo.</div>`; pintarSel(); return; }
-  el.innerHTML=S.turno.equipo.map((c,i)=>{ if(!enFiltro(bodegaActual(c))) return '';
+  const bf=document.getElementById('bodegaFiltro'); if(bf) bf.innerHTML=htmlFiltroBodega()+htmlFiltroCliente();
+  const visibles=S.turno.equipo.filter(c=>enFiltro(bodegaActual(c))&&enFiltroCli(c.cliente));
+  if(!visibles.length&&S.turno.equipo.length){ el.innerHTML=`<div class="empty-text">Nadie en ${esc([_bodegaFiltro,_clienteFiltro].filter(Boolean).join(' · '))} ahora mismo.</div>`; pintarSel(); return; }
+  el.innerHTML=S.turno.equipo.map((c,i)=>{ if(!enFiltro(bodegaActual(c))||!enFiltroCli(c.cliente)) return '';
     const a=actDe(c.id), fuera=salioDelTurno(c), est=fuera?'fuera':!a?'libre':a.isEspecial?'pausa':'tarea';
     let info;
     if(est==='fuera') info=`<span class="muted">Salió a las ${horaHM(fuera.ts)}</span>`;
@@ -3717,6 +3747,7 @@ function abrirAsignar(tdId){
   // Cliente: el que las personas eligieron al marcar, si todas trabajan hoy para el mismo
   const cs=[...new Set(S.turno.equipo.filter(c=>_sel.has(c.id)).map(c=>c.cliente).filter(Boolean))], kc=cs.length===1&&S.clientes.find(c=>c.nombre===cs[0]);
   if(kc) _asig.cli=kc.id;
+  else if(_clienteFiltro&&marcajeClienteOn()){ const kf=S.clientes.find(c=>c.nombre===_clienteFiltro); if(kf) _asig.cli=kf.id; }
   const td=tdId&&(S.turno.tareasDia||[]).find(x=>x.id===tdId); if(td&&td.clienteId) _asig.cli=td.clienteId;
   const nombres=S.turno.equipo.filter(c=>_sel.has(c.id)).map(c=>c.nombre.split(' ')[0]);
   document.getElementById('asigTitulo').textContent=''+nombres.join(', ');
@@ -3944,7 +3975,7 @@ function renderHistorial(){
   renderPendientes();
   const el=document.getElementById('historialList');
   if(!S.historial.length){el.innerHTML=`<div class="empty"><div class="empty-text">Sin tareas completadas</div></div>`;return;}
-  const tareaCards=[...S.historial].reverse().filter(t=>enFiltro(t.bodega||'')).map(t=>{
+  const tareaCards=[...S.historial].reverse().filter(t=>enFiltro(t.bodega||'')&&(!_clienteFiltro||!marcajeClienteOn()||t.cliente===_clienteFiltro||(t.colaboradores||[]).some(c=>enFiltroCli((S.turno.equipo.find(e=>e.id===c.id)||{}).cliente)))).map(t=>{
     const eb=t.efic!=null?`<span class="badge ${t.efic>=90?'bg':t.efic>=70?'ba':'br'}">${Math.round(t.efic)}%</span>`:'';
     const rutBadge=t.isRutina?`<span class="badge bp">${t.pctCumplimiento||0}% cumpl.</span>`:'';
     const nP=(t.colaboradores||[]).length;
@@ -4545,9 +4576,10 @@ function chipsPeriodo(){
 }
 function renderCobros(){
   const el=document.getElementById('cobContent'); if(!el||document.getElementById('viewCobros').classList.contains('hidden')) return;
-  const tit={planilla:'Planilla',cobros:'Cobros y proformas',tarifas:'Tarifas y costos',proformas:'Mis proformas'}[_nav]||'Planilla';
+  const tit={planilla:'Planilla',cobros:'Cobros y proformas',tarifas:'Tarifas y costos',proformas:'Mis proformas',miturno:'Mi turno'+(esCliente()&&avanzadoDe(miCliente())?' · avanzado':'')}[_nav]||'Planilla';
   document.getElementById('cobTitulo').textContent=tit; document.getElementById('cobAcciones').innerHTML='';
   if(_nav==='tarifas'){ el.innerHTML=htmlTarifas(); return; }
+  if(_nav==='miturno'){ if(!_mt.fecha&&!_mt.cargando){ cargarMiTurno(hoyStr()); return; } el.innerHTML=htmlMiTurno(); return; }
   if(!asegurarPeriodo()||_cob.cargando){ el.innerHTML='<div class="li-sub">Leyendo los marcajes del período…</div>'; return; }
   el.innerHTML=_nav==='planilla'?htmlPlanilla():_nav==='cobros'?htmlCobros():htmlProformasCliente();
 }
@@ -4809,6 +4841,10 @@ function htmlTarifas(){
   h+=`<div class="sec-title" style="margin:18px 0 8px">Tarifa de venta por cliente</div><div class="li-sub" style="margin-bottom:6px">Vacío: la venta general. Escribe la tarifa negociada con cada cliente por persona por día.</div>
   <div class="rt-scroll"><table class="rt-table cob-tbl" id="trCli"><tr><th>Cliente</th>${SV.map(s=>`<th class="n">${esc(s.nombre)}</th>`).join('')}</tr>`
   +C.map(c=>`<tr data-c="${c.id}"><td>${esc(c.nombre)}</td>${SV.map(s=>{ const v=((S.tarifasCliente||{})[c.id]||{})[s.id]; return `<td class="n"><input type="number" min="0" step="0.01" style="max-width:90px" data-s="${s.id}" placeholder="${s.ventaDia}" value="${v!==undefined&&v!==null&&v!==''?v:''}"></td>`; }).join('')}</tr>`).join('')+`</table></div>`;
+  if(marcajeClienteOn()){ const SA=S.solicitudesAvanzado||{};
+    h+=`<div class="sec-title" style="margin:18px 0 8px">Mi turno · versión avanzada por cliente</div><div class="li-sub" style="margin-bottom:6px">Todos los clientes ven su personal del día. La versión avanzada agrega qué hace cada persona, las tareas con su productividad y el costo del día a su tarifa.</div>`
+      +C.map(c=>`<div class="list-item"><div class="li-info"><div class="li-name">${esc(c.nombre)}${SA[c.id]?' <span class="badge ba">La solicitó el '+esc(SA[c.id].fecha)+'</span>':''}</div><div class="li-sub">${avanzadoDe(c.id)?'Ve la versión avanzada':'Ve la versión básica'}</div></div>
+        <label class="li-actions" style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" class="cob-chk"${avanzadoDe(c.id)?' checked':''} onchange="toggleAvanzado('${c.id}',this.checked)"> Avanzada</label></div>`).join(''); }
   const TL=S.lineasTipo||[];
   h+=`<div class="sec-title" style="margin:18px 0 8px">Maquila (tipos de línea)</div>`+(TL.length?TL.map(t=>{ const v=t.venta||{}, un=UNID_COBRO[v.unidad||'paleta'];
     return `<div class="list-item"><div class="li-info"><div class="li-name">${esc(t.nombre)} · ${esc(nombreCliente(t.clienteId)||'Sin cliente')}</div><div class="li-sub">${+v.precio>0?`Venta ${money(v.precio)} por ${un[0]}${v.unidad!=='paleta'?' ('+fmtN(v.porPallet)+' por pallet)':''} · costeo ${v.costeo==='unidad'?money(v.costoUnidad)+' por '+un[0]:'por el personal de la línea'}`:'<b style="color:var(--amber)">Sin precio de venta: su personal se cobra por día</b>'}</div></div>
@@ -4831,6 +4867,83 @@ async function guardarTarifas(){
   if(dup.length){ showToast('Cada posición del marcaje va en un solo servicio: '+PUESTOS[dup[0]],'error'); return; }
   S.servicios=SV; S.tarifasCliente=TC; S.config=Object.assign(getConfig(),{itbms:Math.max(0,+document.getElementById('trItbms').value||0),creditoDias:Math.max(0,parseInt(document.getElementById('trCred').value)||0)});
   await save(); renderCobros(); showToast('Tarifas y costos guardados');
+}
+
+// ═══ MI TURNO (cliente): su personal del día. Básica para todos; avanzada si el administrador la enciende ═══
+// Avanzada (S.clientesAvanzado[clienteId]): qué hace cada persona, tareas con productividad y el costo del día a su tarifa.
+// Es una vista: la gestión del turno sigue en manos del supervisor de la empresa.
+let _mt={fecha:null,marcas:[],cargando:false};
+function avanzadoDe(cid){ return !!(S.clientesAvanzado||{})[cid]; }
+async function cargarMiTurno(f){
+  _mt.fecha=f||hoyStr(); _mt.cargando=true; renderCobros();
+  let M=[]; try{ M=await rpc('ch_marcajes',{p_token:SESSION.token,p_key:STATE_KEY,p_desde:_mt.fecha,p_hasta:_mt.fecha})||[]; }catch(e){ showToast('No se pudo leer el turno: '+e.message,'error'); }
+  const n=nombreCliente(miCliente()); _mt.marcas=M.filter(m=>m.cliente===n); _mt.cargando=false; renderCobros();
+}
+function operacionCon(desde,hasta,marcas){ const b={desde:_cob.desde,hasta:_cob.hasta,marcas:_cob.marcas}; Object.assign(_cob,{desde,hasta,marcas}); try{ return operacionPeriodo(); } finally{ Object.assign(_cob,b); } }
+function tareasDeFecha(f){
+  if(S.turno&&S.turno.fecha===f) return [...(S.historial||[]),...(S.tareasActivas||[])];
+  return (S.turnosHistorial||[]).filter(T=>T.fecha===f).flatMap(T=>T.historial||[]);
+}
+function htmlMiTurno(){
+  const cid=miCliente(), cli=nombreCliente(cid), f=_mt.fecha, hoy=f===hoyStr(), avz=avanzadoDe(cid);
+  if(!cid) return '<div class="info-box">Tu usuario todavía no está ligado a una empresa. Pídele al administrador que lo configure.</div>';
+  let h=`<div class="cob-filtros"><div class="field"><label>Día</label><input type="date" value="${f}" max="${hoyStr()}" onchange="cargarMiTurno(this.value)"></div>
+    <div class="chip-wrap" style="align-self:end"><div class="chip${hoy?' selected':''}" onclick="cargarMiTurno(hoyStr())">Hoy</div><div class="chip${f===fechaMenos(hoyStr(),1)?' selected':''}" onclick="cargarMiTurno(fechaMenos(hoyStr(),1))">Ayer</div></div></div>`;
+  if(_mt.cargando) return h+'<div class="li-sub">Leyendo el turno…</div>';
+  const O=operacionCon(f,f,_mt.marcas), F=O.filas, ult={};
+  _mt.marcas.filter(m=>!m.anulado).sort((a,b)=>msTs(a.ts)-msTs(b.ts)).forEach(m=>ult[m.persona_id]=m);
+  const est=r=>{ const m=ult[r.pid]; if(!m) return ['—','bgy']; if(m.tipo==='salida') return ['Salió '+horaHM(msTs(m.ts)),'bgy']; if(m.tipo==='salida_almuerzo') return ['En almuerzo','ba']; return hoy?['Trabajando','bg']:['Sin salida','ba']; };
+  const conf=(S.pedidosPersonal||[]).filter(p=>p.clienteId===cid&&p.fecha===f&&['confirmado','parcial'].includes(p.estado)).reduce((a,p)=>a+pedTot(p,'conf'),0);
+  const trab=F.filter(r=>est(r)[0]==='Trabajando').length, alm=F.filter(r=>est(r)[0]==='En almuerzo').length;
+  h+=`<div class="ped-resumen"><div class="ped-kpi"><b style="${conf&&F.length<conf?'color:var(--amber)':''}">${F.length}${conf?' / '+conf:''}</b><span>${conf?'Llegaron / confirmadas por Door':'Personas que marcaron para ti'}</span></div>
+    ${hoy?`<div class="ped-kpi"><b>${trab}</b><span>Trabajando ahora${alm?' · '+alm+' en almuerzo':''}</span></div>`:''}
+    <div class="ped-kpi"><b>${fmtN(F.reduce((a,r)=>a+r.horas,0))}</b><span>Horas trabajadas${F.some(r=>r.extra>0.05)?' · extra '+fmtN(F.reduce((a,r)=>a+r.extra,0)):''}</span></div>
+    ${avz?`<div class="ped-kpi"><b>${money(O.rubros.filter(x=>x.clienteId===cid).reduce((a,x)=>a+x.venta,0)+F.filter(r=>!r.sal&&!r.maq).reduce((a,r)=>a+r.venta,0))}</b><span>Costo del día a tu tarifa (sin ITBMS, estimado)</span></div>`:''}</div>`;
+  // Personal
+  const act=pid=>{ if(!hoy) return ''; const a=(S.tareasActivas||[]).find(t=>(t.colaboradores||[]).some(c=>c.id===pid)); return a?(a.isEspecial?'Pausa · ':'')+a.tarea+' · desde '+horaHM(a.inicio):'Sin tarea'; };
+  h+=`<div class="sec-title" style="margin:6px 0 8px">Tu personal ${hoy?'hoy':'del '+f}</div>`+(F.length?`<div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Persona</th><th>Servicio</th>${hayBodegas()?'<th>Bodega</th>':''}<th>Entrada</th><th>Estado</th><th class="n">Horas</th>${avz&&hoy?'<th>Haciendo ahora</th>':''}<th>Supervisor</th></tr>`
+    +F.map(r=>{ const [e,b]=est(r); return `<tr><td>${esc(r.nombre)}</td><td>${esc(r.srv.nombre)}</td>${hayBodegas()?`<td>${esc(r.bodega||'—')}</td>`:''}<td>${horaHM(msTs(r.ent.ts))}${r.tarde?' <span class="badge ba">'+r.tarde+' min tarde</span>':''}</td><td><span class="badge ${b}">${e}</span></td><td class="n">${fmtN(r.horas)}</td>${avz&&hoy?`<td>${esc(act(r.pid))}</td>`:''}<td${!r.esSup&&!r.sup?' class="warn"':''}>${r.esSup?'Es supervisor':esc(r.sup||'Sin supervisor marcado')}</td></tr>`; }).join('')+`</table></div>`
+    :`<div class="empty-text">Nadie ha marcado para ${esc(cli)} ${hoy?'hoy':'ese día'}.</div>`);
+  // Líneas de maquila
+  const L=(S.lineas||[]).filter(l=>l.fecha===f&&l.clienteId===cid&&l.estado!=='pendiente');
+  if(L.length) h+=`<div class="sec-title" style="margin:14px 0 8px">Líneas de producción</div>`+L.map(l=>{ const r=ritmoLinea(l), t=tipoLinea(l.tipoId), v=t&&t.venta, pct=l.meta?Math.min(100,Math.round(r.tot/l.meta*100)):0;
+    return `<div class="ped-card ${l.estado==='cerrada'?'conf':'pend'}"><div class="ped-top"><div class="ped-tit">${esc(lin(l))}</div><span class="badge ${l.estado==='cerrada'?'bg':'ba'}">${l.estado==='cerrada'?'Cerrada':'En marcha'}</span></div>
+      <div class="li-sub">${r.tot} de ${l.meta} pallets (${pct}%)${v&&+v.precio>0&&v.unidad!=='paleta'?' · '+fmtN(r.tot*(+v.porPallet||0))+' '+UNID_COBRO[v.unidad][1]:''} · ${(l.personas||[]).length} personas${avz?' · '+fmtN(r.porPersona)+' pallets por persona-hora'+(l.prod?' (estándar '+l.prod+')':''):''}${avz&&r.paroH>0.01?' · paros '+fmtH(r.paroH):''}</div>
+      <div style="height:6px;border-radius:4px;background:rgba(var(--fg),.08);margin-top:6px"><div style="height:6px;border-radius:4px;width:${pct}%;background:var(--accent)"></div></div></div>`; }).join('');
+  // Avanzada: tareas y productividad
+  if(avz){
+    const T=tareasDeFecha(f).filter(t=>t.clienteId===cid&&!t.isEspecial), G={};
+    T.forEach(t=>{ const g=G[t.tarea]||(G[t.tarea]={n:t.tarea,hp:0,cant:0,unidad:t.unidad||'',std:0,per:new Set()}); const n=(t.colaboradores||[]).length||1;
+      g.hp+=horasTarea(t)*n; g.cant+=+(t.cant!=null?t.cant:t.cantAcum)||0; (t.colaboradores||[]).forEach(c=>g.per.add(c.id)); const tc=(S.tareasCat||[]).find(x=>x.id===t.tareaId); if(tc&&tc.prod) g.std=tc.prod; });
+    const pids=new Set(F.map(r=>r.pid)), pausas=tareasDeFecha(f).filter(t=>t.isEspecial&&!esAlmuerzo(t)).reduce((a,t)=>a+horasTarea(t)*(t.colaboradores||[]).filter(c=>pids.has(c.id)).length,0);
+    const hpT=Object.values(G).reduce((a,g)=>a+g.hp,0), hT=F.reduce((a,r)=>a+r.horas,0);
+    h+=`<div class="sec-title" style="margin:14px 0 8px">Tareas y productividad</div><div class="ped-resumen"><div class="ped-kpi"><b>${fmtN(hpT)}</b><span>Horas en tareas para ti${hT?' · '+Math.round(Math.min(1,hpT/hT)*100)+'% de las trabajadas':''}</span></div><div class="ped-kpi"><b>${fmtN(pausas)}</b><span>Horas en pausas (baño, espera, permiso)</span></div></div>`;
+    h+=Object.keys(G).length?`<div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Tarea</th><th class="n">Personas</th><th class="n">Horas-persona</th><th class="n">Cantidad</th><th class="n">Por persona-hora</th><th class="n">Estándar</th></tr>`
+      +Object.values(G).map(g=>{ const p=g.hp?g.cant/g.hp:0, ok=g.std?p/g.std:null; return `<tr><td>${esc(g.n)}</td><td class="n">${g.per.size}</td><td class="n">${fmtN(g.hp)}</td><td class="n">${g.cant?fmtN(g.cant)+' '+esc(g.unidad):'—'}</td><td class="n"${ok!=null?` style="color:${ok>=0.9?'var(--green)':ok>=0.7?'var(--amber)':'var(--red-t)'};font-weight:700"`:''}>${g.cant?fmtN(p):'—'}</td><td class="n">${g.std||'—'}</td></tr>`; }).join('')+`</table></div>`
+      :'<div class="li-sub">Todavía no hay tareas registradas para ti ese día.</div>';
+  } else {
+    const sol=(S.solicitudesAvanzado||{})[cid];
+    h+=`<div class="ped-card" style="margin-top:14px"><div class="ped-tit">Versión avanzada</div>
+      <div class="li-sub" style="margin:6px 0">Ve qué está haciendo cada persona en este momento, las tareas del día con su productividad frente al estándar, las horas en pausas y el costo del día a tu tarifa. Door la activa para tu empresa.</div>
+      ${sol?`<span class="badge ba">Solicitada el ${esc(sol.fecha)}</span>`:`<button class="btn btn-green btn-sm" onclick="solicitarAvanzado()">Solicitar la versión avanzada</button>`}</div>`;
+  }
+  return h;
+}
+async function solicitarAvanzado(){
+  const cid=miCliente(); if(!cid) return;
+  S.solicitudesAvanzado=S.solicitudesAvanzado||{}; S.solicitudesAvanzado[cid]={fecha:hoyStr(),por:currentUser.nombre};
+  await save(); renderCobros();
+  emitirAviso('cli_avz','avz|'+cid+'|'+hoyStr(),'Versión avanzada solicitada · '+nombreCliente(cid),currentUser.nombre+' pide la versión avanzada de Mi turno. Se enciende en Tarifas y costos.',{accion:'tarifas'});
+  showToast('Solicitud enviada: Door te avisará al activarla');
+}
+async function toggleAvanzado(cid,on){
+  S.clientesAvanzado=S.clientesAvanzado||{}; S.solicitudesAvanzado=S.solicitudesAvanzado||{};
+  if(on){ S.clientesAvanzado[cid]=true; delete S.solicitudesAvanzado[cid]; (S.avisoAvanzado=S.avisoAvanzado||{})[cid]=false; } else delete S.clientesAvanzado[cid];
+  await save(); renderCobros(); showToast((on?'Versión avanzada activada para ':'Versión avanzada desactivada para ')+nombreCliente(cid));
+}
+async function avisarAvanzadoCliente(){
+  const cid=miCliente(); if(!cid||!avanzadoDe(cid)||!S.avisoAvanzado||S.avisoAvanzado[cid]!==false) return;
+  showToast('Door activó la versión avanzada de Mi turno','success'); S.avisoAvanzado[cid]=true; try{ await save(); }catch(e){}
 }
 
 // ═══ PEDIDOS DE PERSONAL DE CLIENTES ═══
@@ -6714,7 +6827,7 @@ function renderAll(){
   updateNotifBadge();
   if(!document.getElementById('viewInsights').classList.contains('hidden'))renderInsights();
   if(!document.getElementById('viewPedidos').classList.contains('hidden'))renderPedidos();
-  if(!document.getElementById('viewCobros').classList.contains('hidden')&&_nav!=='tarifas'&&!document.querySelector('#cobContent input:focus'))renderCobros();
+  if(!document.getElementById('viewCobros').classList.contains('hidden')&&_nav!=='tarifas'&&!document.querySelector('#cobContent input:focus')){ if(_nav==='miturno'&&_mt.fecha===hoyStr()&&!_mt.cargando) cargarMiTurno(_mt.fecha); else renderCobros(); }
   pintarMenu();
 }
 
