@@ -27,3 +27,10 @@ Proyecto de Vercel aparte, conectado a este repositorio con directorio raíz `de
 - **Mis proformas** (cliente): marca con check lo que aprueba y confirma; lo no marcado sigue sin facturar para cobrarse después. Puede generar la proforma del período. Nunca ve costos.
 - **Camino de cada proforma:** en revisión del cliente → **aprobada · por facturar** (bandeja del administrador, con número en el menú) → **facturada · por cobrar** (el administrador registra el número de factura fiscal, la fecha y los días de crédito; el cliente lo ve) → **cobrada** (se registran los pagos con fecha, monto, forma y referencia; acepta abonos). Saldo por cobrar y vencido por cliente; el cliente ve lo que tiene por pagar.
 - Se enciende con `facturacion`. Todo vive en el navegador del prototipo; en producción, costos, cédulas y el filtro por cliente deben ir en el servidor.
+
+## Turno por cliente
+- **Supervisor y administrador:** en el turno, filtro por cliente (chips con las personas presentes) y un resumen por cliente: confirmadas por pedido, presentes, en tarea, libres, en pausa, salieron, horas del día y supervisor. Al asignar tarea con el filtro puesto, se propone ese cliente.
+- **Cliente · Mi turno (básica):** su personal del día (o de otro día): llegaron frente a confirmadas, trabajando ahora, horas, entrada, estado y supervisor, y sus líneas de producción con avance.
+- **Cliente · Mi turno (avanzada):** además, qué hace cada persona en este momento, tareas con horas-persona, cantidad y productividad frente al estándar, horas en pausas y el costo del día a su tarifa. Es una vista: el turno lo gestiona el supervisor de Door.
+- El administrador enciende la versión avanzada por cliente en **Tarifas y costos**. El cliente sin ella ve qué incluye y puede solicitarla (aviso `cli_avz`).
+- En la demostración, `cliente` (Importadora Istmo) tiene la avanzada y `atlantico` (Distribuidora Atlántico) la básica.
