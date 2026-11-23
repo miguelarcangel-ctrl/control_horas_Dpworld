@@ -517,6 +517,12 @@ body.en-kiosco .toast,body.en-kiosco .dpw-hdr,body.en-kiosco .dpw-drawer,body.en
 .ki-ok.hidden{display:none}.ki-ok.err{background:var(--red)}
 .ki-ok b{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(2.2rem,6vw,4.5rem);letter-spacing:.04em}
 .ki-ok span{display:block;font-size:clamp(1.1rem,2.6vw,1.8rem);margin-top:8px}
+.tc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin:2px 0 12px}
+.tc-card{border:1px solid var(--b1);border-radius:10px;padding:9px 11px;min-width:0}
+.tc-card.tc-warn{border-color:rgba(245,162,11,.5)}
+.tc-tit{font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tc-big{display:flex;align-items:baseline;gap:6px;margin:2px 0}.tc-big b{font-family:'Barlow Condensed',sans-serif;font-size:22px}.tc-big span{font-size:11.5px;color:var(--t2)}
+.tc-nums{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:12px;color:var(--t2);margin-bottom:2px}.tc-nums b{color:var(--t)}.tc-nums .tc-alerta b{color:var(--amber)}
 .cob-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 12px}
 .cob-filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end;margin-bottom:10px}
 .cob-filtros .field{margin:0}
@@ -630,8 +636,16 @@ body.con-sel .toast{bottom:96px}
   .turno-banner #adminKPI{grid-area:kpi}
   .turno-banner .turno-actions{grid-area:acts;justify-content:flex-end}
   .tp-col{display:flex;flex-direction:column;gap:16px;min-width:0}
-  .tp-main{grid-column:1;grid-row:2}
+  /* Arriba: líneas (izquierda) y pendientes / tareas del día (derecha). Abajo, a todo el ancho: equipo e historial.
+     Así la columna derecha, que suele ser corta, no deja media pantalla en blanco junto al tablero. */
+  .tp-main{display:contents}
+  .tp-main>.tp-lineas{grid-column:1;grid-row:2}
+  .tp-main>.tp-equipo{grid-column:1/-1;grid-row:3}
+  .tp-equipo .tablero{grid-template-columns:repeat(auto-fill,minmax(205px,1fr))}   /* a todo el ancho: tarjetas con espacio para nombre y botones */
+  .tp-main>.sec:not(.tp-lineas):not(.tp-equipo){grid-column:1/-1;grid-row:4}
   .tp-side{grid-column:2;grid-row:2}
+  .turno-panel:has(#secLineas.hidden) .tp-side{grid-column:1/-1}
+  .turno-panel:has(#secPendientes.hidden):has(#secTareasDia[style*="none"]) .tp-main>.tp-lineas{grid-column:1/-1}
   .sec-hdr{padding:12px 16px}
   .sec-body{padding:14px 16px}
   .ins-grid{display:block;column-count:2;column-gap:16px}
@@ -2569,8 +2583,12 @@ function htmlFiltroCliente(){
   const R=resumenClientesTurno(); if(!R.length) return '';
   let h=`<div class="chip-wrap bodega-filtro"><span class="li-sub">Cliente:</span><div class="chip${!_clienteFiltro?' selected':''}" onclick="setClienteFiltro('')">Todos</div>${R.map(g=>`<div class="chip${_clienteFiltro===g.n?' selected':''}" onclick="setClienteFiltro('${esc(g.n).replace(/'/g,"\'")}')">${esc(g.n)} (${g.pres})</div>`).join('')}</div>`;
   const V=_clienteFiltro?R.filter(g=>g.n===_clienteFiltro):R;
-  h+=`<div class="rt-scroll" style="margin-bottom:10px"><table class="rt-table cob-tbl"><tr><th>Cliente</th><th class="n">Confirmadas</th><th class="n">Presentes</th><th class="n">En tarea</th><th class="n">Libres</th><th class="n">En pausa</th><th class="n">Salieron</th><th class="n">Horas hoy</th><th>Supervisor</th></tr>`
-    +V.map(g=>`<tr><td${g.n==='Sin cliente'?' class="warn"':''}>${esc(g.n)}</td><td class="n">${g.conf!=null?g.conf:'—'}</td><td class="n" style="${g.conf!=null&&g.pres+g.salio<g.conf?'color:var(--amber);font-weight:700':''}">${g.pres}</td><td class="n">${g.tarea}</td><td class="n"${g.libre?' style="color:var(--amber);font-weight:700"':''}>${g.libre}</td><td class="n">${g.pausa}</td><td class="n">${g.salio}</td><td class="n">${fmtN(g.horas)}</td><td>${esc([...g.sup].join(', ')||'—')}</td></tr>`).join('')+`</table></div>`;
+  // Tarjetas (no tabla): caben en la columna del equipo en computadora y en el celular
+  h+=`<div class="tc-grid">`+V.map(g=>{ const falta=g.conf!=null&&g.pres+g.salio<g.conf;
+    return `<div class="tc-card${g.n==='Sin cliente'?' tc-warn':''}"><div class="tc-tit">${esc(g.n)}</div>
+      <div class="tc-big"><b style="${falta?'color:var(--amber)':''}">${g.pres}${g.conf!=null?' / '+g.conf:''}</b><span>${g.conf!=null?'presentes / confirmadas':'presentes'}</span></div>
+      <div class="tc-nums"><span>En tarea <b>${g.tarea}</b></span><span${g.libre?' class="tc-alerta"':''}>Libres <b>${g.libre}</b></span><span>Pausa <b>${g.pausa}</b></span><span>Salieron <b>${g.salio}</b></span><span>Horas <b>${fmtN(g.horas)}</b></span></div>
+      <div class="li-sub">Supervisor: ${esc([...g.sup].join(', ')||'sin supervisor marcado')}</div></div>`; }).join('')+`</div>`;
   return h;
 }
 
