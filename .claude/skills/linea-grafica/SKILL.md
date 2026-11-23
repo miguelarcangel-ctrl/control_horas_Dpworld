@@ -42,8 +42,13 @@ En cada app, el kit se copia a una carpeta `dpw/` servida junto al `index.html` 
 | Inspección de Contenedores (Control de Rampas) | `patio`: pilas de contenedores, grúa de patio que mueve uno, camión que entra | Cada contenedor, a tiempo. |
 | Cotizador 3PL | `flujo`: Contenedor → Descargue → Almacén → Despacho con la unidad de cobro de cada uno | Cotiza cada servicio en minutos. |
 | Alertas de Calidad | `radar`: plano de la bodega con pulsos; un punto pasa a ámbar | Detectamos a tiempo cada desvío. |
+| Facturas y Pagos a Proveedores | `libro`: libro de cuentas; facturas que caen en la bandeja, reciben el sello PAGADA y pasan al archivo mientras baja la barra de saldo | Alianzas estratégicas. |
 
 Para una app nueva: pregunta la animación (regla 3), dibújala como función nueva en `dpw-escenas.js` (viewBox 1000×380 para la escena, 1400×150 para la franja; la parte importante entre x≈300 y x≈760, que es lo que queda entre la frase y la tarjeta) y agrega su fila a esta tabla.
+
+## Piezas comunes dentro de la app
+
+El tutorial de arranque por perfil, las notificaciones con interruptores, la burbuja de WhatsApp, la bitácora de acciones, los reclamos, el mapa por mes en verde y rojo, los adjuntos y el portal para usuarios externos están en el skill **`piezas-comunes`** (`.claude/skills/piezas-comunes/`). Se agregan a una app cuando el usuario las pide o cuando la app las necesita.
 
 ## Marcado
 
@@ -123,6 +128,7 @@ DPW.aviso = m => showToast(m);     // opcional: mensajes del kit en el toast de 
 - Cómo darle el segundo tema al contenido de una app: sus colores van en variables (`:root` con los del tema por defecto) y un bloque `html[data-theme="dark"]{…}` o `html[data-theme="light"]{…}` con los otros valores. Si una variable sirve a la vez de fondo y de texto (por ejemplo el índigo), sepárala en dos (`--blue` fondo, `--blue-t` texto). Los colores fijos en estilos en línea se corrigen con selectores de atributo (`[style*=";color:#1A1060"]`). Ejemplos: Cotizador (claro → oscuro), Inspección y Hub (oscuro → claro), Alertas (Tailwind: `@theme` apunta a variables `--dpw-c-*`).
 - PWA: copia `kit/pwa/sw.js` a la raíz (cambia el nombre de `CACHE`) y `kit/pwa/manifest.webmanifest` (nombre, nombre corto y descripción de la app); los íconos van en `dpw/pwa/`.
 - La suma de los `badge` del menú aparece sola sobre el botón de tres rayas.
+- **Submenús desplegables:** con muchas secciones, pasa `{plegable:true}` como tercer parámetro: `DPW.menu(items, activo, {plegable:true})`. Cada `group` se vuelve un botón que despliega sus filas (con `▼` y la suma de sus insignias). Se abre solo el grupo de la vista activa y lo que el usuario abre o cierra se recuerda en el equipo. Las filas sin `group` quedan arriba, siempre a la vista: ahí va lo del día a día (por ejemplo «Turno»). Sin el tercer parámetro el menú es el de siempre. Molde: Control de Horas (Operación · Reportes · Personal · Planilla y cobros · Configuración · Ajustes).
 - Apps sin usuarios (Hub, Alertas de Calidad): la tarjeta lleva el logo, el nombre y un solo botón `Entrar`; no se inventan campos de usuario.
 - Móvil (≤ 820 px): el login apila frase → escena → tarjeta → franja, y la cinta esconde lo marcado con `dpw-hide-sm` en ≤ 560 px.
 

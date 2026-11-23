@@ -7,7 +7,11 @@ const BASE = 'http://localhost:8765/index.html';
 const SHOTS = path.join(__dirname, 'shots'); fs.mkdirSync(SHOTS, { recursive: true });
 let fails = 0;
 // Navegación por el menú desplegable (línea gráfica común): abre el menú y elige la sección
-const irA = async (page, label) => { await page.click('.dpw-burger'); await page.click(`.dpw-item:has-text("${label}")`); };
+// Menú con submenús: si la fila está dentro de un grupo cerrado, abre el grupo primero
+const irA = async (page, label) => { await page.click('.dpw-burger');
+  const it = page.locator(`.dpw-item:has-text("${label}")`).first();
+  if (!(await it.isVisible())) await page.evaluate(l => { const b = [...document.querySelectorAll('.dpw-item')].find(x => x.textContent.includes(l)); const sub = b && b.closest('.dpw-sub'); if (sub) document.querySelector(`[aria-controls="${sub.id}"]`).click(); }, label);
+  await it.click(); };
 const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 
 async function newPage(browser, opts = {}) {
@@ -65,8 +69,8 @@ async function newPage(browser, opts = {}) {
   const persisted = await page.evaluate(() => Object.keys(persistable()));
   ok(!persisted.includes('usuarios') && !persisted.includes('editingId'), 'no se persisten usuarios ni campos de pantalla');
 
-  // 4) Insights + usuarios desde servidor
-  await irA(page, 'Insights'); await page.waitForTimeout(500);
+  // 4) Configuración → Usuarios (antes Insights): usuarios desde servidor
+  await irA(page, 'Usuarios'); await page.waitForTimeout(500);
   const ins = await page.textContent('#insightsContent');
   ok(ins.includes('Admin Prueba') && ins.includes('@super'), 'lista de usuarios viene del servidor');
   ok(!/secreto/.test(await page.content()), 'ninguna clave aparece en la página');
@@ -107,7 +111,7 @@ async function newPage(browser, opts = {}) {
   ok(x.length === 9, 'Excel con 9 hojas: ' + x.join(', '));
 
   // 9) Configuración con tarifas
-  await irA(page, 'Insights'); await page.evaluate(() => openConfig()); await page.waitForTimeout(200);
+  await irA(page, 'Horario y costos'); await page.evaluate(() => openConfig()); await page.waitForTimeout(200);
   await page.fill('#cfgTarOp', '60'); await page.evaluate(() => guardarConfig()); await page.waitForTimeout(300);
   ok(await page.evaluate(() => window.__SRV.rows.ctrl_horas_test.value.config.tarifaOperador === 60), 'tarifa operador editable y guardada');
   ok(await page.evaluate(() => Math.abs(costoCargo('operador').dia - 64.2) < 0.01), 'nueva tarifa aplica al cálculo ($60 × 1.07)');
@@ -533,7 +537,7 @@ async function newPage(browser, opts = {}) {
     await cambiarAviso('lin_meta', true);
     r.otroGuarda = SRV.prefs[STATE_KEY + '|' + sup.id].lin_meta === true && SRV.prefs[STATE_KEY + '|' + sup.id].tur_libre === true && avisoOn('lin_mitad');
     hideModal('modalAvisos');
-    r.botonUsuarios = (() => { setNav('insights'); return /abrirAvisos\('/.test(document.getElementById('insightsContent').innerHTML); })(); setNav('supervisor');
+    r.botonUsuarios = (() => { abrirSeccion('usuarios'); return /abrirAvisos\('/.test(document.getElementById('insightsContent').innerHTML); })(); setNav('supervisor');
     // producción: mitad, meta y riesgo salen una sola vez al servidor
     SRV.push = []; _avisados.clear();
     const H = 3600000, l = nuevaLinea(S.lineasTipo[0], 10, 8); S.lineas.push(l);
