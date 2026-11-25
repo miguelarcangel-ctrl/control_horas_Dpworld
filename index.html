@@ -454,6 +454,11 @@ body.con-sel .avisos-app{bottom:90px}
 .aviso-txt b{font-family:'Barlow Condensed',sans-serif;font-size:.9rem;letter-spacing:.3px;color:var(--t)}
 /* LÍNEAS DE PRODUCCIÓN */
 .lineas{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.lb-resumen{grid-column:1/-1;border:1.5px solid var(--b2);border-left:4px solid var(--primary);border-radius:12px;padding:12px 14px;background:var(--card);display:flex;flex-direction:column;gap:9px}
+.lbr-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.lbr-tit{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1rem;letter-spacing:.6px;text-transform:uppercase;color:var(--t)}
+.lbr-stats{grid-template-columns:repeat(6,1fr)}
+@media (max-width:700px){.lbr-stats{grid-template-columns:repeat(3,1fr)}}
 .lb{border:1.5px solid var(--b1);border-left:4px solid var(--b2);border-radius:12px;padding:12px 13px;background:rgba(var(--fg),.03);cursor:pointer;display:flex;flex-direction:column;gap:6px;transition:border-color .12s}
 .lb:hover{border-color:var(--b2)}
 .lb.lb-corriendo{border-left-color:var(--green)}
@@ -2983,17 +2988,41 @@ function htmlBloques(L, vacio){
       <div class="lb-sub">${sub}</div></div>`;
   }).join(''):`<div class="empty-text">${vacio}</div>`;
 }
+// Tarjeta de totales del día (encabezado de las líneas): para no tener que sumar a mano
+function htmlResumenLineas(L){
+  const A=(L||[]).filter(l=>l.estado!=='pendiente'); if(!A.length) return '';
+  const R=A.map(l=>({l,r:ritmoLinea(l)})), corren=R.filter(x=>x.l.estado==='corriendo'), cerradas=R.length-corren.length;
+  const pal=R.reduce((a,x)=>a+x.r.tot,0), meta=A.reduce((a,l)=>a+(+l.meta||0),0), pct=meta?Math.round(pal/meta*100):0;
+  const proy=R.reduce((a,x)=>a+(x.l.estado==='corriendo'?x.r.proy:x.r.tot),0);
+  const ritmo=corren.reduce((a,x)=>a+x.r.ritmo,0);
+  const pers=new Set(), persAct=new Set();
+  A.forEach(l=>(l.personas||[]).forEach(p=>{ const k=p.personaId||'n:'+normTxt(p.nombre); pers.add(k); if(l.estado==='corriendo') persAct.add(k); }));
+  const hTot=R.reduce((a,x)=>a+x.r.hTot,0), paroH=R.reduce((a,x)=>a+x.r.paroH,0), enParo=A.filter(l=>l.paroActivo).length;
+  const ok=proy>=meta;
+  return `<div class="lb-resumen">
+    <div class="lbr-top"><span class="lbr-tit">Total del día</span><span class="li-sub">${corren.length} en marcha${cerradas?' · '+cerradas+' cerrada'+(cerradas===1?'':'s'):''}${enParo?' · <b style="color:var(--red-t)">'+enParo+' en paro</b>':''}</span></div>
+    <div class="stat-row lbr-stats">
+      <div class="stat-card"><div class="stat-label">Pallets</div><div class="stat-val">${pal} <span style="font-size:.85rem;color:var(--t3)">/ ${meta}</span></div><div class="stat-sub">${pct}% de la meta</div></div>
+      <div class="stat-card"><div class="stat-label">${corren.length?'Proyección':'Faltaron'}</div><div class="stat-val ${ok?'g':'a'}">${corren.length?proy:Math.max(0,meta-pal)}</div><div class="stat-sub">${corren.length?'al cierre'+(ok?' · llega':' · faltan '+(meta-proy)):'pallets para la meta'}</div></div>
+      <div class="stat-card"><div class="stat-label">Personas</div><div class="stat-val">${corren.length?persAct.size:pers.size}</div><div class="stat-sub">${corren.length?'en líneas ahora':'trabajaron hoy'}</div></div>
+      <div class="stat-card"><div class="stat-label">Ritmo</div><div class="stat-val">${fmtN(ritmo)}</div><div class="stat-sub">pallets/h${corren.length>1?' entre todas':''}</div></div>
+      <div class="stat-card"><div class="stat-label">Productividad</div><div class="stat-val">${hTot?fmtN(pal/hTot):'—'}</div><div class="stat-sub">pallets por persona-hora</div></div>
+      <div class="stat-card"><div class="stat-label">Paros</div><div class="stat-val ${paroH>0.01?'a':''}">${fmtH(paroH)}</div><div class="stat-sub">en todas las líneas</div></div>
+    </div>
+    <div class="pbar-wrap"><div class="pbar-fill ${pct>=100||ok?'pg':'pa'}" style="width:${Math.min(100,pct)}%"></div></div>
+  </div>`;
+}
 function renderLineas(){
   const hayTipos=(S.lineasTipo||[]).length>0, L=lineasHoy();
   const btv=document.getElementById('btnTvLineas'); if(btv) btv.classList.toggle('hidden',!currentUser||currentUser.rol!=='admin');
   const v=document.getElementById('lineasList');
   if(v){
     document.getElementById('lineasHoyTitulo').textContent='Líneas de producción · '+new Date().toLocaleDateString('es-PA',{weekday:'long',day:'numeric',month:'long'});
-    v.innerHTML=htmlBloques(L,hayTipos?'Sin líneas hoy. Usa + Línea hoy, o Planificar para otro día.':(currentUser&&currentUser.rol==='admin'?'Primero crea los tipos de línea en Configuración → Líneas y maquila.':'Pide al administrador que configure los tipos de línea.'));
+    v.innerHTML=htmlResumenLineas(L)+htmlBloques(L,hayTipos?'Sin líneas hoy. Usa + Línea hoy, o Planificar para otro día.':(currentUser&&currentUser.rol==='admin'?'Primero crea los tipos de línea en Configuración → Líneas y maquila.':'Pide al administrador que configure los tipos de línea.'));
     renderPlanesLinea();
   }
   const sec=document.getElementById('secLineas');
-  if(sec){ sec.classList.toggle('hidden',!L.length); document.getElementById('lineasTurno').innerHTML=htmlBloques(L,''); }
+  if(sec){ sec.classList.toggle('hidden',!L.length); document.getElementById('lineasTurno').innerHTML=htmlResumenLineas(L)+htmlBloques(L,''); }
 }
 // Pantalla TV de líneas en otra pestaña (para dejarla fija en una pantalla junto a la línea)
 function abrirTvLineas(){ if(!currentUser||currentUser.rol!=='admin') return; const q=new URLSearchParams({tv:'1',vista:'lineas'}); if(QS.get('datos')) q.set('datos',QS.get('datos')); window.open(location.pathname+'?'+q,'_blank'); }
