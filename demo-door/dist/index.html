@@ -1642,7 +1642,7 @@ let S={
   config:{...DEFAULT_CONFIG},
 };
 let currentUser=null, SESSION=null, _usuarios=[];
-let _ver=0, _base={}, _saving=Promise.resolve();
+let _ver=0, _base={}, _saving=Promise.resolve(), _reintento=null;
 
 // ═══ COSTOS (motor único) ═══
 function getConfig(){ return Object.assign({},DEFAULT_CONFIG,S.config||{}); }
@@ -1848,7 +1848,10 @@ async function save(){
         setSync('offline'); showToast('Sin conexión — guardado en este equipo; se sincroniza solo','error'); return;
       }
     }
-    showToast('No se pudo guardar: demasiados cambios simultáneos. Reintenta.','error');
+    // No se pudo tras 4 intentos (muchos guardando a la vez): queda guardado en este equipo y se reintenta solo
+    try{ localStorage.setItem(BK_KEY,JSON.stringify({ver:_ver,base:_base,local:persistable()})); }catch(_){}
+    setSync('offline'); showToast('Muchos cambios a la vez: lo tuyo quedó guardado aquí y se sube en unos segundos','info');
+    clearTimeout(_reintento); _reintento=setTimeout(()=>reload().catch(()=>{}),4000+Math.random()*4000);
   };
   _saving=_saving.then(run,run); return _saving;
 }
@@ -3206,18 +3209,33 @@ async function guardarSobrante(iid, v){
 // «Cerrar y dar salida»: registra la salida de todos a esta hora (su salida del día, no una falta de marcaje).
 // «Siguen en otra línea»: nadie sale; quedan disponibles para otra línea (si nadie los pone, salta el aviso obligatorio).
 let _cierrePick=false;
+// ¿La persona tiene abierta una entrada de ESA fecha? Al cerrar a la mañana siguiente una línea o un turno de ayer,
+// quien ya marcó entrada hoy no cuenta (su entrada abierta es de hoy) y quien no volvió sí (le falta la salida de ayer).
+function entradaAbiertaDel(pid, fecha){
+  const e=estadoMarca(pid);
+  if(e.estado==='presente'||e.estado==='almuerzo') return e.fecha===fecha;
+  return !!(e.sinSalida&&e.sinSalida.fecha===fecha);
+}
+// Hora de cierre: ahora; si la línea o el turno son de un día anterior, la hora de salida de ese día (o lo último registrado)
+function horaCierreDe(fecha, minimo){
+  if(!fecha||fecha>=hoyStr()) return Date.now();
+  const fin=new Date(fecha+'T'+(getConfig().horaFin||'17:00')+':00').getTime();
+  return Math.min(Date.now(),Math.max(fin,minimo||0));
+}
+const ultimoDeLinea=l=>Math.max(l.inicio||0,...(l.pallets||[]),...(l.paros||[]).map(p=>p.fin||p.inicio||0),l.paroActivo?l.paroActivo.inicio:0,...(l.almuerzos||[]).map(a=>a.fin||0));
 function cuadrillaSinSalida(l){
   const otras=new Set((S.lineas||[]).filter(x=>x.id!==l.id&&x.estado==='corriendo').flatMap(x=>(x.personas||[]).map(p=>p.personaId)));
-  return (l.personas||[]).filter(p=>p.personaId&&!otras.has(p.personaId)&&['presente','almuerzo'].includes(estadoMarca(p.personaId).estado));
+  return (l.personas||[]).filter(p=>p.personaId&&!otras.has(p.personaId)&&entradaAbiertaDel(p.personaId,l.fecha));
 }
 function htmlCierreLinea(l){
   const sinSal=cuadrillaSinSalida(l), sinSob=(l.insumos||[]).filter(i=>(i.entregas||[]).length&&(i.sobrante==null||i.sobrante===''));
-  const notas=[totalPallets(l)===0?'No tiene pallets: si se arrancó por error, usa «Quitar esta línea».':'',l.paroActivo?'El paro en curso se cierra ahora.':'',
+  const tsC=horaCierreDe(l.fecha,ultimoDeLinea(l)), atrasada=l.fecha<hoyStr();
+  const notas=[atrasada?'Es una línea del '+etiquetaDia(l.fecha).toLowerCase()+': se cierra a las '+horaHM(tsC)+' de ese día. Quien ya marcó entrada hoy no recibe salida.':'',totalPallets(l)===0?'No tiene pallets: si se arrancó por error, usa «Quitar esta línea».':'',l.paroActivo?'El paro en curso se cierra ahora.':'',
     l.almuerzoActivo?'El almuerzo en curso se cierra ahora.':'',sinSob.length?'Falta el sobrante de: '+sinSob.map(i=>esc(i.nombre)).join(', ')+' (puedes ponerlo después).':''].filter(Boolean);
   return `<div class="paro-pick" id="lmCierre"><div class="asig-ttl">Cerrar la línea con ${totalPallets(l)} de ${l.meta} pallets</div>
     ${notas.length?`<div class="warn-box">${notas.join('<br>')}</div>`:''}
     ${sinSal.length?`<div class="li-sub">¿La cuadrilla termina su jornada? ${sinSal.length} persona${sinSal.length===1?'':'s'}: ${nombresCortos(sinSal).map(esc).join(' · ')}</div>
-    <button class="btn btn-indigo btn-full" id="lmCierreSalida" onclick="cerrarLinea('salida')">Cerrar y dar salida a la cuadrilla (${horaHM(Date.now())})</button>
+    <button class="btn btn-indigo btn-full" id="lmCierreSalida" onclick="cerrarLinea('salida')">Cerrar y dar salida a la cuadrilla (${horaHM(tsC)})</button>
     <button class="btn btn-ghost btn-full" id="lmCierreSiguen" onclick="cerrarLinea('siguen')">Cerrar; siguen trabajando en otra línea</button>`
     :`<button class="btn btn-indigo btn-full" id="lmCierreSalida" onclick="cerrarLinea('siguen')">Cerrar línea</button>`}
     <button class="btn btn-ghost btn-sm" style="align-self:flex-start" onclick="_cierrePick=false;renderLineaModal()">Cancelar</button></div>`;
@@ -3225,13 +3243,13 @@ function htmlCierreLinea(l){
 async function cerrarLinea(modo){
   const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='corriendo') return;
   if(!modo){ _cierrePick=true; _paroPick=false; renderLineaModal(); return; }
-  const sinSal=modo==='salida'?cuadrillaSinSalida(l):[], ts=Date.now();
+  const sinSal=modo==='salida'?cuadrillaSinSalida(l):[], ts=horaCierreDe(l.fecha,ultimoDeLinea(l));
   _cierrePick=false; terminarParo(l,ts); cerrarAlmuerzoLinea(l,ts);
   l.estado='cerrada'; l.fin=ts; l.porFin=quien(); l.cierreCuadrilla=modo;
   renderLineaModal(); renderLineas(); await save();
   if(sinSal.length){
     let n=0;
-    for(const p of sinSal){ try{ if(await rpc('ch_salida_cierre',{p_token:SESSION.token,p_key:STATE_KEY,p_persona:p.personaId,p_ts:new Date(ts).toISOString(),p_motivo:'Salida con la línea '+lin(l)})) n++; }catch(e){ console.warn('Salida con la línea:',e.message); } }
+    for(const p of sinSal){ try{ if(await rpc('ch_salida_cierre',{p_token:SESSION.token,p_key:STATE_KEY,p_persona:p.personaId,p_ts:new Date(ts).toISOString(),p_motivo:'Salida con la línea '+lin(l),p_fecha:l.fecha})) n++; }catch(e){ console.warn('Salida con la línea:',e.message); } }
     await cargarMarcas(); renderLineaModal(); renderLineas();
     showToast('Línea cerrada · salida de '+n+' persona'+(n===1?'':'s')+' a las '+horaHM(ts));
   } else showToast(modo==='siguen'&&(l.personas||[]).length?'Línea cerrada · la cuadrilla queda disponible para otra línea':'Línea cerrada');
@@ -4250,14 +4268,14 @@ function prepCerrarTurno(){
 // Quienes del turno siguen con la entrada abierta (trabajando o en almuerzo)
 function sinSalidaEnTurno(){
   if(!S.turno) return [];
-  return S.turno.equipo.filter(c=>{ const e=estadoMarca(c.id); return e.estado==='presente'||e.estado==='almuerzo'; });
+  return S.turno.equipo.filter(c=>entradaAbiertaDel(c.id,S.turno.fecha));
 }
 // Registra la salida por cierre de quienes no marcaron (turno o línea) y avisa
-async function salidasPorCierre(lista, ts, motivo, ref, titulo){
+async function salidasPorCierre(lista, ts, motivo, ref, titulo, fecha){
   const hechas=[];
   for(const c of lista){
     const pid=c.personaId||c.id;
-    try{ const id=await rpc('ch_salida_cierre',{p_token:SESSION.token,p_key:STATE_KEY,p_persona:pid,p_ts:new Date(ts).toISOString(),p_motivo:motivo}); if(id) hechas.push({c,id}); }
+    try{ const id=await rpc('ch_salida_cierre',{p_token:SESSION.token,p_key:STATE_KEY,p_persona:pid,p_ts:new Date(ts).toISOString(),p_motivo:motivo,p_fecha:fecha||null}); if(id) hechas.push({c,id}); }
     catch(e){ console.warn('Salida por cierre:',e.message); }
   }
   if(hechas.length){
@@ -4271,11 +4289,12 @@ async function confirmarCierreTurno(){
   const sin=sinSalidaEnTurno();
   if(sin.length&&!(document.getElementById('cTurnoRetiro')||{}).checked){ alert('Hay '+sin.length+' persona(s) sin marcar salida. Confirma que se retiran para cerrar el turno: se registrará su salida por cierre.'); return; }
   if(document.getElementById('justWrap').style.display!=='none'&&!document.getElementById('justCausa').value){alert('Selecciona la causa de las horas libres');return;}
-  const finTs=Date.now();
+  // Turno de un día anterior (se cerró a la mañana siguiente): se cierra a la salida de ese día, o al final del sobretiempo
+  const finTs=horaCierreDe(S.turno.fecha,Math.max(S.turno.inicio||0,...(S.turno.sobre||[]).map(sobreFin),...S.historial.map(h=>h.fin||0),...S.tareasActivas.map(t=>t.inicio||0)));
   if(pendientes().length){ showToast('Hay cantidades pendientes','error'); return; }
   // Salida por cierre: se registra en el marcaje y en la copia de marcajes del turno (de ahí salen sus horas pagadas)
   if(sin.length){
-    const hechas=await salidasPorCierre(sin,finTs,'Salida por cierre de turno sin marcaje','cierresm|'+S.turno.id,'Turno cerrado con {n} sin marcar salida');
+    const hechas=await salidasPorCierre(sin,finTs,'Salida por cierre de turno sin marcaje','cierresm|'+S.turno.id,'Turno cerrado con {n} sin marcar salida',S.turno.fecha);
     hechas.forEach(({c,id})=>{ const e=S.turno.equipo.find(x=>x.id===c.id); if(e){ e.marcas=[...(e.marcas||[]),{id,tipo:'salida',ts:finTs,anulado:false}]; e.salidaPorCierre=true; } });
   }
   const k=calcTurno({...S.turno,fin:finTs},S.historial,[],finTs);

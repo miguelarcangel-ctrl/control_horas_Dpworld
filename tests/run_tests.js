@@ -412,6 +412,23 @@ async function newPage(browser, opts = {}) {
   ok(pi.alcanza && pi.agota && pi.avisoInsumo && pi.alcanzaMas, 'insumos: esperado = pallets × estándar; alcanza para N pallets; aviso de insumo por agotarse');
   ok(pi.cierre, 'insumos: consumo real = entregado − sobrante y diferencia; cerrar la línea termina el paro abierto');
   ok(pi.siguen, 'línea: «Cerrar; siguen en otra línea» no registra la salida de nadie');
+  const ayer = await page.evaluate(async () => {
+    const SRV = window.__SRV, H = 3600000, ay = fechaMenos(hoyStr(), 1), r = {};
+    const mk = (id, nombre, fecha, tipo, ts) => { if (!SRV.personal.some(x => x.id === id)) SRV.personal.push({ key: STATE_KEY, id, nombre, cedula: 'X' + id, puesto_def: 'linea', activo: true });
+      SRV.marcas.push({ id: ++SRV.marcaSeq, key: STATE_KEY, persona_id: id, nombre, fecha, tipo, puesto: 'linea', ts: new Date(ts).toISOString(), por: 'admin', anulado: false }); };
+    const t8 = new Date(ay + 'T08:00:00').getTime();
+    mk('tmp_y1', 'Volvio Hoy', ay, 'entrada', t8); mk('tmp_y1', 'Volvio Hoy', hoyStr(), 'entrada', Date.now() - 30 * 60000);
+    mk('tmp_y2', 'No Volvio', ay, 'entrada', t8);
+    await cargarPersonal(); await cargarMarcas();
+    const l = { ...nuevaLinea(S.lineasTipo[0], 10, 8, ay), estado: 'corriendo', inicio: t8, pallets: [t8 + H],
+      personas: [{ id: 'q1', nombre: 'Volvio Hoy', personaId: 'tmp_y1', desde: t8 }, { id: 'q2', nombre: 'No Volvio', personaId: 'tmp_y2', desde: t8 }] };
+    S.lineas.push(l); _lineaAbierta = l.id; await cerrarLinea(); r.aviso = /se cierra a las 17:00/.test(document.getElementById('lineaBody').innerHTML);
+    const n0 = SRV.marcas.length; await cerrarLinea('salida'); const nuevas = SRV.marcas.slice(n0);
+    r.ok = nuevas.length === 1 && nuevas[0].persona_id === 'tmp_y2' && new Date(nuevas[0].ts).getHours() === 17 && new Date(l.fin).getHours() === 17 && estadoMarca('tmp_y1').estado === 'presente';
+    r.servidor = (await rpc('ch_salida_cierre', { p_token: SESSION.token, p_key: STATE_KEY, p_persona: 'tmp_y1', p_ts: new Date().toISOString(), p_motivo: 'x', p_fecha: ay })) === null;
+    S.lineas = S.lineas.filter(x => x.id !== l.id); await limpiarTmp(); hideModal('modalLinea'); return r; });
+  ok(ayer.aviso && ayer.ok, 'línea de ayer cerrada hoy: se cierra a la hora de salida de ayer; no le da salida a quien ya entró hoy, sí a quien no volvió');
+  ok(ayer.servidor, 'servidor: no da salida por cierre si la entrada abierta es de otro día');
   ok(pi.excel && pi.insights && pi.causas, 'paros/insumos: Excel (Paros e Insumos de línea), Insights y causas configurables');
 
   // 9g) Marcaje de asistencia: personal con cédula, tablet en modo quiosco, turno armado solo, horas pagadas, planilla
