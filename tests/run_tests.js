@@ -422,12 +422,13 @@ async function newPage(browser, opts = {}) {
     await cargarPersonal(); await cargarMarcas();
     const l = { ...nuevaLinea(S.lineasTipo[0], 10, 8, ay), estado: 'corriendo', inicio: t8, pallets: [t8 + H],
       personas: [{ id: 'q1', nombre: 'Volvio Hoy', personaId: 'tmp_y1', desde: t8 }, { id: 'q2', nombre: 'No Volvio', personaId: 'tmp_y2', desde: t8 }] };
-    S.lineas.push(l); _lineaAbierta = l.id; await cerrarLinea(); r.aviso = /se cierra a las 17:00/.test(document.getElementById('lineaBody').innerHTML);
+    S.lineas.push(l); _lineaAbierta = l.id; await cerrarLinea(); r.aviso = /se cierra a las 16:00/.test(document.getElementById('lineaBody').innerHTML);
     const n0 = SRV.marcas.length; await cerrarLinea('salida'); const nuevas = SRV.marcas.slice(n0);
-    r.ok = nuevas.length === 1 && nuevas[0].persona_id === 'tmp_y2' && new Date(nuevas[0].ts).getHours() === 17 && new Date(l.fin).getHours() === 17 && estadoMarca('tmp_y1').estado === 'presente';
+    r.ok = nuevas.length === 1 && nuevas[0].persona_id === 'tmp_y2' && new Date(nuevas[0].ts).getHours() === 16 && new Date(l.fin).getHours() === 16 && estadoMarca('tmp_y1').estado === 'presente';
     r.servidor = (await rpc('ch_salida_cierre', { p_token: SESSION.token, p_key: STATE_KEY, p_persona: 'tmp_y1', p_ts: new Date().toISOString(), p_motivo: 'x', p_fecha: ay })) === null;
     S.lineas = S.lineas.filter(x => x.id !== l.id); await limpiarTmp(); hideModal('modalLinea'); return r; });
-  ok(ayer.aviso && ayer.ok, 'línea de ayer cerrada hoy: se cierra a la hora de salida de ayer; no le da salida a quien ya entró hoy, sí a quien no volvió');
+  ok(ayer.aviso && ayer.ok, 'línea de ayer cerrada hoy: se cierra con sus horas planificadas (8:00 + 8 h), no con el turno; no le da salida a quien ya entró hoy, sí a quien no volvió');
+  ok(await page.evaluate(() => { const l = { fecha: hoyStr(), inicio: Date.now() - 3600000, horas: 8, pallets: [] }; return Math.abs(horaCierreLinea(l) - Date.now()) < 2000; }), 'línea de hoy: se cierra en el momento en que se cierra, aunque el turno siga activo');
   ok(ayer.servidor, 'servidor: no da salida por cierre si la entrada abierta es de otro día');
   ok(pi.excel && pi.insights && pi.causas, 'paros/insumos: Excel (Paros e Insumos de línea), Insights y causas configurables');
 

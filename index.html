@@ -3196,6 +3196,13 @@ function horaCierreDe(fecha, minimo){
   const fin=new Date(fecha+'T'+(getConfig().horaFin||'17:00')+':00').getTime();
   return Math.min(Date.now(),Math.max(fin,minimo||0));
 }
+// La línea tiene su propio horario, independiente del turno: se cierra en el momento en que se cierra.
+// Solo si quedó abierta de un día anterior, se cierra al final de sus horas planificadas (más paros y almuerzo) o en lo último registrado.
+function horaCierreLinea(l){
+  if(!l.fecha||l.fecha>=hoyStr()||!l.inicio) return Date.now();
+  const plan=l.inicio+((l.horas||0)+horasParo(l)+horasAlmLinea(l))*3600000;
+  return Math.min(Date.now(),Math.max(plan,ultimoDeLinea(l)));
+}
 const ultimoDeLinea=l=>Math.max(l.inicio||0,...(l.pallets||[]),...(l.paros||[]).map(p=>p.fin||p.inicio||0),l.paroActivo?l.paroActivo.inicio:0,...(l.almuerzos||[]).map(a=>a.fin||0));
 function cuadrillaSinSalida(l){
   const otras=new Set((S.lineas||[]).filter(x=>x.id!==l.id&&x.estado==='corriendo').flatMap(x=>(x.personas||[]).map(p=>p.personaId)));
@@ -3203,8 +3210,8 @@ function cuadrillaSinSalida(l){
 }
 function htmlCierreLinea(l){
   const sinSal=cuadrillaSinSalida(l), sinSob=(l.insumos||[]).filter(i=>(i.entregas||[]).length&&(i.sobrante==null||i.sobrante===''));
-  const tsC=horaCierreDe(l.fecha,ultimoDeLinea(l)), atrasada=l.fecha<hoyStr();
-  const notas=[atrasada?'Es una línea del '+etiquetaDia(l.fecha).toLowerCase()+': se cierra a las '+horaHM(tsC)+' de ese día. Quien ya marcó entrada hoy no recibe salida.':'',totalPallets(l)===0?'No tiene pallets: si se arrancó por error, usa «Quitar esta línea».':'',l.paroActivo?'El paro en curso se cierra ahora.':'',
+  const tsC=horaCierreLinea(l), atrasada=l.fecha<hoyStr();
+  const notas=[atrasada?'Quedó abierta desde el '+etiquetaDia(l.fecha).toLowerCase()+': se cierra a las '+horaHM(tsC)+' de ese día (sus horas planificadas o lo último registrado). Quien ya marcó entrada hoy no recibe salida.':'',totalPallets(l)===0?'No tiene pallets: si se arrancó por error, usa «Quitar esta línea».':'',l.paroActivo?'El paro en curso se cierra ahora.':'',
     l.almuerzoActivo?'El almuerzo en curso se cierra ahora.':'',sinSob.length?'Falta el sobrante de: '+sinSob.map(i=>esc(i.nombre)).join(', ')+' (puedes ponerlo después).':''].filter(Boolean);
   return `<div class="paro-pick" id="lmCierre"><div class="asig-ttl">Cerrar la línea con ${totalPallets(l)} de ${l.meta} pallets</div>
     ${notas.length?`<div class="warn-box">${notas.join('<br>')}</div>`:''}
@@ -3217,7 +3224,7 @@ function htmlCierreLinea(l){
 async function cerrarLinea(modo){
   const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='corriendo') return;
   if(!modo){ _cierrePick=true; _paroPick=false; renderLineaModal(); return; }
-  const sinSal=modo==='salida'?cuadrillaSinSalida(l):[], ts=horaCierreDe(l.fecha,ultimoDeLinea(l));
+  const sinSal=modo==='salida'?cuadrillaSinSalida(l):[], ts=horaCierreLinea(l);
   _cierrePick=false; terminarParo(l,ts); cerrarAlmuerzoLinea(l,ts);
   l.estado='cerrada'; l.fin=ts; l.porFin=quien(); l.cierreCuadrilla=modo;
   renderLineaModal(); renderLineas(); await save();
