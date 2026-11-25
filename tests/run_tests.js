@@ -773,6 +773,49 @@ async function newPage(browser, opts = {}) {
     currentUser = yo; S.config = cfg0; Object.assign(S, bk); _ec = { cli: '', est: 'todas' }; setNav('supervisor'); await save();
     return r; });
   ok(ec.estados && ec.aging, 'estado de cuenta: pagada, vencida con abono, pendiente y antigüedad del saldo');
+
+  // Cotizaciones: cliente registrado (portal) y prospecto (respuesta manual); al aceptar se actualiza la tarifa
+  const cot = await page.evaluate(async () => {
+    const r = {}, yo = currentUser, c0 = window.confirm, p0 = window.prompt, cfg0 = { ...S.config }, bk = {};
+    ['clientes', 'tarifasCliente', 'servicios', 'usuariosCliente', 'lineasTipo', 'cotizaciones', 'solicitudesCot'].forEach(k => bk[k] = JSON.parse(JSON.stringify(S[k] || (Array.isArray(S[k]) ? [] : {}))));
+    window.confirm = () => true; window.prompt = () => 'Por teléfono';
+    Object.assign(S.config, { facturacion: true, itbms: 7, horaInicio: '08:00', horaFin: '17:00', horasAlmuerzo: 1, multSobretiempo: 1.5 });
+    S.servicios = [{ id: 'sa', nombre: 'Ayudante', puesto: 'ag', costoDia: 30, ventaDia: 40 }];
+    S.clientes = [{ id: 'kA', nombre: 'Cli A' }]; S.tarifasCliente = {}; S.usuariosCliente = { cla: 'kA' }; S.cotizaciones = []; S.solicitudesCot = [];
+    S.lineasTipo = [{ id: 'tA', nombre: 'Kit A', clienteId: 'kA', prod: 1, apoyo: [], insumos: [], venta: { unidad: 'caja', precio: 0.5, porPallet: 10, costeo: 'unidad', costoUnidad: 0.2 } }];
+    // cliente pide una cotización
+    currentUser = { ...yo, rol: 'cliente', username: 'cla', nombre: 'Cliente A' }; setNav('cotizaciones'); pedirCotizacion(); document.getElementById('paSol').value = 'Necesito 5 ayudantes por 10 días'; await enviarSolicitudCot();
+    r.solicita = S.solicitudesCot.length === 1 && S.solicitudesCot[0].estado === 'pendiente';
+    currentUser = yo; setNav('cotizaciones');
+    r.verSol = /Necesito 5 ayudantes/.test(document.getElementById('cobContent').innerText);
+    editarCotizacion(null, S.solicitudesCot[0].id); _cotEd.titulo = 'Temporada';
+    Object.assign(_cotEd.lineas[0], { personas: 5, dias: 10, precio: 50, horasExtra: 4 });
+    _cotEd.lineas.push(nuevaLineaCot('maquila', 'kA')); ctMaquila(1, 'tA'); Object.assign(_cotEd.lineas[1], { cant: 1000, precio: 0.6 });
+    await guardarCotizacion(true); hideModal('modalProforma');
+    const c = S.cotizaciones[0], T = cotTotales(c);
+    // 5×10×50 = 2500 + 4 h × (50/8×1.5=9.375) = 37.5 → 2537.5; maquila 600 → 3137.5; costo 1500 + 4×(30/8×1.5)=22.5 + 200 = 1722.5
+    r.calculo = c.estado === 'enviada' && !!c.vence && Math.abs(T.sub - 3137.5) < 0.01 && Math.abs(T.costo - 1722.5) < 0.01 && Math.abs(T.total - 3357.13) < 0.01 && S.solicitudesCot[0].estado === 'atendida';
+    // el cliente la ve sin costos, no puede rechazar sin comentario y la acepta
+    currentUser = { ...yo, rol: 'cliente', username: 'cla', nombre: 'Cliente A' }; setNav('cotizaciones');
+    verCotizacion(c.id); const doc = document.getElementById('pfBody').innerText;
+    r.clienteVe = /Temporada/i.test(doc) && !/Costo estimado|Margen/i.test(doc) && /3,137\.50/.test(doc);
+    await responderCotizacion(false); r.sinMotivo = c.estado === 'enviada';
+    await responderCotizacion(true);
+    r.acepta = c.estado === 'aceptada' && S.tarifasCliente.kA.sa === 50 && tipoLinea('tA').venta.precio === 0.6 && tipoLinea('tA').venta.costeo === 'unidad';
+    currentUser = yo;
+    // prospecto: se marca aceptada a mano y se crea como cliente con su tarifa
+    editarCotizacion(); ctDestino(''); Object.assign(_cotEd.prospecto, { empresa: 'Nueva SA', contacto: 'Ana' }); _cotEd.titulo = 'Propuesta';
+    Object.assign(_cotEd.lineas[0], { personas: 2, dias: 3, precio: 44 }); await guardarCotizacion(true);
+    const p = S.cotizaciones[1]; r.prospecto = !p.clienteId && p.prospecto.empresa === 'Nueva SA' && p.lineas[0].precio === 44;
+    _cotVer = p.id; await marcarCotizacion(true); await altaProspecto(p.id);
+    const k = S.clientes.find(x => x.nombre === 'Nueva SA');
+    r.alta = p.estado === 'aceptada' && !!k && p.clienteId === k.id && S.tarifasCliente[k.id].sa === 44 && ventaDiaCliente(k.id, S.servicios[0]) === 44;
+    window.confirm = c0; window.prompt = p0; currentUser = yo; S.config = cfg0; Object.assign(S, bk);
+    document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden')); setNav('supervisor'); await save();
+    return r; });
+  ok(cot.solicita && cot.verSol && cot.calculo, 'cotización: el cliente la pide; venta (personal, horas extra, maquila), costo, ITBMS y envío con vigencia');
+  ok(cot.clienteVe && cot.sinMotivo && cot.acepta, 'cotización: el cliente la ve sin costos, rechazar exige motivo y al aceptar se actualiza su tarifa y su maquila');
+  ok(cot.prospecto && cot.alta, 'cotización a prospecto: se marca aceptada y se crea como cliente con su tarifa');
   ok(ec.admin && ec.cliente, 'estado de cuenta: tarjeta y columna por facturar y total por cobrar; el administrador ve todos, el cliente solo lo suyo');
   ok(avs.guarda && avs.filtra, 'avisos: cada interruptor se guarda en el servidor y decide qué avisa (entrada de operador apagada, de supervisor encendida)');
   ok(avs.otro && avs.otroGuarda && avs.botonUsuarios, 'avisos: el administrador elige los avisos de cada usuario desde Usuarios');

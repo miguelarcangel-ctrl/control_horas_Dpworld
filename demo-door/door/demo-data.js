@@ -6,7 +6,7 @@
 // Nada sale del navegador: no hay base de datos ni datos reales.
 // ═══════════════════════════════════════════════════════════════
 (function(){
-  const SRV = window.__SRV, H = 3600000, MIN = 60000, KEY = 'door_demo_v7', SKEY = 'ctrl_horas';
+  const SRV = window.__SRV, H = 3600000, MIN = 60000, KEY = 'door_demo_v8', SKEY = 'ctrl_horas';
   const pad = n => String(n).padStart(2, '0');
   const dstr = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   const at = (f, h, m) => { const [y, mo, d] = f.split('-').map(Number); return new Date(y, mo - 1, d, h, m || 0, 0, 0).getTime(); };
@@ -274,6 +274,17 @@
     ];
     const state = { colaboradores: [], tareasCat: TAREAS, clientes: CLIENTES, config: CONFIG, pedidosPersonal, usuariosCliente: USUARIOS_CLIENTE,
       tarifasCliente: TARIFAS_CLIENTE, servicios: [], proformas: proformasDemo(),
+      // Cotizaciones de ejemplo: una enviada a Importadora Istmo (la puede aceptar en su portal), una aceptada y un pedido de Atlántico
+      cotizaciones: [
+        { id: 'cq1', numero: 'COT-0001', clienteId: 'k1', prospecto: null, titulo: 'Inventario de fin de año', servicio: 'Conteo físico de la bodega del 15 al 20 de diciembre, dos turnos.',
+          vigencia: 15, notas: 'Incluye equipo de protección personal.', itbms: 7, estado: 'enviada', fecha: dstr(new Date(NOW - 2 * 24 * H)), vence: dstr(new Date(NOW + 13 * 24 * H)), enviada: NOW - 2 * 24 * H, creada: NOW - 3 * 24 * H, vistoCliente: false,
+          lineas: [{ id: 'l1', tipo: 'personal', srvId: 'ag', personas: 12, dias: 6, horasExtra: 24, precio: 44 }, { id: 'l2', tipo: 'personal', srvId: 'supervisor', personas: 1, dias: 6, horasExtra: 0, precio: 70 }],
+          log: [{ t: dstr(new Date(NOW - 2 * 24 * H)) + ' 09:00', u: 'Administrador Demo', a: 'La envió al portal del cliente' }] },
+        { id: 'cq2', numero: 'COT-0002', clienteId: null, prospecto: { empresa: 'Logística del Pacífico', contacto: 'Mario Arosemena', correo: 'compras@ejemplo.pa', telefono: '6000-0000' },
+          titulo: 'Personal de carga para bodega nueva', servicio: '', vigencia: 15, notas: '', itbms: 7, estado: 'borrador', fecha: dstr(new Date(NOW)), creada: NOW - 3600000,
+          lineas: [{ id: 'l3', tipo: 'personal', srvId: 'operador', personas: 4, dias: 20, horasExtra: 0, precio: 58 }, { id: 'l4', tipo: 'otro', desc: 'Transporte de personal', cant: 20, unidad: 'día', precio: 35, costoU: 25 }],
+          log: [{ t: dstr(new Date(NOW)) + ' 08:00', u: 'Administrador Demo', a: 'Creó la cotización' }] }],
+      solicitudesCot: [{ id: 'sc1', clienteId: 'k2', fecha: dstr(new Date(NOW - 24 * H)), por: 'Carlos Ríos', texto: 'Necesitamos cotizar una segunda línea de maquila para kits navideños, 8 personas por 3 semanas.', estado: 'pendiente' }],
       clientesAvanzado: { k1: true }, solicitudesAvanzado: {},   // Importadora Istmo ve Mi turno avanzado; Atlántico, el básico
       fichas: Object.fromEntries(PERSONAL.map((p, i) => [p.id, { cedula: '8-' + (700 + i * 13) + '-' + (1200 + i * 377) }])), lineasTipo: TIPOS, lineas: lineas.concat(h.lineas),
       turnosHistorial: hist, solicitudes: [], turnosProgramados: [], rutinas: [], plantillas: [], temaHSE: [], causasParo: [], lineasPlan: [], nombresLinea: [],
