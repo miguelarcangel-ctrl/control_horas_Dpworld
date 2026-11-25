@@ -777,7 +777,7 @@ async function newPage(browser, opts = {}) {
   // Cotizaciones: cliente registrado (portal) y prospecto (respuesta manual); al aceptar se actualiza la tarifa
   const cot = await page.evaluate(async () => {
     const r = {}, yo = currentUser, c0 = window.confirm, p0 = window.prompt, cfg0 = { ...S.config }, bk = {};
-    ['clientes', 'tarifasCliente', 'servicios', 'usuariosCliente', 'lineasTipo', 'cotizaciones', 'solicitudesCot'].forEach(k => bk[k] = JSON.parse(JSON.stringify(S[k] || (Array.isArray(S[k]) ? [] : {}))));
+    ['clientes', 'tarifasCliente', 'tarifasOrigen', 'servicios', 'usuariosCliente', 'lineasTipo', 'cotizaciones', 'solicitudesCot'].forEach(k => bk[k] = JSON.parse(JSON.stringify(S[k] || (Array.isArray(S[k]) ? [] : {}))));
     window.confirm = () => true; window.prompt = () => 'Por teléfono';
     Object.assign(S.config, { facturacion: true, itbms: 7, horaInicio: '08:00', horaFin: '17:00', horasAlmuerzo: 1, multSobretiempo: 1.5 });
     S.servicios = [{ id: 'sa', nombre: 'Ayudante', puesto: 'ag', costoDia: 30, ventaDia: 40 }];
@@ -795,27 +795,29 @@ async function newPage(browser, opts = {}) {
     const c = S.cotizaciones[0], T = cotTotales(c);
     // 5×10×50 = 2500 + 4 h × (50/8×1.5=9.375) = 37.5 → 2537.5; maquila 600 → 3137.5; costo 1500 + 4×(30/8×1.5)=22.5 + 200 = 1722.5
     r.calculo = c.estado === 'enviada' && !!c.vence && Math.abs(T.sub - 3137.5) < 0.01 && Math.abs(T.costo - 1722.5) < 0.01 && Math.abs(T.total - 3357.13) < 0.01 && S.solicitudesCot[0].estado === 'atendida';
-    // el cliente la ve sin costos, no puede rechazar sin comentario y la acepta
+    // el cliente solo la consulta: sin costos y sin botón para aceptar
     currentUser = { ...yo, rol: 'cliente', username: 'cla', nombre: 'Cliente A' }; setNav('cotizaciones');
     verCotizacion(c.id); const doc = document.getElementById('pfBody').innerText;
-    r.clienteVe = /Temporada/i.test(doc) && !/Costo estimado|Margen/i.test(doc) && /3,137\.50/.test(doc);
-    await responderCotizacion(false); r.sinMotivo = c.estado === 'enviada';
-    await responderCotizacion(true);
-    r.acepta = c.estado === 'aceptada' && S.tarifasCliente.kA.sa === 50 && tipoLinea('tA').venta.precio === 0.6 && tipoLinea('tA').venta.costeo === 'unidad';
-    currentUser = yo;
-    // prospecto: se marca aceptada a mano y se crea como cliente con su tarifa
+    r.clienteVe = /Temporada/i.test(doc) && !/Costo estimado|Margen/i.test(doc) && /3,137\.50/.test(doc) && !/Aceptar cotización|Aprobar/i.test(doc) && /respóndele a Door/i.test(doc);
+    hideModal('modalProforma'); currentUser = yo; setNav('cotizaciones');
+    // el administrador registra el rechazo sin motivo (no deja) y luego la aprueba: pasa al tarifario
+    abrirAprobacionCot(c.id, false); document.getElementById('paRef').value = ''; await guardarAprobacionCot(c.id, false); r.sinMotivo = c.estado === 'enviada';
+    abrirAprobacionCot(c.id, true); document.getElementById('paVia').value = 'Correo'; document.getElementById('paRef').value = 'correo de Ana'; await guardarAprobacionCot(c.id, true);
+    r.acepta = c.estado === 'aceptada' && c.via === 'Correo' && S.tarifasCliente.kA.sa === 50 && S.tarifasOrigen.kA.sa === c.numero && tipoLinea('tA').venta.precio === 0.6 && tipoLinea('tA').venta.cot === c.numero && tipoLinea('tA').venta.costeo === 'unidad';
+    _tarCli = 'kA'; setNav('tarifario'); r.tarifario = new RegExp('según ' + c.numero).test(document.getElementById('cobContent').innerText); _tarCli = '';
+    // prospecto: al aprobar se crea como cliente con su tarifa, en un solo paso
     editarCotizacion(); ctDestino(''); Object.assign(_cotEd.prospecto, { empresa: 'Nueva SA', contacto: 'Ana' }); _cotEd.titulo = 'Propuesta';
-    Object.assign(_cotEd.lineas[0], { personas: 2, dias: 3, precio: 44 }); await guardarCotizacion(true);
+    Object.assign(_cotEd.lineas[0], { personas: 2, dias: 3, precio: 44 }); await guardarCotizacion(true); hideModal('modalProforma');
     const p = S.cotizaciones[1]; r.prospecto = !p.clienteId && p.prospecto.empresa === 'Nueva SA' && p.lineas[0].precio === 44;
-    _cotVer = p.id; await marcarCotizacion(true); await altaProspecto(p.id);
+    abrirAprobacionCot(p.id, true); await guardarAprobacionCot(p.id, true);
     const k = S.clientes.find(x => x.nombre === 'Nueva SA');
     r.alta = p.estado === 'aceptada' && !!k && p.clienteId === k.id && S.tarifasCliente[k.id].sa === 44 && ventaDiaCliente(k.id, S.servicios[0]) === 44;
     window.confirm = c0; window.prompt = p0; currentUser = yo; S.config = cfg0; Object.assign(S, bk);
     document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden')); setNav('supervisor'); await save();
     return r; });
   ok(cot.solicita && cot.verSol && cot.calculo, 'cotización: el cliente la pide; venta (personal, horas extra, maquila), costo, ITBMS y envío con vigencia');
-  ok(cot.clienteVe && cot.sinMotivo && cot.acepta, 'cotización: el cliente la ve sin costos, rechazar exige motivo y al aceptar se actualiza su tarifa y su maquila');
-  ok(cot.prospecto && cot.alta, 'cotización a prospecto: se marca aceptada y se crea como cliente con su tarifa');
+  ok(cot.clienteVe && cot.sinMotivo && cot.acepta && cot.tarifario, 'cotización: el cliente solo la consulta; el administrador la aprueba (el rechazo exige motivo) y pasa al tarifario con su origen');
+  ok(cot.prospecto && cot.alta, 'cotización a prospecto: al aprobarla se crea como cliente con su tarifa');
   ok(ec.admin && ec.cliente, 'estado de cuenta: tarjeta y columna por facturar y total por cobrar; el administrador ve todos, el cliente solo lo suyo');
   ok(avs.guarda && avs.filtra, 'avisos: cada interruptor se guarda en el servidor y decide qué avisa (entrada de operador apagada, de supervisor encendida)');
   ok(avs.otro && avs.otroGuarda && avs.botonUsuarios, 'avisos: el administrador elige los avisos de cada usuario desde Usuarios');

@@ -1635,7 +1635,7 @@ const DEFAULT_CONFIG={horaInicio:'08:00',horaFin:'17:00',horasAlmuerzo:1,multSob
 let S={
   colaboradores:[],tareasCat:[],clientes:[],
   turno:null,tareasActivas:[],historial:[],
-  turnosHistorial:[],solicitudes:[],turnosProgramados:[],pedidosPersonal:[],usuariosCliente:{},servicios:[],proformas:[],tarifasCliente:{},fichas:{},clientesAvanzado:{},solicitudesAvanzado:{},cotizaciones:[],solicitudesCot:[],
+  turnosHistorial:[],solicitudes:[],turnosProgramados:[],pedidosPersonal:[],usuariosCliente:{},servicios:[],proformas:[],tarifasCliente:{},fichas:{},clientesAvanzado:{},solicitudesAvanzado:{},cotizaciones:[],solicitudesCot:[],tarifasOrigen:{},
   rutinas:[],plantillas:[],
   temaHSE:[],  // catálogo de cápsulas HSE para Toolbox
   cerrandoId:null,reabriendoId:null,editingId:null,
@@ -1812,7 +1812,7 @@ function normalizeS(){
   ['clientes','tareasCat','colaboradores','solicitudes','pedidosPersonal','servicios','proformas','cotizaciones','solicitudesCot','turnosProgramados','turnosHistorial','tareasActivas','historial','rutinas','plantillas','temaHSE','maestro','lineasTipo','lineasPlan','nombresLinea','lineas','causasParo']
     .forEach(k=>{ if(!Array.isArray(S[k])) S[k]=[]; });
   (S.proformas||[]).forEach(p=>{ if(p.estado==='confirmada') p.estado='aprobada'; });   // versión anterior: «confirmada» = aprobada por el cliente
-  ['usuariosCliente','tarifasCliente','fichas','clientesAvanzado','solicitudesAvanzado'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object'||Array.isArray(S[k])) S[k]={}; });
+  ['usuariosCliente','tarifasCliente','fichas','clientesAvanzado','solicitudesAvanzado','tarifasOrigen'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object'||Array.isArray(S[k])) S[k]={}; });
   S.config=getConfig();
   migrarLineas();
   S.tareasCat.forEach(t=>{if(!t.efic)t.efic=85; if(esSupervision(t.nombre)){ t.sinProd=true; t.prod=0; t.clase='apoyo'; } if(!t.clase) t.clase=/supervis|limpiez|capacitac|toolbox|reuni|acomodo|gestion de almacen/i.test(normTxt(t.nombre))?'apoyo':'productiva';});
@@ -1943,7 +1943,7 @@ function pasosTutorial(){
     P.push({sel:'.dpw-burger',t:'Menú',d:'Aquí están tus pedidos de personal, el tema y este tutorial.'});
     P.push({nav:'pedidos',sel:'#pedAcciones button',t:'Pedir personal',d:'Indica el día, el horario, cuántas personas y de qué tipo, y dónde van a trabajar. Pide antes de la hora límite ('+getConfig().pedidoCorte+') del día anterior.'});
     if(marcajeClienteOn()) P.push({nav:'miturno',sel:'#cobContent',t:'Mi turno',d:'Tu personal del día: quién llegó frente a lo confirmado, quién trabaja, sus horas y tus líneas de producción.'+(avanzadoDe(miCliente())?' Con la versión avanzada ves también qué hace cada persona, las tareas con su productividad y el costo del día.':' La versión avanzada (tareas, productividad y costo) la activa Door: puedes solicitarla aquí.')});
-    if(facturacionOn()) P.push({nav:'cotizaciones',sel:'#cobContent',t:'Tus cotizaciones',d:'Las propuestas de Door para tu empresa. Las revisas, las aceptas o rechazas con un comentario, y puedes pedir una nueva. Al aceptar, esos precios quedan como tu tarifa.'});
+    if(facturacionOn()) P.push({nav:'cotizaciones',sel:'#cobContent',t:'Tus cotizaciones',d:'Las propuestas de Door para tu empresa, para consultar o descargar en PDF. Para aceptar una, respóndele a Door; cuando Door la aprueba, esos precios pasan a tu tarifa. También puedes pedir una cotización nueva.'});
     if(facturacionOn()) P.push({nav:'estado',sel:'#cobContent',t:'Tu estado de cuenta',d:'Tus facturas de Door: cuáles están pagadas, cuáles pendientes y cuáles vencidas, con los pagos registrados y tu saldo.'});
     if(facturacionOn()) P.push({nav:'tarifario',sel:'#cobContent',t:'Tu tarifario',d:'Los precios de los servicios que Door te presta y las condiciones (sobretiempo, fines de semana, ITBMS, crédito). Lo puedes imprimir o guardar en PDF.'});
     if(facturacionOn()) P.push({nav:'proformas',sel:'#cobContent',t:'Tus proformas',d:'Door te envía la proforma del período (o la generas tú). Marcas lo que apruebas y confirmas; lo que no marques queda pendiente de aclarar.'});
@@ -2159,13 +2159,12 @@ const AVISOS_CAT=[
     ['cli_avz','Un cliente pide la versión avanzada de Mi turno'],
   ]},
   {g:'Cobros',solo:()=>facturacionOn(),items:[
-    ['cot_resp','Cotización aceptada o rechazada por el cliente','Con su comentario; al aceptar se actualiza su tarifa'],
     ['cot_sol','Un cliente pide una cotización'],
     ['pf_conf','Proforma aprobada (por facturar) o devuelta por el cliente','Cuántos rubros aprobó y el total'],
   ]},
 ];
 const AVISOS_DEF={
-  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre','tur_sobre','tur_reap','per_alta','tur_sin_abrir','ped_nuevo','ped_cancel','pf_conf','cli_avz','cot_resp','cot_sol'],
+  admin:['ent_sup','ent_resp','ent_op','ent_lin','alm_reg','lin_meta','lin_riesgo','lin_paro','lin_cierre','tur_sobre','tur_reap','per_alta','tur_sin_abrir','ped_nuevo','ped_cancel','pf_conf','cli_avz','cot_sol'],
   supervisor:['ent_sup','ent_op','alm_reg','lin_riesgo','lin_paro','tur_sin_abrir','tur_libre','tur_larga','tur_pend','tur_sobre','tur_sobre_fin','ped_nuevo','ped_cancel'],
   responsable:['ent_resp','ent_lin','alm_reg','tur_sin_abrir','lin_arranca','lin_mitad','lin_meta','lin_riesgo','lin_paro','lin_insumo'],
 };
@@ -2493,7 +2492,7 @@ function pintarMenu(){
     // Cliente: su menú corto, sin categorías
     {id:'miturno',label:'Mi turno',hint:esCliente()&&avanzadoDe(miCliente())?'versión avanzada':'tu personal de hoy',hidden:!esCliente()||!marcajeClienteOn(),on:()=>setNav('miturno')},
     {id:'pedidos',label:'Mis pedidos de personal',hidden:!esCliente()||!pedidosOn(),on:()=>setNav('pedidos')},
-    {id:'cotizaciones',label:'Mis cotizaciones',hint:'propuestas de Door',badge:esCliente()&&facturacionOn()?(S.cotizaciones||[]).filter(c=>c.clienteId===miCliente()&&estadoCot(c)==='enviada').length:0,hidden:!esCliente()||!facturacionOn(),on:()=>setNav('cotizaciones')},
+    {id:'cotizaciones',label:'Mis cotizaciones',hint:'propuestas de Door',badge:esCliente()&&facturacionOn()?(S.cotizaciones||[]).filter(c=>c.clienteId===miCliente()&&estadoCot(c)==='enviada'&&!c.vistoCliente).length:0,hidden:!esCliente()||!facturacionOn(),on:()=>setNav('cotizaciones')},
     {id:'estado',label:'Mi estado de cuenta',hint:'facturas pagadas y pendientes',badge:esCliente()&&facturacionOn()?(S.proformas||[]).filter(p=>p.clienteId===miCliente()&&pfVencida(p)).length:0,hidden:!esCliente()||!facturacionOn(),on:()=>setNav('estado')},
     {id:'tarifario',label:'Mi tarifario',hint:'tus precios',hidden:!esCliente()||!facturacionOn(),on:()=>setNav('tarifario')},
     {id:'proformas',label:'Mis proformas',badge:esCliente()&&facturacionOn()?(S.proformas||[]).filter(p=>p.clienteId===miCliente()&&p.estado==='revision').length:0,hidden:!esCliente()||!facturacionOn(),on:()=>setNav('proformas')},
@@ -4501,7 +4500,7 @@ function htmlFichaCliente(id){
   let h='';
   if(facturacionOn()){ const T=(S.tarifasCliente||{})[id]||{};
     h+=`<div class="field"><label>Tarifa negociada · venta por persona por día</label><div class="li-sub" style="margin-bottom:6px">Vacío: la tarifa general del servicio (Servicios y tarifas).</div>
-      <div class="ficha-tar">${servicios().map(s=>`<label class="ficha-tar-f"><span>${esc(s.nombre)}</span><input type="number" min="0" step="0.01" data-s="${esc(s.id)}" placeholder="${s.ventaDia}" value="${T[s.id]!=null&&T[s.id]!==''?T[s.id]:''}"></label>`).join('')}</div></div>`; }
+      <div class="ficha-tar">${servicios().map(s=>`<label class="ficha-tar-f"><span>${esc(s.nombre)}${((S.tarifasOrigen||{})[id]||{})[s.id]?' · '+esc(S.tarifasOrigen[id][s.id]):''}</span><input type="number" min="0" step="0.01" data-s="${esc(s.id)}" placeholder="${s.ventaDia}" value="${T[s.id]!=null&&T[s.id]!==''?T[s.id]:''}"></label>`).join('')}</div></div>`; }
   if(marcajeClienteOn()){ const sol=id&&(S.solicitudesAvanzado||{})[id];
     h+=`<div class="field"><label style="display:flex;gap:8px;align-items:center;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.9rem"><input type="checkbox" class="cob-chk" id="clAvz"${id&&avanzadoDe(id)?' checked':''}> Versión avanzada de Mi turno</label>
       <div class="li-sub">Además de su personal del día: qué hace cada persona, tareas con su productividad y el costo del día a su tarifa.${sol?' <span class="badge ba">La solicitó '+esc(sol.por||'')+' el '+esc(sol.fecha)+'</span>':''}</div></div>`; }
@@ -4513,6 +4512,7 @@ function htmlFichaCliente(id){
 function leerFichaCliente(cid){
   if(facturacionOn()&&document.querySelector('#clFicha input[data-s]')){ const o={};
     document.querySelectorAll('#clFicha input[data-s]').forEach(i=>{ if(i.value!=='') o[i.dataset.s]=Math.max(0,+i.value||0); });
+    const prev=(S.tarifasCliente||{})[cid]||{}, org=(S.tarifasOrigen||{})[cid]||{}; Object.keys(org).forEach(k=>{ if(o[k]!==prev[k]) delete org[k]; });
     S.tarifasCliente=S.tarifasCliente||{}; if(Object.keys(o).length) S.tarifasCliente[cid]=o; else delete S.tarifasCliente[cid]; }
   const av=document.getElementById('clAvz');
   if(av){ S.clientesAvanzado=S.clientesAvanzado||{}; S.solicitudesAvanzado=S.solicitudesAvanzado||{};
@@ -5090,12 +5090,12 @@ function htmlCotizaciones(){
     document.getElementById('cobAcciones').innerHTML=`<button class="btn btn-green btn-sm" onclick="pedirCotizacion()">Pedir una cotización</button>`;
     const M=(S.cotizaciones||[]).filter(c=>c.clienteId===cid&&c.estado!=='borrador').sort((a,b)=>(b.enviada||0)-(a.enviada||0));
     const sol=(S.solicitudesCot||[]).filter(x=>x.clienteId===cid&&x.estado==='pendiente');
-    let h=`<div class="info-box">Propuestas de Door para tu empresa. Revisa cada una y acéptala o recházala con un comentario. Al aceptar, esos precios quedan como tu tarifa.</div>`;
+    let h=`<div class="info-box">Propuestas de Door para tu empresa, para consultar o descargar en PDF. Para aceptar una, respóndele a Door; Door la aprueba y esos precios pasan a tu tarifa.</div>`;
     if(sol.length) h+=`<div class="li-sub" style="margin-bottom:8px">Pediste ${sol.length===1?'una cotización':sol.length+' cotizaciones'}: Door la está preparando.</div>`;
     h+=M.length?M.map(c=>{ const e=estadoCot(c), [et,eb]=EST_COT[e], T=cotTotales(c);
       return `<div class="list-item"><div class="li-info"><div class="li-name">${esc(c.numero)} · ${esc(c.titulo||'Cotización')} <span class="badge ${eb}">${et}</span></div>
-        <div class="li-sub">${money(T.total)} con ITBMS · ${e==='enviada'?'válida hasta el '+esc(c.vence):e==='aceptada'?'aceptada el '+esc(c.respondida||''):e==='rechazada'?'rechazada':'venció el '+esc(c.vence)}</div></div>
-        <div class="li-actions"><button class="btn ${e==='enviada'?'btn-green':'btn-ghost'} btn-sm" onclick="verCotizacion('${c.id}')">${e==='enviada'?'Revisar':'Ver'}</button></div></div>`; }).join('')
+        <div class="li-sub">${money(T.total)} con ITBMS · ${e==='enviada'?'válida hasta el '+esc(c.vence):e==='aceptada'?'aprobada el '+esc(c.respondida||'')+' · en tu tarifa':e==='rechazada'?'no aceptada':'venció el '+esc(c.vence)}</div></div>
+        <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="verCotizacion('${c.id}')">Ver</button></div></div>`; }).join('')
       :'<div class="empty-text">Todavía no tienes cotizaciones. Puedes pedir una arriba.</div>';
     return h;
   }
@@ -5115,7 +5115,7 @@ function htmlCotizaciones(){
     +L.map(c=>{ const e=estadoCot(c), [et,eb]=EST_COT[e], T=cotTotales(c);
       return `<tr><td><b>${esc(c.numero)}</b><div class="li-sub">${esc(c.titulo||'')}</div></td><td>${esc(destinoCot(c))}${c.clienteId?'':' <span class="badge bgy">Prospecto</span>'}</td><td>${esc(c.fecha)}</td><td>${esc(c.vence||'—')}</td>
         <td class="n">${money(T.total)}</td><td class="n" style="color:${T.margen<0?'var(--red-t)':'var(--green)'}">${money(T.margen)} · ${T.pct}%</td><td><span class="badge ${eb}">${et}</span></td>
-        <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="verCotizacion('${c.id}')">Ver</button>${['borrador','enviada','vencida'].includes(e)?`<button class="btn btn-ghost btn-sm" onclick="editarCotizacion('${c.id}')">Editar</button>`:''}<button class="btn btn-ghost btn-sm" onclick="duplicarCotizacion('${c.id}')">Duplicar</button>${e==='borrador'?`<button class="btn btn-red btn-sm" onclick="eliminarCotizacion('${c.id}')" aria-label="Eliminar">×</button>`:''}</td></tr>`; }).join('')+`</table></div>`
+        <td style="white-space:nowrap">${['enviada','vencida'].includes(e)?`<button class="btn btn-green btn-sm" onclick="abrirAprobacionCot('${c.id}',true)">Aprobar</button>`:''}<button class="btn btn-ghost btn-sm" onclick="verCotizacion('${c.id}')">Ver</button>${['borrador','enviada','vencida'].includes(e)?`<button class="btn btn-ghost btn-sm" onclick="editarCotizacion('${c.id}')">Editar</button>`:''}<button class="btn btn-ghost btn-sm" onclick="duplicarCotizacion('${c.id}')">Duplicar</button>${e==='borrador'?`<button class="btn btn-red btn-sm" onclick="eliminarCotizacion('${c.id}')" aria-label="Eliminar">×</button>`:''}</td></tr>`; }).join('')+`</table></div>`
     :`<div class="empty-text">${C.length?'Nada en este estado.':'Todavía no hay cotizaciones. Crea la primera con «+ Nueva cotización».'}</div>`;
   return h;
 }
@@ -5211,14 +5211,12 @@ function verCotizacion(id){
     <div class="pf-pie"><b>Condiciones.</b> Personal por día: se cobra el día completo por persona; jornada ${esc(cf.horaInicio)} a ${esc(cf.horaFin)}. Sobretiempo por hora desde 15 minutos (×${cf.multSobretiempo}); sábado ×${cf.multSabado} y domingo ×${cf.multDomingo} sobre el precio del día. Crédito ${+cf.creditoDias||0} días desde la factura.${c.notas?'<br>'+esc(c.notas):''}${c.respuesta?'<br><b>Respuesta del cliente:</b> '+esc(c.respuesta):''}</div></div>`;
   if(adm) h+=`<div class="ped-resumen pf-noprint" style="margin-top:10px"><div class="ped-kpi"><b>${money(T.costo)}</b><span>Costo estimado</span></div><div class="ped-kpi"><b style="color:${T.margen<0?'var(--red-t)':'var(--green)'}">${money(T.margen)} · ${T.pct}%</b><span>Margen</span></div></div>`;
   const acc=[];
-  if(esCliente()&&e==='enviada') h+=`<div class="field pf-noprint" style="margin-top:10px"><label>Comentario para Door (opcional al aceptar, obligatorio al rechazar)</label><textarea id="ctResp" rows="2" maxlength="400"></textarea></div>`,
-    acc.push(`<button class="btn btn-green" onclick="responderCotizacion(true)">Aceptar cotización</button>`,`<button class="btn btn-red" onclick="responderCotizacion(false)">Rechazar</button>`);
-  if(adm){ if(['enviada','vencida'].includes(e)) acc.push(`<button class="btn btn-green btn-sm" onclick="marcarCotizacion(true)">Marcar aceptada</button>`,`<button class="btn btn-ghost btn-sm" onclick="marcarCotizacion(false)">Marcar rechazada</button>`);
-    if(e==='borrador') acc.push(`<button class="btn btn-green btn-sm" onclick="hideModal('modalProforma');editarCotizacion('${c.id}')">Editar y enviar</button>`);
-    if(c.estado==='aceptada'&&!c.clienteId) acc.push(`<button class="btn btn-green btn-sm" onclick="altaProspecto('${c.id}')">Crear cliente y aplicar tarifas</button>`); }
+  if(esCliente()&&e==='enviada') h+=`<div class="info-box pf-noprint" style="margin-top:10px">Para aceptarla, respóndele a Door (por correo o como lo acuerden). Door la aprueba en la app y estos precios pasan a tu tarifa.</div>`;
+  if(adm){ if(['enviada','vencida'].includes(e)) acc.push(`<button class="btn btn-green btn-sm" onclick="abrirAprobacionCot('${c.id}',true)">Aprobar cotización</button>`,`<button class="btn btn-ghost btn-sm" onclick="abrirAprobacionCot('${c.id}',false)">Rechazada por el cliente</button>`);
+    if(e==='borrador') acc.push(`<button class="btn btn-green btn-sm" onclick="hideModal('modalProforma');editarCotizacion('${c.id}')">Editar y enviar</button>`); }
   acc.push(`<button class="btn btn-ghost btn-sm" onclick="imprimirProforma()">Imprimir o guardar PDF</button>`);
   h+=`<div class="ped-acc pf-noprint">${acc.join('')}</div>`;
-  if(c.aplicado&&c.aplicado.length&&adm) h+=`<div class="info-box pf-noprint" style="margin-top:8px">Aplicado al aceptar: ${c.aplicado.map(esc).join(' · ')}</div>`;
+  if(c.estado==='aceptada') h+=`<div class="info-box pf-noprint" style="margin-top:8px">Aprobada el ${esc(c.respondida||'')}${c.via?' · '+esc(c.via):''}${c.respuesta?' · '+esc(c.respuesta):''}.${adm&&c.aplicado&&c.aplicado.length?' Pasó al tarifario: '+c.aplicado.map(esc).join(' · '):''}</div>`;
   if(adm) h+=`<div class="ped-log pf-noprint">${(c.log||[]).map(x=>esc(x.t)+' · '+esc(x.u)+' · '+esc(x.a)).join('<br>')}</div>`;
   document.getElementById('pfBody').innerHTML=h; showModal('modalProforma');
 }
@@ -5226,37 +5224,43 @@ function verCotizacion(id){
 function aplicarCotizacion(c){
   const cid=c.clienteId; if(!cid) return []; const out=[]; S.tarifasCliente=S.tarifasCliente||{};
   (c.lineas||[]).forEach(l=>{
-    if(l.tipo==='personal'){ const s=servicioDe(l.srvId); if(!s) return; (S.tarifasCliente[cid]=S.tarifasCliente[cid]||{})[s.id]=+l.precio||0; out.push(s.nombre+' '+money(l.precio)+' por día'); }
+    if(l.tipo==='personal'){ const s=servicioDe(l.srvId); if(!s) return; (S.tarifasCliente[cid]=S.tarifasCliente[cid]||{})[s.id]=+l.precio||0;
+      ((S.tarifasOrigen=S.tarifasOrigen||{})[cid]=S.tarifasOrigen[cid]||{})[s.id]=c.numero; out.push(s.nombre+' '+money(l.precio)+' por día'); }
     else if(l.tipo==='maquila'){ const t=l.tipoLineaId&&tipoLinea(l.tipoLineaId);
-      if(t){ t.venta=Object.assign({costeo:'personal',costoUnidad:0,porPallet:1},t.venta||{},{unidad:l.unidad||'paleta',precio:+l.precio||0}); if(!t.clienteId) t.clienteId=cid; out.push(t.nombre+' '+money(l.precio)+' por '+(l.unidad||'unidad')); }
+      if(t){ t.venta=Object.assign({costeo:'personal',costoUnidad:0,porPallet:1},t.venta||{},{unidad:l.unidad||'paleta',precio:+l.precio||0,cot:c.numero}); if(!t.clienteId) t.clienteId=cid; out.push(t.nombre+' '+money(l.precio)+' por '+(l.unidad||'unidad')); }
       else out.push((l.desc||'Maquila')+': crear su tipo de línea en Configuración → Líneas y maquila'); } });
   c.aplicado=out; return out;
 }
-async function responderCotizacion(acepta){
-  const c=(S.cotizaciones||[]).find(x=>x.id===_cotVer); if(!c||!esCliente()||estadoCot(c)!=='enviada') return;
-  const com=((document.getElementById('ctResp')||{}).value||'').trim(); if(!acepta&&!com){ showToast('Escribe por qué la rechazas','error'); return; }
-  c.estado=acepta?'aceptada':'rechazada'; c.respuesta=com; c.respondida=hoyStr(); c.respondidaPor=pedQuien();
-  const ap=acepta?aplicarCotizacion(c):[];
-  c.log.push({t:pedAhora(),u:pedQuien(),a:(acepta?'Aceptó la cotización':'Rechazó la cotización')+(com?': '+com:'')+(ap.length?' · tarifa actualizada':'')});
-  await save(); hideModal('modalProforma'); renderCobros(); pintarMenu();
-  emitirAviso('cot_resp','cot|'+c.id,'Cotización '+c.numero+(acepta?' aceptada':' rechazada')+' · '+nombreCliente(c.clienteId),(com||'Sin comentario')+(acepta?' · su tarifa quedó actualizada':''),{accion:'cotizaciones'});
-  showToast(acepta?'Cotización aceptada: esos precios quedan como tu tarifa':'Cotización rechazada: Door verá tu comentario');
+// Aprobación (administrador): el cliente acepta por fuera (correo, teléfono, PDF firmado) y Door la aprueba aquí.
+// Al aprobar, los precios pasan al tarifario del cliente; un prospecto se crea como cliente en el mismo paso.
+function abrirAprobacionCot(id,aprueba){
+  const c=(S.cotizaciones||[]).find(x=>x.id===id); if(!c||!esAdminU()) return; _cotVer=id;
+  const pr=c.prospecto||{}, ex=!c.clienteId&&(S.clientes||[]).find(k=>normTxt(k.nombre)===normTxt(pr.empresa||''));
+  document.getElementById('paTitulo').textContent=(aprueba?'Aprobar ':'Rechazo de ')+c.numero;
+  document.getElementById('paBody').innerHTML=aprueba?`<div class="info-box">${esc(destinoCot(c))} · ${money(cotTotales(c).total)} con ITBMS. Al aprobar, sus precios pasan al tarifario del cliente${c.clienteId?'':ex?' (se liga al cliente «'+esc(ex.nombre)+'», que ya existe)':' y se crea «'+esc(pr.empresa||'')+'» como cliente'}.</div>
+      <div class="field-row"><div class="field"><label>¿Cómo la aceptó el cliente?</label><select id="paVia"><option>Correo</option><option>PDF firmado</option><option>Teléfono</option><option>Reunión</option><option>Otro</option></select></div>
+        <div class="field"><label>Fecha de aceptación</label><input type="date" id="paFecha" value="${hoyStr()}" max="${hoyStr()}"></div></div>
+      <div class="field"><label>Referencia o comentario (opcional)</label><input type="text" id="paRef" maxlength="160" placeholder="Ej. correo de Laura Méndez del 24/11"></div>`
+    :`<div class="field"><label>Motivo del rechazo</label><textarea id="paRef" rows="3" maxlength="400" placeholder="Ej. el cliente consiguió otra opción"></textarea></div>`;
+  document.getElementById('paBtn').textContent=aprueba?'Aprobar y pasar al tarifario':'Registrar rechazo'; document.getElementById('paBtn').onclick=()=>guardarAprobacionCot(id,aprueba);
+  document.getElementById('paErr').classList.add('hidden'); hideModal('modalProforma'); showModal('modalPfAccion');
 }
-async function marcarCotizacion(acepta){
-  const c=(S.cotizaciones||[]).find(x=>x.id===_cotVer); if(!c||!esAdminU()) return;
-  const com=prompt(acepta?'Comentario (opcional): cómo la aceptó el cliente':'Motivo del rechazo:'); if(com===null) return; if(!acepta&&!com.trim()){ showToast('Escribe el motivo','error'); return; }
-  c.estado=acepta?'aceptada':'rechazada'; c.respuesta=com.trim(); c.respondida=hoyStr(); c.respondidaPor=pedQuien()+' (registrado por Door)';
-  const ap=acepta?aplicarCotizacion(c):[];
-  c.log.push({t:pedAhora(),u:pedQuien(),a:(acepta?'Marcó aceptada':'Marcó rechazada')+(com.trim()?': '+com.trim():'')+(ap.length?' · tarifa actualizada':acepta&&!c.clienteId?' · prospecto: falta crearlo como cliente':'')});
-  await save(); renderCobros(); verCotizacion(c.id); showToast(acepta?(c.clienteId?'Aceptada: tarifa del cliente actualizada':'Aceptada: crea el cliente para aplicar sus tarifas'):'Marcada como rechazada');
-}
-async function altaProspecto(id){
-  const c=(S.cotizaciones||[]).find(x=>x.id===id); if(!c||c.clienteId||!esAdminU()) return; const pr=c.prospecto||{};
-  if(!confirm('¿Crear «'+(pr.empresa||'')+'» como cliente y aplicarle los precios de '+c.numero+'?')) return;
-  const ex=(S.clientes||[]).find(k=>normTxt(k.nombre)===normTxt(pr.empresa||''));
-  const k=ex||{id:uid(),nombre:(pr.empresa||'Cliente nuevo').trim(),desc:[pr.contacto,pr.correo,pr.telefono].filter(Boolean).join(' · ')}; if(!ex) S.clientes.push(k);
-  c.clienteId=k.id; const ap=aplicarCotizacion(c); c.log.push({t:pedAhora(),u:pedQuien(),a:(ex?'Ligó al cliente existente ':'Creó el cliente ')+k.nombre+(ap.length?' · tarifa aplicada':'')});
-  await save(); renderCobros(); verCotizacion(c.id); showToast(k.nombre+' quedó como cliente con su tarifa');
+async function guardarAprobacionCot(id,aprueba){
+  const c=(S.cotizaciones||[]).find(x=>x.id===id), err=document.getElementById('paErr'); if(!c||!esAdminU()) return;
+  const ref=(document.getElementById('paRef').value||'').trim();
+  if(!aprueba&&!ref){ err.textContent='Escribe el motivo del rechazo'; err.classList.remove('hidden'); return; }
+  c.respuesta=ref; c.respondidaPor=pedQuien();
+  if(!aprueba){ c.estado='rechazada'; c.respondida=hoyStr(); c.log.push({t:pedAhora(),u:pedQuien(),a:'Registró el rechazo del cliente: '+ref}); }
+  else {
+    c.estado='aceptada'; c.via=document.getElementById('paVia').value; c.respondida=document.getElementById('paFecha').value||hoyStr();
+    let alta='';
+    if(!c.clienteId){ const pr=c.prospecto||{}, ex=(S.clientes||[]).find(k=>normTxt(k.nombre)===normTxt(pr.empresa||''));
+      const k=ex||{id:uid(),nombre:(pr.empresa||'Cliente nuevo').trim(),desc:[pr.contacto,pr.correo,pr.telefono].filter(Boolean).join(' · ')}; if(!ex) S.clientes.push(k);
+      c.clienteId=k.id; alta=(ex?' · ligada al cliente ':' · se creó el cliente ')+k.nombre; }
+    const ap=aplicarCotizacion(c);
+    c.log.push({t:pedAhora(),u:pedQuien(),a:'Aprobó la cotización (el cliente la aceptó por '+c.via.toLowerCase()+' el '+c.respondida+(ref?': '+ref:'')+')'+alta+(ap.length?' · pasó al tarifario':'')}); }
+  await save(); hideModal('modalPfAccion'); renderCobros(); pintarMenu();
+  showToast(aprueba?c.numero+' aprobada: sus precios ya están en el tarifario de '+nombreCliente(c.clienteId):c.numero+' quedó como rechazada');
 }
 // Cliente: pedir una cotización y aviso de las nuevas
 function pedirCotizacion(){
@@ -5276,7 +5280,7 @@ async function enviarSolicitudCot(){
 async function avisarCotizacionesCliente(){
   if(!esCliente()||!facturacionOn()) return;
   const N=(S.cotizaciones||[]).filter(c=>c.clienteId===miCliente()&&estadoCot(c)==='enviada'&&!c.vistoCliente); if(!N.length) return;
-  showToast(N.length===1?'Tienes la cotización '+N[0].numero+' por revisar':'Tienes '+N.length+' cotizaciones por revisar','info');
+  showToast(N.length===1?'Door te envió la cotización '+N[0].numero:'Door te envió '+N.length+' cotizaciones','info');
   N.forEach(c=>c.vistoCliente=true); try{ await save(); }catch(e){}
 }
 
@@ -5373,7 +5377,7 @@ function condicionesTarifa(){
   return L;
 }
 function preciosServicio(cid,s){ const c=getConfig(), dia=ventaDiaCliente(cid,s), hp=hpRegular()||8;
-  return {dia,neg:!!cid&&((S.tarifasCliente||{})[cid]||{})[s.id]!==undefined,extra:dia/hp*(+c.multSobretiempo||1),sab:dia*(+c.multSabado||1),dom:dia*(+c.multDomingo||1)}; }
+  return {dia,neg:!!cid&&((S.tarifasCliente||{})[cid]||{})[s.id]!==undefined,cot:cid?((S.tarifasOrigen||{})[cid]||{})[s.id]||'':'',extra:dia/hp*(+c.multSobretiempo||1),sab:dia*(+c.multSabado||1),dom:dia*(+c.multDomingo||1)}; }
 function htmlTarifario(){
   const cli=esCliente(), adm=esAdminU(), cid=cli?miCliente():_tarCli, SV=servicios(), C=S.clientes||[];
   if(cli&&!cid) return '<div class="info-box">Tu usuario todavía no está ligado a una empresa. Pídele al administrador que lo configure.</div>';
@@ -5385,12 +5389,12 @@ function htmlTarifario(){
   h+=`<div class="sec-title" style="margin:6px 0 8px">Personal por día</div>`;
   if(adm&&!cid){
     h+=`<div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Servicio</th><th class="n">Costo por día</th><th class="n">Venta general</th>${C.map(c=>`<th class="n">${esc(c.nombre)}</th>`).join('')}</tr>`
-      +SV.map(s=>`<tr><td>${esc(s.nombre)}</td><td class="n">${money(s.costoDia)}</td><td class="n">${money(s.ventaDia)}</td>${C.map(c=>{ const p=preciosServicio(c.id,s); return `<td class="n${p.neg?' tar-neg':''}">${money(p.dia)}${p.neg?'<small>negociada</small>':''}</td>`; }).join('')}</tr>`).join('')
+      +SV.map(s=>`<tr><td>${esc(s.nombre)}</td><td class="n">${money(s.costoDia)}</td><td class="n">${money(s.ventaDia)}</td>${C.map(c=>{ const p=preciosServicio(c.id,s); return `<td class="n${p.neg?' tar-neg':''}">${money(p.dia)}${p.neg?'<small>'+(p.cot?esc(p.cot):'negociada')+'</small>':''}</td>`; }).join('')}</tr>`).join('')
       +`</table></div><div class="li-sub">Venta por persona por día. En negrita, la tarifa negociada con el cliente; las demás usan la general.</div>`;
   } else {
     h+=`<div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Servicio</th><th class="n">Por persona por día</th><th class="n">Hora extra</th><th class="n">Sábado</th><th class="n">Domingo</th>${adm?'<th class="n">General</th><th class="n">Costo por día</th><th class="n">Margen por día</th>':''}</tr>`
       .replace('<div class="rt-scroll">','<div class="rt-scroll tar-wide">')
-      +SV.map(s=>{ const p=preciosServicio(cid,s); return `<tr><td>${esc(s.nombre)}</td><td class="n${p.neg&&adm?' tar-neg':''}">${money(p.dia)}${p.neg&&adm?'<small>negociada</small>':''}</td><td class="n">${money(p.extra)}</td><td class="n">${money(p.sab)}</td><td class="n">${money(p.dom)}</td>
+      +SV.map(s=>{ const p=preciosServicio(cid,s); return `<tr><td>${esc(s.nombre)}</td><td class="n${p.neg&&adm?' tar-neg':''}">${money(p.dia)}${p.cot?'<small>según '+esc(p.cot)+'</small>':p.neg&&adm?'<small>negociada</small>':''}</td><td class="n">${money(p.extra)}</td><td class="n">${money(p.sab)}</td><td class="n">${money(p.dom)}</td>
         ${adm?`<td class="n">${money(s.ventaDia)}</td><td class="n">${money(costoDiaPersona('',s))}</td><td class="n" style="color:${p.dia-s.costoDia<0?'var(--red-t)':'var(--green)'}">${money(p.dia-s.costoDia)}</td>`:''}</tr>`; }).join('')+`</table></div>`
       // En el celular: una tarjeta por servicio (la tabla no cabe); al imprimir se usa la tabla
       +`<div class="tar-narrow">${SV.map(s=>{ const p=preciosServicio(cid,s); return `<div class="tar-card"><div class="tar-card-t">${esc(s.nombre)}${p.neg&&adm?' <span class="badge bg">negociada</span>':''}</div>
@@ -5401,7 +5405,7 @@ function htmlTarifario(){
   const TL=(S.lineasTipo||[]).filter(t=>t.venta&&+t.venta.precio>0&&(!cid||t.clienteId===cid));
   if(TL.length){
     h+=`<div class="sec-title" style="margin:16px 0 8px">Maquila</div><div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Servicio de maquila</th>${!cid?'<th>Cliente</th>':''}<th>Se cobra por</th><th class="n">Precio</th>${adm?'<th>Costeo</th><th class="n">Costo por unidad</th>':''}</tr>`
-      +TL.map(t=>{ const v=t.venta, u=UNID_COBRO[v.unidad||'paleta']; return `<tr><td>${esc(t.nombre)}</td>${!cid?`<td>${esc(nombreCliente(t.clienteId)||'—')}</td>`:''}<td>${u[0]}${v.unidad!=='paleta'?' <span class="li-sub">('+fmtN(v.porPallet)+' por pallet)</span>':''}</td><td class="n">${money(v.precio)}</td>
+      +TL.map(t=>{ const v=t.venta, u=UNID_COBRO[v.unidad||'paleta']; return `<tr><td>${esc(t.nombre)}${v.cot?'<div class="li-sub">según '+esc(v.cot)+'</div>':''}</td>${!cid?`<td>${esc(nombreCliente(t.clienteId)||'—')}</td>`:''}<td>${u[0]}${v.unidad!=='paleta'?' <span class="li-sub">('+fmtN(v.porPallet)+' por pallet)</span>':''}</td><td class="n">${money(v.precio)}</td>
         ${adm?`<td>${v.costeo==='unidad'?'Por unidad':'Por el personal de la línea'}</td><td class="n">${v.costeo==='unidad'?money(v.costoUnidad):'—'}</td>`:''}</tr>`; }).join('')+`</table></div>`;
   }
   // Condiciones
