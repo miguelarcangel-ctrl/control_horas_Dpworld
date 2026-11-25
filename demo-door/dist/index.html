@@ -517,6 +517,14 @@ body.en-kiosco .toast,body.en-kiosco .dpw-hdr,body.en-kiosco .dpw-drawer,body.en
 .ki-ok.hidden{display:none}.ki-ok.err{background:var(--red)}
 .ki-ok b{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(2.2rem,6vw,4.5rem);letter-spacing:.04em}
 .ki-ok span{display:block;font-size:clamp(1.1rem,2.6vw,1.8rem);margin-top:8px}
+.tar-imp{display:none;margin-bottom:10px}
+.tar-narrow{display:none}
+.tar-card{border:1px solid var(--b1);border-radius:10px;padding:9px 11px;margin-bottom:8px}
+.tar-card-t{font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.4px;font-size:13px}
+.tar-card-p{display:flex;align-items:baseline;gap:6px;margin:2px 0}.tar-card-p b{font-family:'Barlow Condensed',sans-serif;font-size:22px}.tar-card-p span{font-size:11.5px;color:var(--t2)}
+@media (max-width:600px){.tar-wide{display:none}.tar-narrow{display:block}}
+@media print{.tar-wide{display:block!important}.tar-narrow{display:none!important}}.tar-imp h2{margin:0;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.6px}
+.tar-neg{font-weight:800}.tar-neg small{display:block;font:600 10px 'Barlow',sans-serif;color:var(--accent)}
 .ficha-tar{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
 .ficha-tar-f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--t2)}
 .cat-bar{max-width:560px;margin:0 auto;padding:12px 12px 0}
@@ -555,6 +563,7 @@ body.en-kiosco .toast,body.en-kiosco .dpw-hdr,body.en-kiosco .dpw-drawer,body.en
 .pf-doc .pf-tot div{display:flex;justify-content:space-between;padding:3px 0}
 .pf-doc .pf-tot .g{font-weight:800;font-size:16px;border-top:2px solid #111;padding-top:6px}
 .pf-doc .pf-pie{margin-top:16px;font-size:11.5px;color:#475569}
+@media print{body.tar-print .dpw-hdr,body.tar-print #catBar,body.tar-print .pf-noprint,body.tar-print .sec-hdr-actions,body.tar-print .door-demo-tag,body.tar-print .modo-prueba-bar,body.tar-print #toast{display:none!important}body.tar-print .tar-imp{display:block!important}body.tar-print .main{max-width:none!important;padding:0!important}body.tar-print .sec{border:0;box-shadow:none}body.tar-print .rt-scroll{overflow:visible!important}body.tar-print .cob-tbl td,body.tar-print .cob-tbl th{font-size:11px;padding:4px 6px}}
 @media print{body.pf-print>*{display:none!important}body.pf-print>#modalProforma{display:block!important;position:static;background:none;padding:0}
   body.pf-print #modalProforma .modal{box-shadow:none;max-width:none;width:auto;border:0;padding:0;max-height:none;overflow:visible}
   body.pf-print #modalProforma .modal-hdr,body.pf-print .pf-noprint{display:none!important}}
@@ -1906,6 +1915,7 @@ function pasosTutorial(){
     P.push({sel:'.dpw-burger',t:'Menú',d:'Aquí están tus pedidos de personal, el tema y este tutorial.'});
     P.push({nav:'pedidos',sel:'#pedAcciones button',t:'Pedir personal',d:'Indica el día, el horario, cuántas personas y de qué tipo, y dónde van a trabajar. Pide antes de la hora límite ('+getConfig().pedidoCorte+') del día anterior.'});
     if(marcajeClienteOn()) P.push({nav:'miturno',sel:'#cobContent',t:'Mi turno',d:'Tu personal del día: quién llegó frente a lo confirmado, quién trabaja, sus horas y tus líneas de producción.'+(avanzadoDe(miCliente())?' Con la versión avanzada ves también qué hace cada persona, las tareas con su productividad y el costo del día.':' La versión avanzada (tareas, productividad y costo) la activa Door: puedes solicitarla aquí.')});
+    if(facturacionOn()) P.push({nav:'tarifario',sel:'#cobContent',t:'Tu tarifario',d:'Los precios de los servicios que Door te presta y las condiciones (sobretiempo, fines de semana, ITBMS, crédito). Lo puedes imprimir o guardar en PDF.'});
     if(facturacionOn()) P.push({nav:'proformas',sel:'#cobContent',t:'Tus proformas',d:'Door te envía la proforma del período (o la generas tú). Marcas lo que apruebas y confirmas; lo que no marques queda pendiente de aclarar.'});
     P.push({nav:'pedidos',sel:'#pedidosContent',t:'Tus pedidos',d:'Cada pedido muestra su estado: por confirmar, confirmado (o parcial, con cuántas personas van) o rechazado con el motivo. Mientras esté por confirmar lo puedes cancelar.'});
     P.push({t:'Listo',d:'Puedes volver a ver este tutorial desde el menú, en «Ver tutorial».'});
@@ -2409,6 +2419,7 @@ var CATS=[
     ['ins:exportar','Exportar a Excel',()=>currentUser.rol==='admin']]},
   {id:'clientes',t:'Clientes y cobros',tabs:()=>[
     ['ins:clientes','Clientes',()=>currentUser.rol==='admin',()=>Object.keys(S.solicitudesAvanzado||{}).filter(k=>!avanzadoDe(k)).length],
+    ['tarifario','Tarifarios',()=>currentUser.rol==='admin'&&facturacionOn()],
     ['cobros','Cobros y proformas',()=>currentUser.rol==='admin'&&facturacionOn(),()=>(S.proformas||[]).filter(p=>p.estado==='aprobada'||(p.estado==='devuelta'&&!p.vistaAdmin)).length],
     ['tarifas','Servicios y tarifas',()=>currentUser.rol==='admin'&&facturacionOn()]]},
   {id:'config',t:'Configuración',tabs:()=>[
@@ -2447,6 +2458,7 @@ function pintarMenu(){
     // Cliente: su menú corto, sin categorías
     {id:'miturno',label:'Mi turno',hint:esCliente()&&avanzadoDe(miCliente())?'versión avanzada':'tu personal de hoy',hidden:!esCliente()||!marcajeClienteOn(),on:()=>setNav('miturno')},
     {id:'pedidos',label:'Mis pedidos de personal',hidden:!esCliente()||!pedidosOn(),on:()=>setNav('pedidos')},
+    {id:'tarifario',label:'Mi tarifario',hint:'tus precios',hidden:!esCliente()||!facturacionOn(),on:()=>setNav('tarifario')},
     {id:'proformas',label:'Mis proformas',badge:esCliente()&&facturacionOn()?(S.proformas||[]).filter(p=>p.clienteId===miCliente()&&p.estado==='revision').length:0,hidden:!esCliente()||!facturacionOn(),on:()=>setNav('proformas')},
   ];
   // Equipo de la empresa: una fila por categoría; dentro, sus pestañas
@@ -2462,11 +2474,11 @@ function esResponsable(){ return !!currentUser&&currentUser.rol==='responsable';
 function esCliente(){ return !!currentUser&&currentUser.rol==='cliente'; }
 function setNav(nav){
   if(esResponsable()&&nav!=='lineas') nav='lineas';
-  if(esCliente()&&!((nav==='proformas'&&facturacionOn())||(nav==='miturno'&&marcajeClienteOn()))) nav=marcajeClienteOn()?'miturno':'pedidos';
+  if(esCliente()&&!(((nav==='proformas'||nav==='tarifario')&&facturacionOn())||(nav==='miturno'&&marcajeClienteOn()))) nav=marcajeClienteOn()?'miturno':'pedidos';
   if(nav==='pedidos'&&!pedidosOn()) nav='supervisor';
-  const navCob=['planilla','cobros','tarifas','proformas'].includes(nav);
+  const navCob=['planilla','cobros','tarifas','proformas','tarifario'].includes(nav);
   if(navCob&&!facturacionOn()) nav='supervisor';
-  document.getElementById('viewCobros').classList.toggle('hidden',!['planilla','cobros','tarifas','proformas','miturno'].includes(nav));
+  document.getElementById('viewCobros').classList.toggle('hidden',!['planilla','cobros','tarifas','proformas','miturno','tarifario'].includes(nav));
   document.getElementById('viewPedidos').classList.toggle('hidden',nav!=='pedidos');
   if(nav==='pedidos'){ renderPedidos(); if(!esCliente()&&marcajeClienteOn()) cargarMarcas().then(()=>{ if(_nav==='pedidos') renderPedidos(); }); }
   document.getElementById('viewLineas').classList.toggle('hidden',nav!=='lineas');
@@ -2474,7 +2486,7 @@ function setNav(nav){
   document.getElementById('viewSupervisor').classList.toggle('hidden',nav!=='supervisor');
   document.getElementById('viewInsights').classList.toggle('hidden',nav!=='insights');
   _nav=nav; document.body.dataset.nav=nav; pintarMenu(); pintarAvisosApp(); window.scrollTo(0,0);
-  if(nav==='miturno') renderCobros();
+  if(nav==='miturno'||nav==='tarifario') renderCobros();
   if(['planilla','cobros','tarifas','proformas'].includes(nav)){ if(nav==='cobros') (S.proformas||[]).forEach(p=>{ if(p.estado==='devuelta') p.vistaAdmin=true; }); renderCobros(); }
   if(nav==='insights'){ renderInsights(); if(currentUser?.rol==='admin'){ refreshUsuarios().then(renderInsights); cargarPersonal().then(renderInsights); } }
 }
@@ -4761,9 +4773,10 @@ function chipsPeriodo(){
 }
 function renderCobros(){
   const el=document.getElementById('cobContent'); if(!el||document.getElementById('viewCobros').classList.contains('hidden')) return;
-  const tit={planilla:'Planilla',cobros:'Cobros y proformas',tarifas:'Servicios y tarifas',proformas:'Mis proformas',miturno:'Mi turno'+(esCliente()&&avanzadoDe(miCliente())?' · avanzado':'')}[_nav]||'Planilla';
+  const tit={planilla:'Planilla',cobros:'Cobros y proformas',tarifas:'Servicios y tarifas',proformas:'Mis proformas',tarifario:esCliente()?'Mi tarifario':'Tarifarios',miturno:'Mi turno'+(esCliente()&&avanzadoDe(miCliente())?' · avanzado':'')}[_nav]||'Planilla';
   document.getElementById('cobTitulo').textContent=tit; document.getElementById('cobAcciones').innerHTML='';
   if(_nav==='tarifas'){ el.innerHTML=htmlTarifas(); return; }
+  if(_nav==='tarifario'){ el.innerHTML=htmlTarifario(); return; }
   if(_nav==='miturno'){ if(!_mt.fecha&&!_mt.cargando){ cargarMiTurno(hoyStr()); return; } el.innerHTML=htmlMiTurno(); return; }
   if(!asegurarPeriodo()||_cob.cargando){ el.innerHTML='<div class="li-sub">Leyendo los marcajes del período…</div>'; return; }
   el.innerHTML=_nav==='planilla'?htmlPlanilla():_nav==='cobros'?htmlCobros():htmlProformasCliente();
@@ -5012,6 +5025,73 @@ async function avisarProformasCliente(){
   F.forEach(p=>showToast('Door emitió la factura '+p.factura.numero+' de la proforma '+p.numero+' · vence '+p.factura.vence,'info'));
   N.forEach(p=>p.vistoCliente=true); try{ await save(); }catch(e){}
 }
+// ═══ TARIFARIO (consulta) ═══ Administrador: todos los clientes o uno, con costo y margen. Cliente: solo sus precios de venta.
+// Para editar: Servicios y tarifas (lo general) y la ficha de cada cliente (tarifa negociada).
+let _tarCli='';
+function condicionesTarifa(){
+  const c=getConfig(), m=x=>'×'+(+x||1).toLocaleString('es-PA');
+  const L=[['Jornada',c.horaInicio+' a '+c.horaFin+' · almuerzo '+fmtN(c.horasAlmuerzo)+' h · '+fmtN(hpRegular())+' h de trabajo'],
+    ['Día trabajado','se cobra como día completo por persona'],
+    ['Sobretiempo','por hora, desde 15 minutos: (precio del día ÷ '+fmtN(hpRegular())+' h) '+m(c.multSobretiempo)],
+    ['Sábado','precio del día '+m(c.multSabado)],['Domingo','precio del día '+m(c.multDomingo)],
+    ['ITBMS',(+c.itbms||0)+' % sobre el subtotal de la proforma'],['Crédito',(+c.creditoDias||0)+' días desde la fecha de la factura']];
+  if(pedidosOn()) L.push(['Pedidos de personal','para el día siguiente, antes de las '+c.pedidoCorte]);
+  return L;
+}
+function preciosServicio(cid,s){ const c=getConfig(), dia=ventaDiaCliente(cid,s), hp=hpRegular()||8;
+  return {dia,neg:!!cid&&((S.tarifasCliente||{})[cid]||{})[s.id]!==undefined,extra:dia/hp*(+c.multSobretiempo||1),sab:dia*(+c.multSabado||1),dom:dia*(+c.multDomingo||1)}; }
+function htmlTarifario(){
+  const cli=esCliente(), adm=esAdminU(), cid=cli?miCliente():_tarCli, SV=servicios(), C=S.clientes||[];
+  if(cli&&!cid) return '<div class="info-box">Tu usuario todavía no está ligado a una empresa. Pídele al administrador que lo configure.</div>';
+  document.getElementById('cobAcciones').innerHTML=(adm?`<button class="btn btn-ghost btn-sm" onclick="exportarTarifario()">Excel</button>`:'')+`<button class="btn btn-ghost btn-sm" onclick="imprimirTarifario()">Imprimir o PDF</button>`;
+  let h=`<div class="tar-imp"><h2>Tarifario${cid?' · '+esc(nombreCliente(cid)):''}</h2><div class="li-sub">${esc(document.title.replace(/^Control de Horas — /,''))} · vigente al ${new Date().toLocaleDateString('es-PA')}</div></div>`;
+  if(adm) h+=`<div class="cob-filtros pf-noprint"><div class="field"><label>Cliente</label><select onchange="_tarCli=this.value;renderCobros()"><option value="">Todos (comparar)</option>${C.map(c=>`<option value="${c.id}"${_tarCli===c.id?' selected':''}>${esc(c.nombre)}</option>`).join('')}</select></div></div>`;
+  if(cli) h+=`<div class="info-box">Precios de los servicios que Door te presta. Son los que se usan en tus proformas.</div>`;
+  // Personal por día
+  h+=`<div class="sec-title" style="margin:6px 0 8px">Personal por día</div>`;
+  if(adm&&!cid){
+    h+=`<div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Servicio</th><th class="n">Costo por día</th><th class="n">Venta general</th>${C.map(c=>`<th class="n">${esc(c.nombre)}</th>`).join('')}</tr>`
+      +SV.map(s=>`<tr><td>${esc(s.nombre)}</td><td class="n">${money(s.costoDia)}</td><td class="n">${money(s.ventaDia)}</td>${C.map(c=>{ const p=preciosServicio(c.id,s); return `<td class="n${p.neg?' tar-neg':''}">${money(p.dia)}${p.neg?'<small>negociada</small>':''}</td>`; }).join('')}</tr>`).join('')
+      +`</table></div><div class="li-sub">Venta por persona por día. En negrita, la tarifa negociada con el cliente; las demás usan la general.</div>`;
+  } else {
+    h+=`<div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Servicio</th><th class="n">Por persona por día</th><th class="n">Hora extra</th><th class="n">Sábado</th><th class="n">Domingo</th>${adm?'<th class="n">General</th><th class="n">Costo por día</th><th class="n">Margen por día</th>':''}</tr>`
+      .replace('<div class="rt-scroll">','<div class="rt-scroll tar-wide">')
+      +SV.map(s=>{ const p=preciosServicio(cid,s); return `<tr><td>${esc(s.nombre)}</td><td class="n${p.neg&&adm?' tar-neg':''}">${money(p.dia)}${p.neg&&adm?'<small>negociada</small>':''}</td><td class="n">${money(p.extra)}</td><td class="n">${money(p.sab)}</td><td class="n">${money(p.dom)}</td>
+        ${adm?`<td class="n">${money(s.ventaDia)}</td><td class="n">${money(costoDiaPersona('',s))}</td><td class="n" style="color:${p.dia-s.costoDia<0?'var(--red-t)':'var(--green)'}">${money(p.dia-s.costoDia)}</td>`:''}</tr>`; }).join('')+`</table></div>`
+      // En el celular: una tarjeta por servicio (la tabla no cabe); al imprimir se usa la tabla
+      +`<div class="tar-narrow">${SV.map(s=>{ const p=preciosServicio(cid,s); return `<div class="tar-card"><div class="tar-card-t">${esc(s.nombre)}${p.neg&&adm?' <span class="badge bg">negociada</span>':''}</div>
+        <div class="tar-card-p"><b>${money(p.dia)}</b><span>por persona por día</span></div>
+        <div class="tc-nums"><span>Hora extra <b>${money(p.extra)}</b></span><span>Sábado <b>${money(p.sab)}</b></span><span>Domingo <b>${money(p.dom)}</b></span>${adm?`<span>Costo <b>${money(s.costoDia)}</b></span><span>Margen <b>${money(p.dia-s.costoDia)}</b></span>`:''}</div></div>`; }).join('')}</div>`;
+  }
+  // Maquila
+  const TL=(S.lineasTipo||[]).filter(t=>t.venta&&+t.venta.precio>0&&(!cid||t.clienteId===cid));
+  if(TL.length){
+    h+=`<div class="sec-title" style="margin:16px 0 8px">Maquila</div><div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Servicio de maquila</th>${!cid?'<th>Cliente</th>':''}<th>Se cobra por</th><th class="n">Precio</th>${adm?'<th>Costeo</th><th class="n">Costo por unidad</th>':''}</tr>`
+      +TL.map(t=>{ const v=t.venta, u=UNID_COBRO[v.unidad||'paleta']; return `<tr><td>${esc(t.nombre)}</td>${!cid?`<td>${esc(nombreCliente(t.clienteId)||'—')}</td>`:''}<td>${u[0]}${v.unidad!=='paleta'?' <span class="li-sub">('+fmtN(v.porPallet)+' por pallet)</span>':''}</td><td class="n">${money(v.precio)}</td>
+        ${adm?`<td>${v.costeo==='unidad'?'Por unidad':'Por el personal de la línea'}</td><td class="n">${v.costeo==='unidad'?money(v.costoUnidad):'—'}</td>`:''}</tr>`; }).join('')+`</table></div>`;
+  }
+  // Condiciones
+  h+=`<div class="sec-title" style="margin:16px 0 8px">Condiciones</div><div class="rt-scroll"><table class="rt-table cob-tbl">${condicionesTarifa().map(([k,v])=>`<tr><td style="width:180px"><b>${esc(k)}</b></td><td>${esc(v)}</td></tr>`).join('')}</table></div>`;
+  if(adm) h+=`<div class="li-sub pf-noprint" style="margin-top:10px">Para cambiar precios: Servicios y tarifas (lo general y la maquila) o la ficha de cada cliente (su tarifa negociada).</div>`;
+  return h;
+}
+function imprimirTarifario(){ document.body.classList.add('tar-print'); const fin=()=>{ document.body.classList.remove('tar-print'); window.removeEventListener('afterprint',fin); }; window.addEventListener('afterprint',fin); window.print(); setTimeout(fin,1500); }
+function exportarTarifario(){
+  if(!esAdminU()) return;
+  const SV=servicios(), C=S.clientes||[], wb=XLSX.utils.book_new();
+  const srv=[['Servicio','Posición del marcaje','Costo por día','Venta general',...C.map(c=>c.nombre)]];
+  SV.forEach(s=>srv.push([s.nombre,PUESTOS[s.puesto]||'',rd2(s.costoDia),rd2(s.ventaDia),...C.map(c=>rd2(ventaDiaCliente(c.id,s)))]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(srv),'Personal por día');
+  const det=[['Cliente','Servicio','Por día','Negociada','Hora extra','Sábado','Domingo','Costo por día','Margen por día']];
+  C.forEach(c=>SV.forEach(s=>{ const p=preciosServicio(c.id,s); det.push([c.nombre,s.nombre,rd2(p.dia),p.neg?'Sí':'',rd2(p.extra),rd2(p.sab),rd2(p.dom),rd2(s.costoDia),rd2(p.dia-s.costoDia)]); }));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(det),'Por cliente');
+  const mq=[['Maquila','Cliente','Se cobra por','Unidades por pallet','Precio','Costeo','Costo por unidad']];
+  (S.lineasTipo||[]).filter(t=>t.venta&&+t.venta.precio>0).forEach(t=>{ const v=t.venta; mq.push([t.nombre,nombreCliente(t.clienteId),UNID_COBRO[v.unidad||'paleta'][0],v.unidad==='paleta'?1:v.porPallet,v.precio,v.costeo==='unidad'?'Por unidad':'Por personal',v.costeo==='unidad'?v.costoUnidad:'']); });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(mq),'Maquila');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Condición','Detalle'],...condicionesTarifa()]),'Condiciones');
+  XLSX.writeFile(wb,'Tarifario_'+hoyStr()+'.xlsx');
+}
+
 // Servicios y tarifas (administrador): servicios generales, maquila, ITBMS y crédito
 function htmlTarifas(){
   const SV=servicios(), C=S.clientes||[];
