@@ -703,6 +703,23 @@ async function newPage(browser, opts = {}) {
   ok(tpc.filtro && tpc.asigna, 'turno por cliente: el supervisor filtra el tablero, ve el resumen frente a lo confirmado y al asignar se propone el cliente');
   ok(tpc.basica && tpc.solicita, 'Mi turno básico: el cliente ve solo su personal, sin tareas, y puede solicitar la versión avanzada');
   ok(tpc.activa && tpc.avanzada, 'Mi turno avanzado: el administrador la enciende por cliente y el cliente ve tareas, productividad y costo del día');
+
+  // Ficha del cliente: tarifa negociada y versión avanzada se editan en el cliente
+  const fic = await page.evaluate(async () => {
+    const r = {}, cfg0 = { ...S.config }, bk = {}; ['clientes', 'tarifasCliente', 'clientesAvanzado', 'solicitudesAvanzado', 'servicios'].forEach(k => bk[k] = JSON.parse(JSON.stringify(S[k] || {})));
+    S.config.facturacion = true; S.config.marcajeCliente = true;
+    S.servicios = [{ id: 'sa', nombre: 'Ayudante', puesto: 'ag', costoDia: 30, ventaDia: 40 }, { id: 'so', nombre: 'Operador', puesto: 'operador', costoDia: 36, ventaDia: 55 }];
+    S.clientes = [{ id: 'kF', nombre: 'Cli F' }]; S.tarifasCliente = {}; S.clientesAvanzado = {}; S.solicitudesAvanzado = { kF: { fecha: hoyStr(), por: 'X' } };
+    openModalCliente('kF');
+    r.campos = document.querySelectorAll('#clFicha input[data-s]').length === 2 && !!document.getElementById('clAvz') && /La solicitó/i.test(document.getElementById('clFicha').innerText);
+    document.querySelector('#clFicha input[data-s="sa"]').value = '45'; document.getElementById('clAvz').checked = true; await guardarCliente();
+    r.guarda = S.tarifasCliente.kF && S.tarifasCliente.kF.sa === 45 && S.tarifasCliente.kF.so === undefined && avanzadoDe('kF') && !S.solicitudesAvanzado.kF && ventaDiaCliente('kF', S.servicios[0]) === 45;
+    openModalCliente('kF'); document.querySelector('#clFicha input[data-s="sa"]').value = ''; await guardarCliente();
+    r.vuelve = !S.tarifasCliente.kF && ventaDiaCliente('kF', S.servicios[0]) === 40;
+    r.tarifasSinCliente = !/Tarifa de venta por cliente/.test(htmlTarifas());
+    S.config = cfg0; Object.assign(S, bk); document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden')); await save();
+    return r; });
+  ok(fic.campos && fic.guarda && fic.vuelve && fic.tarifasSinCliente, 'ficha del cliente: tarifa negociada por servicio y versión avanzada (vacío vuelve a la general)');
   ok(avs.guarda && avs.filtra, 'avisos: cada interruptor se guarda en el servidor y decide qué avisa (entrada de operador apagada, de supervisor encendida)');
   ok(avs.otro && avs.otroGuarda && avs.botonUsuarios, 'avisos: el administrador elige los avisos de cada usuario desde Usuarios');
   ok(avs.riesgo && avs.mitad && avs.meta && avs.texto && avs.cierre && avs.unaVezServidor, 'avisos de producción: riesgo de no llegar, mitad, meta cumplida y cierre; una sola vez');

@@ -21,7 +21,7 @@ Toma el `index.html` actual de la app, le aplica el logo, los colores y los text
 Proyecto de Vercel aparte, conectado a este repositorio con directorio raíz `demo-door/dist`. El proyecto de DP World no muestra esta carpeta: `vercel.json` en la raíz la redirige al inicio. (Un `.vercelignore` en la raíz dejaba vacío también al proyecto de Door.)
 
 ## Planilla, cobros y proformas
-- **Tarifas y costos** (administrador): costo y venta por persona por día de cada servicio (ayudante, operador, verificador, supervisor, personal de línea…), tarifa negociada por cliente y, en cada tipo de línea, cómo se vende la maquila (unidad, caja, paleta o bulto) y cómo se costea (por unidad o por el personal de la línea).
+- **Servicios y tarifas** (administrador): costo y venta general por persona por día de cada servicio (ayudante, operador, verificador, supervisor, personal de línea…) y, en cada tipo de línea, cómo se vende la maquila (unidad, caja, paleta o bulto) y cómo se costea (por unidad o por el personal de la línea).
 - **Planilla** (administrador y supervisor): por día y persona, cédula, servicio, cliente, bodega, dónde trabajó, entrada, almuerzo, salida, horas, extra y **supervisor** (quien marcó como supervisor ese día en esa bodega; si no hubo, se marca). Vistas por persona, por cliente (con margen) y por supervisor. Excel.
 - **Cobros y proformas** (administrador): los rubros por cobrar salen solos de los marcajes y las líneas (persona-día, sobretiempo y maquila). Filtro sin facturar / en revisión / facturado. «Generar proforma» por cliente y período.
 - **Mis proformas** (cliente): marca con check lo que aprueba y confirma; lo no marcado sigue sin facturar para cobrarse después. Puede generar la proforma del período. Nunca ve costos.
@@ -32,5 +32,5 @@ Proyecto de Vercel aparte, conectado a este repositorio con directorio raíz `de
 - **Supervisor y administrador:** en el turno, filtro por cliente (chips con las personas presentes) y un resumen por cliente: confirmadas por pedido, presentes, en tarea, libres, en pausa, salieron, horas del día y supervisor. Al asignar tarea con el filtro puesto, se propone ese cliente.
 - **Cliente · Mi turno (básica):** su personal del día (o de otro día): llegaron frente a confirmadas, trabajando ahora, horas, entrada, estado y supervisor, y sus líneas de producción con avance.
 - **Cliente · Mi turno (avanzada):** además, qué hace cada persona en este momento, tareas con horas-persona, cantidad y productividad frente al estándar, horas en pausas y el costo del día a su tarifa. Es una vista: el turno lo gestiona el supervisor de Door.
-- El administrador enciende la versión avanzada por cliente en **Tarifas y costos**. El cliente sin ella ve qué incluye y puede solicitarla (aviso `cli_avz`).
+- El administrador enciende la versión avanzada en la **ficha del cliente** (Clientes y cobros → Clientes), junto con su tarifa negociada por servicio, sus usuarios y sus maquilas. El cliente sin ella ve qué incluye y puede solicitarla (aviso `cli_avz`).
 - En la demostración, `cliente` (Importadora Istmo) tiene la avanzada y `atlantico` (Distribuidora Atlántico) la básica.

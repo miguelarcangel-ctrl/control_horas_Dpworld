@@ -516,6 +516,8 @@ body.en-kiosco .toast,body.en-kiosco .dpw-hdr,body.en-kiosco .dpw-drawer,body.en
 .ki-ok.hidden{display:none}.ki-ok.err{background:var(--red)}
 .ki-ok b{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(2.2rem,6vw,4.5rem);letter-spacing:.04em}
 .ki-ok span{display:block;font-size:clamp(1.1rem,2.6vw,1.8rem);margin-top:8px}
+.ficha-tar{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.ficha-tar-f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--t2)}
 .cat-bar{max-width:560px;margin:0 auto;padding:12px 12px 0}
 .cat-bar .cat-t{font:700 11px 'Barlow Condensed',sans-serif;letter-spacing:1.4px;text-transform:uppercase;color:var(--t3);margin:0 2px 6px}
 .cat-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
@@ -1509,6 +1511,7 @@ body.con-sel .toast{bottom:96px}
     <div class="modal-hdr"><span class="modal-title" id="modalClienteTitle">Nuevo Cliente</span><span class="modal-close" onclick="hideModal('modalCliente')">×</span></div>
     <div class="field"><label>Nombre del Cliente</label><input type="text" id="clNombre" placeholder="Ej. CNP"></div>
     <div class="field"><label>Descripción</label><input type="text" id="clDesc" placeholder="Opcional"></div>
+    <div id="clFicha"></div>
     <button class="btn btn-green btn-full" onclick="guardarCliente()">Guardar</button>
   </div>
 </div>
@@ -1839,6 +1842,7 @@ function pedirSalir(){
   doLogout();
 }
 async function doLogout(){
+  if(_tour){ try{ cerrarTutorial(); }catch(e){} }   // el tutorial no queda encima del login
   await desuscribirPush();   // este equipo deja de recibir avisos de llegada
   if(SESSION){ try{ await rpc('ch_logout',{p_token:SESSION.token}); }catch(e){} }
   SESSION=null; currentUser=null; localStorage.removeItem(SESS_KEY);
@@ -2220,6 +2224,7 @@ function manejarAviso(data){
   if(data.accion==='pedido'){ setNav('pedidos'); return; }
   if(data.accion==='cobros'){ setNav('cobros'); return; }
   if(data.accion==='tarifas'){ setNav('tarifas'); return; }
+  if(data.accion==='clientes'){ if(currentUser&&currentUser.rol==='admin') irTab('ins:clientes'); return; }
   if(data.accion==='cerrar'){ setNav('supervisor'); if(S.turno) prepCerrarTurno(); return; }
   if(data.accion==='abrir'){ if(esResponsable()){ setNav('lineas'); return; } setNav('supervisor'); if(!S.turno) showModal('modalAbrirTurno'); return; }
   if(data.accion==='reap'||data.accion==='personal'){ if(currentUser&&currentUser.rol==='admin') abrirSeccion(data.accion==='reap'?'historico':'personal'); return; }
@@ -2377,7 +2382,7 @@ var CATS=[
     ['ins:historico','Histórico de turnos',()=>currentUser.rol==='admin',()=>(S.solicitudes||[]).filter(x=>x.estado==='pendiente').length],
     ['ins:exportar','Exportar a Excel',()=>currentUser.rol==='admin']]},
   {id:'clientes',t:'Clientes y cobros',tabs:()=>[
-    ['ins:clientes','Clientes',()=>currentUser.rol==='admin'],
+    ['ins:clientes','Clientes',()=>currentUser.rol==='admin',()=>Object.keys(S.solicitudesAvanzado||{}).filter(k=>!avanzadoDe(k)).length],
     ['cobros','Cobros y proformas',()=>currentUser.rol==='admin'&&facturacionOn(),()=>(S.proformas||[]).filter(p=>p.estado==='aprobada'||(p.estado==='devuelta'&&!p.vistaAdmin)).length],
     ['tarifas','Servicios y tarifas',()=>currentUser.rol==='admin'&&facturacionOn()]]},
   {id:'config',t:'Configuración',tabs:()=>[
@@ -4402,16 +4407,42 @@ async function eliminarTarea(id){if(!confirm('¿Eliminar tarea?'))return;S.tarea
 // ═══ CRUD CLIENTES ═══
 function openModalCliente(id){
   S.editingId=id||null;
-  document.getElementById('modalClienteTitle').textContent=id?'Editar Cliente':'Nuevo Cliente';
+  document.getElementById('modalClienteTitle').textContent=id?'Ficha del cliente':'Nuevo cliente';
+  document.getElementById('clFicha').innerHTML=htmlFichaCliente(id);
   if(id){const c=S.clientes.find(x=>x.id===id);document.getElementById('clNombre').value=c.nombre;document.getElementById('clDesc').value=c.desc||'';}
   else{document.getElementById('clNombre').value='';document.getElementById('clDesc').value='';}
   showModal('modalCliente');
 }
 async function guardarCliente(){
   const nombre=document.getElementById('clNombre').value.trim();if(!nombre){alert('Ingresa un nombre');return;}
-  if(S.editingId){const c=S.clientes.find(x=>x.id===S.editingId);c.nombre=nombre;c.desc=document.getElementById('clDesc').value;}
-  else S.clientes.push({id:uid(),nombre,desc:document.getElementById('clDesc').value});
+  let cid=S.editingId;
+  if(cid){const c=S.clientes.find(x=>x.id===cid);c.nombre=nombre;c.desc=document.getElementById('clDesc').value;}
+  else { cid=uid(); S.clientes.push({id:cid,nombre,desc:document.getElementById('clDesc').value}); }
+  leerFichaCliente(cid);
   S.editingId=null;await save();hideModal('modalCliente');renderInsights();renderAll();showToast('Cliente guardado');
+}
+// Ficha del cliente (Door): tarifa negociada por servicio, versión avanzada de Mi turno, sus usuarios y sus maquilas
+function htmlFichaCliente(id){
+  let h='';
+  if(facturacionOn()){ const T=(S.tarifasCliente||{})[id]||{};
+    h+=`<div class="field"><label>Tarifa negociada · venta por persona por día</label><div class="li-sub" style="margin-bottom:6px">Vacío: la tarifa general del servicio (Servicios y tarifas).</div>
+      <div class="ficha-tar">${servicios().map(s=>`<label class="ficha-tar-f"><span>${esc(s.nombre)}</span><input type="number" min="0" step="0.01" data-s="${esc(s.id)}" placeholder="${s.ventaDia}" value="${T[s.id]!=null&&T[s.id]!==''?T[s.id]:''}"></label>`).join('')}</div></div>`; }
+  if(marcajeClienteOn()){ const sol=id&&(S.solicitudesAvanzado||{})[id];
+    h+=`<div class="field"><label style="display:flex;gap:8px;align-items:center;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.9rem"><input type="checkbox" class="cob-chk" id="clAvz"${id&&avanzadoDe(id)?' checked':''}> Versión avanzada de Mi turno</label>
+      <div class="li-sub">Además de su personal del día: qué hace cada persona, tareas con su productividad y el costo del día a su tarifa.${sol?' <span class="badge ba">La solicitó '+esc(sol.por||'')+' el '+esc(sol.fecha)+'</span>':''}</div></div>`; }
+  if(id){ const U=Object.entries(S.usuariosCliente||{}).filter(([,c])=>c===id).map(([u])=>u), TL=(S.lineasTipo||[]).filter(t=>t.clienteId===id);
+    if(U.length||pedidosOn()) h+=`<div class="li-sub" style="margin-bottom:6px"><b>Usuarios del cliente:</b> ${U.length?U.map(u=>'@'+esc(u)).join(', '):'ninguno'} · se crean en Configuración → Usuarios y accesos, con rol «Cliente».</div>`;
+    if(TL.length) h+=`<div class="li-sub" style="margin-bottom:8px"><b>Maquilas:</b> ${TL.map(t=>{ const v=t.venta||{}; return esc(t.nombre)+(+v.precio>0?' ('+money(v.precio)+' por '+UNID_COBRO[v.unidad||'paleta'][0]+')':''); }).join(' · ')} · se editan en Configuración → Líneas y maquila.</div>`; }
+  return h;
+}
+function leerFichaCliente(cid){
+  if(facturacionOn()&&document.querySelector('#clFicha input[data-s]')){ const o={};
+    document.querySelectorAll('#clFicha input[data-s]').forEach(i=>{ if(i.value!=='') o[i.dataset.s]=Math.max(0,+i.value||0); });
+    S.tarifasCliente=S.tarifasCliente||{}; if(Object.keys(o).length) S.tarifasCliente[cid]=o; else delete S.tarifasCliente[cid]; }
+  const av=document.getElementById('clAvz');
+  if(av){ S.clientesAvanzado=S.clientesAvanzado||{}; S.solicitudesAvanzado=S.solicitudesAvanzado||{};
+    if(av.checked&&!avanzadoDe(cid)){ S.clientesAvanzado[cid]=true; delete S.solicitudesAvanzado[cid]; (S.avisoAvanzado=S.avisoAvanzado||{})[cid]=false; }
+    else if(!av.checked) delete S.clientesAvanzado[cid]; }
 }
 async function eliminarCliente(id){if(!confirm('¿Eliminar cliente?'))return;S.clientes=S.clientes.filter(x=>x.id!==id);await save();renderInsights();}
 
@@ -4704,7 +4735,7 @@ function chipsPeriodo(){
 }
 function renderCobros(){
   const el=document.getElementById('cobContent'); if(!el||document.getElementById('viewCobros').classList.contains('hidden')) return;
-  const tit={planilla:'Planilla',cobros:'Cobros y proformas',tarifas:'Tarifas y costos',proformas:'Mis proformas',miturno:'Mi turno'+(esCliente()&&avanzadoDe(miCliente())?' · avanzado':'')}[_nav]||'Planilla';
+  const tit={planilla:'Planilla',cobros:'Cobros y proformas',tarifas:'Servicios y tarifas',proformas:'Mis proformas',miturno:'Mi turno'+(esCliente()&&avanzadoDe(miCliente())?' · avanzado':'')}[_nav]||'Planilla';
   document.getElementById('cobTitulo').textContent=tit; document.getElementById('cobAcciones').innerHTML='';
   if(_nav==='tarifas'){ el.innerHTML=htmlTarifas(); return; }
   if(_nav==='miturno'){ if(!_mt.fecha&&!_mt.cargando){ cargarMiTurno(hoyStr()); return; } el.innerHTML=htmlMiTurno(); return; }
@@ -4955,24 +4986,18 @@ async function avisarProformasCliente(){
   F.forEach(p=>showToast('Door emitió la factura '+p.factura.numero+' de la proforma '+p.numero+' · vence '+p.factura.vence,'info'));
   N.forEach(p=>p.vistoCliente=true); try{ await save(); }catch(e){}
 }
-// Tarifas y costos (administrador)
+// Servicios y tarifas (administrador): servicios generales, maquila, ITBMS y crédito
 function htmlTarifas(){
   const SV=servicios(), C=S.clientes||[];
   document.getElementById('cobAcciones').innerHTML=`<button class="btn btn-green btn-sm" onclick="guardarTarifas()">Guardar</button>`;
-  let h=`<div class="info-box">Costo y venta por persona por día de cada servicio. El sobretiempo se calcula por hora: (día ÷ ${fmtN(hpRegular())} h de jornada) × ${getConfig().multSobretiempo} de recargo; sábado y domingo aplican su recargo de Configuración.</div>
+  let h=`<div class="info-box">Costo y venta general por persona por día de cada servicio. El sobretiempo se calcula por hora: (día ÷ ${fmtN(hpRegular())} h de jornada) × ${getConfig().multSobretiempo} de recargo; sábado y domingo aplican su recargo de Configuración.</div>
   <div class="sec-title" style="margin:6px 0 8px">Personal por día</div>
   <div class="rt-scroll"><table class="rt-table cob-tbl" id="trSrv"><tr><th>Servicio</th><th>Posición del marcaje</th><th class="n">Costo por día</th><th class="n">Venta por día</th><th class="n">Margen</th><th></th></tr>`
   +SV.map((s,i)=>`<tr data-i="${i}"><td><input type="text" value="${esc(s.nombre)}" data-k="nombre"></td><td><select data-k="puesto"><option value="">— (se asigna en la persona)</option>${Object.entries(PUESTOS).map(([k,v])=>`<option value="${k}"${s.puesto===k?' selected':''}>${v}</option>`).join('')}</select></td>
     <td class="n"><input type="number" min="0" step="0.01" style="max-width:100px" value="${s.costoDia}" data-k="costoDia"></td><td class="n"><input type="number" min="0" step="0.01" style="max-width:100px" value="${s.ventaDia}" data-k="ventaDia"></td>
     <td class="n">${money(s.ventaDia-s.costoDia)}</td><td>${SV.length>1?`<button class="btn btn-ghost btn-sm" onclick="quitarServicio(${i})" aria-label="Quitar">×</button>`:''}</td></tr>`).join('')
   +`</table></div><button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="agregarServicio()">+ Servicio</button>`;
-  h+=`<div class="sec-title" style="margin:18px 0 8px">Tarifa de venta por cliente</div><div class="li-sub" style="margin-bottom:6px">Vacío: la venta general. Escribe la tarifa negociada con cada cliente por persona por día.</div>
-  <div class="rt-scroll"><table class="rt-table cob-tbl" id="trCli"><tr><th>Cliente</th>${SV.map(s=>`<th class="n">${esc(s.nombre)}</th>`).join('')}</tr>`
-  +C.map(c=>`<tr data-c="${c.id}"><td>${esc(c.nombre)}</td>${SV.map(s=>{ const v=((S.tarifasCliente||{})[c.id]||{})[s.id]; return `<td class="n"><input type="number" min="0" step="0.01" style="max-width:90px" data-s="${s.id}" placeholder="${s.ventaDia}" value="${v!==undefined&&v!==null&&v!==''?v:''}"></td>`; }).join('')}</tr>`).join('')+`</table></div>`;
-  if(marcajeClienteOn()){ const SA=S.solicitudesAvanzado||{};
-    h+=`<div class="sec-title" style="margin:18px 0 8px">Mi turno · versión avanzada por cliente</div><div class="li-sub" style="margin-bottom:6px">Todos los clientes ven su personal del día. La versión avanzada agrega qué hace cada persona, las tareas con su productividad y el costo del día a su tarifa.</div>`
-      +C.map(c=>`<div class="list-item"><div class="li-info"><div class="li-name">${esc(c.nombre)}${SA[c.id]?' <span class="badge ba">La solicitó el '+esc(SA[c.id].fecha)+'</span>':''}</div><div class="li-sub">${avanzadoDe(c.id)?'Ve la versión avanzada':'Ve la versión básica'}</div></div>
-        <label class="li-actions" style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" class="cob-chk"${avanzadoDe(c.id)?' checked':''} onchange="toggleAvanzado('${c.id}',this.checked)"> Avanzada</label></div>`).join(''); }
+  h+=`<div class="li-sub" style="margin:8px 0 0">La tarifa negociada con cada cliente y su acceso a la versión avanzada de Mi turno se ponen en su ficha: Clientes y cobros → Clientes.</div>`;
   const TL=S.lineasTipo||[];
   h+=`<div class="sec-title" style="margin:18px 0 8px">Maquila (tipos de línea)</div>`+(TL.length?TL.map(t=>{ const v=t.venta||{}, un=UNID_COBRO[v.unidad||'paleta'];
     return `<div class="list-item"><div class="li-info"><div class="li-name">${esc(t.nombre)} · ${esc(nombreCliente(t.clienteId)||'Sin cliente')}</div><div class="li-sub">${+v.precio>0?`Venta ${money(v.precio)} por ${un[0]}${v.unidad!=='paleta'?' ('+fmtN(v.porPallet)+' por pallet)':''} · costeo ${v.costeo==='unidad'?money(v.costoUnidad)+' por '+un[0]:'por el personal de la línea'}`:'<b style="color:var(--amber)">Sin precio de venta: su personal se cobra por día</b>'}</div></div>
@@ -4985,7 +5010,7 @@ function htmlTarifas(){
 function leerTarifas(){
   const SV=[...document.querySelectorAll('#trSrv tr[data-i]')].map(r=>{ const o=servicios()[+r.dataset.i]||{}, g=k=>r.querySelector(`[data-k="${k}"]`).value;
     return {id:o.id||uid(),nombre:g('nombre').trim()||'Servicio',puesto:g('puesto'),costoDia:Math.max(0,+g('costoDia')||0),ventaDia:Math.max(0,+g('ventaDia')||0)}; });
-  const TC={}; document.querySelectorAll('#trCli tr[data-c]').forEach(r=>{ const o={}; r.querySelectorAll('input[data-s]').forEach(i=>{ if(i.value!=='') o[i.dataset.s]=Math.max(0,+i.value||0); }); if(Object.keys(o).length) TC[r.dataset.c]=o; });
+  const TC=S.tarifasCliente||{};   // las tarifas por cliente se editan en la ficha de cada cliente
   return {SV,TC};
 }
 function agregarServicio(){ const {SV,TC}=leerTarifas(); SV.push({id:uid(),nombre:'Nuevo servicio',puesto:'',costoDia:0,ventaDia:0}); S.servicios=SV; S.tarifasCliente=TC; renderCobros(); }
@@ -4994,7 +5019,7 @@ async function guardarTarifas(){
   const {SV,TC}=leerTarifas(), dup=SV.map(s=>s.puesto).filter(Boolean).filter((p,i,a)=>a.indexOf(p)!==i);
   if(dup.length){ showToast('Cada posición del marcaje va en un solo servicio: '+PUESTOS[dup[0]],'error'); return; }
   S.servicios=SV; S.tarifasCliente=TC; S.config=Object.assign(getConfig(),{itbms:Math.max(0,+document.getElementById('trItbms').value||0),creditoDias:Math.max(0,parseInt(document.getElementById('trCred').value)||0)});
-  await save(); renderCobros(); showToast('Tarifas y costos guardados');
+  await save(); renderCobros(); showToast('Servicios y tarifas guardados');
 }
 
 // ═══ MI TURNO (cliente): su personal del día. Básica para todos; avanzada si el administrador la enciende ═══
@@ -5061,7 +5086,7 @@ async function solicitarAvanzado(){
   const cid=miCliente(); if(!cid) return;
   S.solicitudesAvanzado=S.solicitudesAvanzado||{}; S.solicitudesAvanzado[cid]={fecha:hoyStr(),por:currentUser.nombre};
   await save(); renderCobros();
-  emitirAviso('cli_avz','avz|'+cid+'|'+hoyStr(),'Versión avanzada solicitada · '+nombreCliente(cid),currentUser.nombre+' pide la versión avanzada de Mi turno. Se enciende en Tarifas y costos.',{accion:'tarifas'});
+  emitirAviso('cli_avz','avz|'+cid+'|'+hoyStr(),'Versión avanzada solicitada · '+nombreCliente(cid),currentUser.nombre+' pide la versión avanzada de Mi turno. Se enciende en su ficha: Clientes y cobros → Clientes.',{accion:'clientes'});
   showToast('Solicitud enviada: Door te avisará al activarla');
 }
 async function toggleAvanzado(cid,on){
@@ -5638,7 +5663,12 @@ function renderInsights(){
     // CLIENTES
     h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sCliCat','cCliCat')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Clientes</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalCliente()">+ Nuevo</button><span class="chevron open" id="cCliCat">▼</span></div></div><div class="sec-body" id="sCliCat">`;
     if(!S.clientes.length)h+=`<div class="empty"><div class="empty-text">Sin clientes</div></div>`;
-    S.clientes.forEach(c=>{h+=`<div class="list-item"><div class="li-info"><div class="li-name">${c.nombre}</div>${c.desc?`<div class="li-sub">${c.desc}</div>`:''}</div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalCliente('${c.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarCliente('${c.id}')">×</button></div></div>`;});
+    S.clientes.forEach(c=>{ const d=[]; if(c.desc) d.push(esc(c.desc));
+      if(facturacionOn()){ const n=Object.keys((S.tarifasCliente||{})[c.id]||{}).length; d.push(n?'Tarifa negociada en '+n+' servicio'+(n===1?'':'s'):'Tarifa general'); }
+      if(marcajeClienteOn()) d.push(avanzadoDe(c.id)?'Mi turno avanzado':'Mi turno básico');
+      const nu=Object.values(S.usuariosCliente||{}).filter(x=>x===c.id).length; if(nu) d.push(nu+' usuario'+(nu===1?'':'s'));
+      const sol=(S.solicitudesAvanzado||{})[c.id];
+      h+=`<div class="list-item"><div class="li-info"><div class="li-name">${esc(c.nombre)}${sol&&!avanzadoDe(c.id)?' <span class="badge ba">Pide la versión avanzada</span>':''}</div>${d.length?`<div class="li-sub">${d.join(' · ')}</div>`:''}</div><div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalCliente('${c.id}')">Ficha</button><button class="btn btn-red btn-sm" onclick="eliminarCliente('${c.id}')" aria-label="Eliminar cliente">×</button></div></div>`;});
     h+=`</div></div>`;
   }
 
