@@ -739,6 +739,41 @@ async function newPage(browser, opts = {}) {
     return r; });
   ok(tar.pestana && tar.admin, 'tarifario: el administrador compara todos los clientes (negociada, costo, maquila) desde Clientes y cobros');
   ok(tar.cliente, 'tarifario del cliente: solo sus precios (día, hora extra, domingo) y su maquila, sin costos ni otros clientes');
+
+  // Costos unificados (Door): el motor del turno usa el costo de la ficha de la persona o el de su servicio
+  const cu = await page.evaluate(() => {
+    const r = {}, cfg0 = { ...S.config }, bk = { servicios: S.servicios, fichas: S.fichas };
+    const T = { id: 'tu', fecha: '2026-11-18', inicio: Date.parse('2026-11-18T08:00:00'), fin: Date.parse('2026-11-18T17:00:00'), hpPorPersona: 8,
+      equipo: [{ id: 'u1p', nombre: 'Uno', cargo: 'ag' }, { id: 'u2p', nombre: 'Dos', cargo: 'operador' }] };
+    S.config.facturacion = false; const dp = calcTurno(T, [], [], T.fin);
+    r.dpworld = Math.abs(dp.per.u1p.rate - costoCargo('ag', T.fecha).hora) < 1e-9;
+    S.config.facturacion = true; S.servicios = [{ id: 'sa', nombre: 'Ayudante', puesto: 'ag', costoDia: 32, ventaDia: 45 }, { id: 'so', nombre: 'Operador', puesto: 'operador', costoDia: 40, ventaDia: 60 }];
+    S.fichas = { u2p: { costoDia: 48 } };
+    const k = calcTurno(T, [], [], T.fin), hp = hpRegular();
+    r.door = Math.abs(k.per.u1p.rate - 32 / hp) < 1e-9 && Math.abs(k.per.u2p.rate - 48 / hp) < 1e-9;
+    S.config = cfg0; Object.assign(S, bk); return r; });
+  ok(cu.dpworld && cu.door, 'costos unificados: con facturación el turno usa el costo del servicio o el propio de la persona; DP World, las tarifas por cargo');
+
+  // Estado de cuenta: facturas pagadas, con abono, pendientes y vencidas; el cliente solo ve las suyas
+  const ec = await page.evaluate(async () => {
+    const r = {}, yo = currentUser, cfg0 = { ...S.config }, bk = {}; ['clientes', 'proformas', 'usuariosCliente'].forEach(k => bk[k] = JSON.parse(JSON.stringify(S[k] || {})));
+    S.config.facturacion = true; S.clientes = [{ id: 'kA', nombre: 'Cli A' }, { id: 'kB', nombre: 'Cli B' }]; S.usuariosCliente = { cla: 'kA' };
+    const d = n => fechaMenos(hoyStr(), n), it = (id, v) => ({ id, fecha: d(40), desc: 'R ' + id, cantidad: 1, unidad: 'día', precio: v, venta: v, costo: 0 });
+    const pf = (id, cli, est, items, fac, abonos) => ({ id, numero: id, clienteId: cli, desde: d(50), hasta: d(40), estado: est, itbms: 0, items, aprobados: items.map(x => x.id), excluidos: [], abonos: abonos || [], factura: fac, log: [] });
+    S.proformas = [pf('P1', 'kA', 'cobrada', [it('a', 100)], { numero: 'F1', fecha: d(40), vence: d(10) }, [{ fecha: d(5), monto: 100 }]),
+      pf('P2', 'kA', 'facturada', [it('b', 200)], { numero: 'F2', fecha: d(45), vence: d(15) }, [{ fecha: d(3), monto: 50 }]),
+      pf('P3', 'kB', 'facturada', [it('c', 300)], { numero: 'F3', fecha: d(2), vence: d(-28) }),
+      pf('P4', 'kB', 'aprobada', [it('e', 80)], null)];
+    r.estados = estadoFactura(S.proformas[0])[2] === 'pagada' && estadoFactura(S.proformas[1])[0] === 'Vencida · con abono' && estadoFactura(S.proformas[2])[0] === 'Pendiente';
+    const A = agingDe(facturasDe('')); r.aging = A.d30 === 150 && A.aldia === 300;
+    _ec = { cli: '', est: 'todas' }; setNav('estado'); const t = document.getElementById('cobContent').innerText;
+    r.admin = /F1/.test(t) && /F2/.test(t) && /F3/.test(t) && /Por cliente/i.test(t) && /Aprobado por facturar/i.test(t) && tabsDe(CATS.find(c => c.id === 'clientes')).some(x => x[0] === 'estado');
+    currentUser = { ...yo, rol: 'cliente', username: 'cla', nombre: 'Cliente A' }; setNav('estado'); const c = document.getElementById('cobContent').innerText;
+    r.cliente = _nav === 'estado' && /F1/.test(c) && /F2/.test(c) && !/F3/.test(c) && !/Registrar cobro/i.test(c) && /150\.00/.test(c);
+    currentUser = yo; S.config = cfg0; Object.assign(S, bk); _ec = { cli: '', est: 'todas' }; setNav('supervisor'); await save();
+    return r; });
+  ok(ec.estados && ec.aging, 'estado de cuenta: pagada, vencida con abono, pendiente y antigüedad del saldo');
+  ok(ec.admin && ec.cliente, 'estado de cuenta: el administrador ve todos los clientes y lo por facturar; el cliente solo sus facturas y su saldo');
   ok(avs.guarda && avs.filtra, 'avisos: cada interruptor se guarda en el servidor y decide qué avisa (entrada de operador apagada, de supervisor encendida)');
   ok(avs.otro && avs.otroGuarda && avs.botonUsuarios, 'avisos: el administrador elige los avisos de cada usuario desde Usuarios');
   ok(avs.riesgo && avs.mitad && avs.meta && avs.texto && avs.cierre && avs.unaVezServidor, 'avisos de producción: riesgo de no llegar, mitad, meta cumplida y cierre; una sola vez');

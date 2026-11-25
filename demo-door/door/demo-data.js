@@ -6,7 +6,7 @@
 // Nada sale del navegador: no hay base de datos ni datos reales.
 // ═══════════════════════════════════════════════════════════════
 (function(){
-  const SRV = window.__SRV, H = 3600000, MIN = 60000, KEY = 'door_demo_v5', SKEY = 'ctrl_horas';
+  const SRV = window.__SRV, H = 3600000, MIN = 60000, KEY = 'door_demo_v6', SKEY = 'ctrl_horas';
   const pad = n => String(n).padStart(2, '0');
   const dstr = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   const at = (f, h, m) => { const [y, mo, d] = f.split('-').map(Number); return new Date(y, mo - 1, d, h, m || 0, 0, 0).getTime(); };
@@ -33,6 +33,29 @@
   const USUARIOS_CLIENTE = { cliente: 'k1', atlantico: 'k2' };
   // Planilla y cobros: tarifas negociadas por cliente (venta por persona por día) y cédulas ficticias para la planilla
   const TARIFAS_CLIENTE = { k1: { ag: 45, operador: 58 }, k2: { linea: 38 } };
+  // Estado de cuenta de ejemplo: proformas de quincenas anteriores ya facturadas (una pagada, una con abono, una vencida)
+  // y una aprobada por facturar. Sus rubros son resúmenes con id propio: no chocan con lo que se genera del período actual.
+  function proformasDemo(){
+    const dia = n => dstr(new Date(NOW - n * 24 * H)), ts = n => NOW - n * 24 * H;
+    const it = (id, fecha, desc, cantidad, unidad, precio) => ({ id: 'hist|' + id, tipo: 'personal', fecha, desc, cantidad, unidad, precio, venta: Math.round(cantidad * precio * 100) / 100, costo: 0 });
+    const pf = (id, num, cli, d0, d1, items, extra, log) => Object.assign({ id, numero: num, clienteId: cli, desde: dia(d0), hasta: dia(d1), estado: 'facturada', itbms: 7, creada: ts(d1 - 1),
+      items, aprobados: items.map(x => x.id), excluidos: [], vistoCliente: true, abonos: [], log }, extra);
+    const fac = (num, n, cred) => ({ numero: num, fecha: dia(n), vence: dia(n - cred), credito: cred, por: 'Administrador Demo', ts: ts(n) });
+    const L = (u, a, n) => ({ t: dia(n) + ' 10:00', u, a });
+    return [
+      pf('pfh1', 'PF-0001', 'k1', 75, 61, [it('a1', dia(61), 'Operador de equipo · 60 días-persona', 60, 'día', 58), it('a2', dia(61), 'Ayudante general · 24 días-persona', 24, 'día', 45), it('a3', dia(61), 'Sobretiempo · 18 h', 18, 'h', 9.06)],
+        { estado: 'cobrada', factura: fac('0001-00004380', 58, 30), abonos: [{ fecha: dia(27), monto: 5053.70, forma: 'Transferencia / ACH', ref: 'ACH 551209', por: 'Administrador Demo', ts: ts(27) }] },
+        [L('Laura Méndez · Importadora Istmo', 'Confirmó 3 de 3 rubros', 60), L('Administrador Demo', 'Registró la factura 0001-00004380', 58), L('Administrador Demo', 'Registró el cobro final $5,053.70', 27)]),
+      pf('pfh2', 'PF-0002', 'k1', 45, 31, [it('b1', dia(31), 'Operador de equipo · 66 días-persona', 66, 'día', 58), it('b2', dia(31), 'Ayudante general · 30 días-persona', 30, 'día', 45), it('b3', dia(31), 'Maquila · Etiquetado de importación', 48000, 'unidades', 0.03)],
+        { factura: fac('0001-00004431', 28, 30), abonos: [{ fecha: dia(6), monto: 3000, forma: 'Cheque', ref: 'CHQ 1187', por: 'Administrador Demo', ts: ts(6) }] },
+        [L('Laura Méndez · Importadora Istmo', 'Confirmó 3 de 3 rubros', 30), L('Administrador Demo', 'Registró la factura 0001-00004431', 28), L('Administrador Demo', 'Registró un abono $3,000.00', 6)]),
+      pf('pfh3', 'PF-0003', 'k2', 75, 61, [it('c1', dia(61), 'Personal de línea / maquila · 190 días-persona', 190, 'día', 38), it('c2', dia(61), 'Supervisor · 12 días-persona', 12, 'día', 70)],
+        { factura: fac('0001-00004382', 57, 30) },
+        [L('Carlos Ríos · Distribuidora Atlántico', 'Confirmó 2 de 2 rubros', 59), L('Administrador Demo', 'Registró la factura 0001-00004382', 57)]),
+      pf('pfh4', 'PF-0004', 'k3', 30, 16, [it('d1', dia(16), 'Ayudante general · 40 días-persona', 40, 'día', 42), it('d2', dia(16), 'Maquila · Empaque promocional', 6200, 'cajas', 0.42)],
+        { estado: 'aprobada' }, [L('Comercial Bahía Azul', 'Confirmó 2 de 2 rubros', 14)])
+    ];
+  }
   const CLIENTES = [
     { id: 'k1', nombre: 'Importadora Istmo' }, { id: 'k2', nombre: 'Distribuidora Atlántico' },
     { id: 'k3', nombre: 'Comercial Bahía Azul' }, { id: 'k4', nombre: 'Farmacéutica del Canal' }
@@ -248,7 +271,7 @@
         [{ t: hm(NOW - 1 * H), u: 'Comercial Bahía Azul', a: 'Pidió 4 personas' }])
     ];
     const state = { colaboradores: [], tareasCat: TAREAS, clientes: CLIENTES, config: CONFIG, pedidosPersonal, usuariosCliente: USUARIOS_CLIENTE,
-      tarifasCliente: TARIFAS_CLIENTE, servicios: [], proformas: [],
+      tarifasCliente: TARIFAS_CLIENTE, servicios: [], proformas: proformasDemo(),
       clientesAvanzado: { k1: true }, solicitudesAvanzado: {},   // Importadora Istmo ve Mi turno avanzado; Atlántico, el básico
       fichas: Object.fromEntries(PERSONAL.map((p, i) => [p.id, { cedula: '8-' + (700 + i * 13) + '-' + (1200 + i * 377) }])), lineasTipo: TIPOS, lineas: lineas.concat(h.lineas),
       turnosHistorial: hist, solicitudes: [], turnosProgramados: [], rutinas: [], plantillas: [], temaHSE: [], causasParo: [], lineasPlan: [], nombresLinea: [],
