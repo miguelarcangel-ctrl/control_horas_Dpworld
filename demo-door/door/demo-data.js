@@ -6,7 +6,7 @@
 // Nada sale del navegador: no hay base de datos ni datos reales.
 // ═══════════════════════════════════════════════════════════════
 (function(){
-  const SRV = window.__SRV, H = 3600000, MIN = 60000, KEY = 'door_demo_v6', SKEY = 'ctrl_horas';
+  const SRV = window.__SRV, H = 3600000, MIN = 60000, KEY = 'door_demo_v7', SKEY = 'ctrl_horas';
   const pad = n => String(n).padStart(2, '0');
   const dstr = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   const at = (f, h, m) => { const [y, mo, d] = f.split('-').map(Number); return new Date(y, mo - 1, d, h, m || 0, 0, 0).getTime(); };
@@ -53,7 +53,9 @@
         { factura: fac('0001-00004382', 57, 30) },
         [L('Carlos Ríos · Distribuidora Atlántico', 'Confirmó 2 de 2 rubros', 59), L('Administrador Demo', 'Registró la factura 0001-00004382', 57)]),
       pf('pfh4', 'PF-0004', 'k3', 30, 16, [it('d1', dia(16), 'Ayudante general · 40 días-persona', 40, 'día', 42), it('d2', dia(16), 'Maquila · Empaque promocional', 6200, 'cajas', 0.42)],
-        { estado: 'aprobada' }, [L('Comercial Bahía Azul', 'Confirmó 2 de 2 rubros', 14)])
+        { estado: 'aprobada', aprobada: ts(14) }, [L('Comercial Bahía Azul', 'Confirmó 2 de 2 rubros', 14)]),
+      pf('pfh5', 'PF-0005', 'k1', 30, 16, [it('e1', dia(16), 'Operador de equipo · 54 días-persona', 54, 'día', 58), it('e2', dia(16), 'Ayudante general · 22 días-persona', 22, 'día', 45)],
+        { estado: 'aprobada', aprobada: ts(13) }, [L('Laura Méndez · Importadora Istmo', 'Confirmó 2 de 2 rubros', 13)])
     ];
   }
   const CLIENTES = [

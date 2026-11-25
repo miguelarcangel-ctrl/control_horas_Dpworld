@@ -763,17 +763,17 @@ async function newPage(browser, opts = {}) {
     S.proformas = [pf('P1', 'kA', 'cobrada', [it('a', 100)], { numero: 'F1', fecha: d(40), vence: d(10) }, [{ fecha: d(5), monto: 100 }]),
       pf('P2', 'kA', 'facturada', [it('b', 200)], { numero: 'F2', fecha: d(45), vence: d(15) }, [{ fecha: d(3), monto: 50 }]),
       pf('P3', 'kB', 'facturada', [it('c', 300)], { numero: 'F3', fecha: d(2), vence: d(-28) }),
-      pf('P4', 'kB', 'aprobada', [it('e', 80)], null)];
+      pf('P4', 'kB', 'aprobada', [it('e', 80)], null), pf('P5', 'kA', 'aprobada', [it('f', 70)], null)];
     r.estados = estadoFactura(S.proformas[0])[2] === 'pagada' && estadoFactura(S.proformas[1])[0] === 'Vencida · con abono' && estadoFactura(S.proformas[2])[0] === 'Pendiente';
     const A = agingDe(facturasDe('')); r.aging = A.d30 === 150 && A.aldia === 300;
     _ec = { cli: '', est: 'todas' }; setNav('estado'); const t = document.getElementById('cobContent').innerText;
-    r.admin = /F1/.test(t) && /F2/.test(t) && /F3/.test(t) && /Por cliente/i.test(t) && /Aprobado por facturar/i.test(t) && tabsDe(CATS.find(c => c.id === 'clientes')).some(x => x[0] === 'estado');
+    r.admin = /F1/.test(t) && /F2/.test(t) && /F3/.test(t) && /Por cliente/i.test(t) && /Por facturar/i.test(t) && /150\.00/.test(t) && /Total por cobrar/i.test(t) && /P4/.test(t) && /Registrar factura/i.test(t) && tabsDe(CATS.find(c => c.id === 'clientes')).some(x => x[0] === 'estado');
     currentUser = { ...yo, rol: 'cliente', username: 'cla', nombre: 'Cliente A' }; setNav('estado'); const c = document.getElementById('cobContent').innerText;
-    r.cliente = _nav === 'estado' && /F1/.test(c) && /F2/.test(c) && !/F3/.test(c) && !/Registrar cobro/i.test(c) && /150\.00/.test(c);
+    r.cliente = _nav === 'estado' && /F1/.test(c) && /F2/.test(c) && !/F3|P4/.test(c) && !/Registrar cobro|Registrar factura/i.test(c) && /150\.00/.test(c) && /70\.00/.test(c) && /220\.00/.test(c) && /P5/.test(c);
     currentUser = yo; S.config = cfg0; Object.assign(S, bk); _ec = { cli: '', est: 'todas' }; setNav('supervisor'); await save();
     return r; });
   ok(ec.estados && ec.aging, 'estado de cuenta: pagada, vencida con abono, pendiente y antigüedad del saldo');
-  ok(ec.admin && ec.cliente, 'estado de cuenta: el administrador ve todos los clientes y lo por facturar; el cliente solo sus facturas y su saldo');
+  ok(ec.admin && ec.cliente, 'estado de cuenta: tarjeta y columna por facturar y total por cobrar; el administrador ve todos, el cliente solo lo suyo');
   ok(avs.guarda && avs.filtra, 'avisos: cada interruptor se guarda en el servidor y decide qué avisa (entrada de operador apagada, de supervisor encendida)');
   ok(avs.otro && avs.otroGuarda && avs.botonUsuarios, 'avisos: el administrador elige los avisos de cada usuario desde Usuarios');
   ok(avs.riesgo && avs.mitad && avs.meta && avs.texto && avs.cierre && avs.unaVezServidor, 'avisos de producción: riesgo de no llegar, mitad, meta cumplida y cierre; una sola vez');

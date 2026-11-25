@@ -5050,63 +5050,77 @@ async function avisarProformasCliente(){
 let _ec={cli:'',est:'todas'};
 function diasVencida(p){ return p.factura&&p.factura.vence<hoyStr()?Math.round((new Date(hoyStr()+'T12:00:00')-new Date(p.factura.vence+'T12:00:00'))/86400000):0; }
 function estadoFactura(p){
+  if(p.estado==='aprobada') return ['Por facturar','ba','porfacturar'];
   if(p.estado==='cobrada') return ['Pagada','bg','pagada'];
   const ab=pfCobrado(p)>0.005, v=pfVencida(p);
   if(v) return [ab?'Vencida · con abono':'Vencida','br','vencida'];
   return ab?['Con abono','ba','pendiente']:['Pendiente','bgy','pendiente'];
 }
 function facturasDe(cid){ return (S.proformas||[]).filter(p=>p.factura&&['facturada','cobrada'].includes(p.estado)&&(!cid||p.clienteId===cid)).sort((a,b)=>b.factura.fecha.localeCompare(a.factura.fecha)||b.factura.numero.localeCompare(a.factura.numero)); }
+// Aprobadas por el cliente y todavía sin factura fiscal: el valor por facturar
+function porFacturarDe(cid){ return (S.proformas||[]).filter(p=>p.estado==='aprobada'&&(!cid||p.clienteId===cid)).sort((a,b)=>(b.aprobada||0)-(a.aprobada||0)); }
+const fechaAprob=p=>p.aprobada?fechaLocal(new Date(p.aprobada)):p.hasta;
 function agingDe(F){ const A={aldia:0,d30:0,d60:0,d90:0,mas:0};
   F.filter(p=>p.estado==='facturada').forEach(p=>{ const s=pfSaldo(p), d=diasVencida(p); if(s<=0.005) return; A[d<=0?'aldia':d<=30?'d30':d<=60?'d60':d<=90?'d90':'mas']+=s; }); return A; }
 function htmlEstadoCuenta(){
   const cli=esCliente(), adm=esAdminU(), cid=cli?miCliente():_ec.cli;
   if(cli&&!cid) return '<div class="info-box">Tu usuario todavía no está ligado a una empresa. Pídele al administrador que lo configure.</div>';
   document.getElementById('cobAcciones').innerHTML=(adm?`<button class="btn btn-ghost btn-sm" onclick="exportarEstadoCuenta()">Excel</button>`:'')+`<button class="btn btn-ghost btn-sm" onclick="imprimirTarifario()">Imprimir o PDF</button>`;
-  const T=facturasDe(cid), L=_ec.est==='todas'?T:T.filter(p=>estadoFactura(p)[2]===_ec.est);
-  const tot=k=>T.reduce((a,p)=>a+(k==='total'?pfTotales(p).total:k==='pagado'?pfCobrado(p):p.estado==='facturada'?pfSaldo(p):0),0);
-  const venc=T.filter(pfVencida).reduce((a,p)=>a+pfSaldo(p),0), A=agingDe(T);
-  const porFacturar=(S.proformas||[]).filter(p=>p.estado==='aprobada'&&(!cid||p.clienteId===cid));
+  const T=facturasDe(cid), PF=porFacturarDe(cid), R=[...PF,...T], L=_ec.est==='todas'?R:R.filter(p=>estadoFactura(p)[2]===_ec.est);
+  const facturado=T.reduce((a,p)=>a+pfTotales(p).total,0), pagado=T.reduce((a,p)=>a+pfCobrado(p),0), saldo=T.filter(p=>p.estado==='facturada').reduce((a,p)=>a+pfSaldo(p),0);
+  const venc=T.filter(pfVencida).reduce((a,p)=>a+pfSaldo(p),0), porFac=PF.reduce((a,p)=>a+pfTotales(p).total,0), A=agingDe(T);
   let h=`<div class="tar-imp"><h2>Estado de cuenta${cid?' · '+esc(nombreCliente(cid)):''}</h2><div class="li-sub">${esc(document.title.replace(/^Control de Horas — /,''))} · al ${new Date().toLocaleDateString('es-PA')}</div></div>`;
   h+=`<div class="cob-filtros pf-noprint">${adm?`<div class="field"><label>Cliente</label><select onchange="_ec.cli=this.value;renderCobros()"><option value="">Todos</option>${(S.clientes||[]).map(c=>`<option value="${c.id}"${_ec.cli===c.id?' selected':''}>${esc(c.nombre)}</option>`).join('')}</select></div>`:''}</div>`;
-  h+=`<div class="ped-resumen"><div class="ped-kpi"><b>${money(tot('total'))}</b><span>Facturado · ${T.length} factura(s)</span></div>
-    <div class="ped-kpi"><b style="color:var(--green)">${money(tot('pagado'))}</b><span>Pagado</span></div>
-    <div class="ped-kpi"><b>${money(tot('saldo'))}</b><span>Saldo pendiente</span></div>
-    <div class="ped-kpi"><b style="${venc>0.005?'color:var(--red-t)':''}">${money(venc)}</b><span>Vencido</span></div></div>`;
-  if(tot('saldo')>0.005) h+=`<div class="sec-title" style="margin:4px 0 8px">Antigüedad del saldo</div><div class="ec-aging">${[['aldia','Al día'],['d30','1 a 30 días'],['d60','31 a 60 días'],['d90','61 a 90 días'],['mas','más de 90 días']].map(([k,n])=>`<div class="ped-kpi"><b style="${k!=='aldia'&&A[k]>0.005?'color:var(--red-t)':''}">${money(A[k])}</b><span>${k==='aldia'?n:'Vencido '+n}</span></div>`).join('')}</div>`;
-  if(porFacturar.length) h+=`<div class="li-sub" style="margin-bottom:8px">${cli?'Aprobado y en facturación':'Aprobado por facturar'}: ${money(porFacturar.reduce((a,p)=>a+pfTotales(p).total,0))} en ${porFacturar.length} proforma(s)${cli?'.':' · se factura en Cobros y proformas.'}</div>`;
+  h+=`<div class="ped-resumen"><div class="ped-kpi"><b>${money(facturado)}</b><span>Facturado · ${T.length} factura(s)</span></div>
+    <div class="ped-kpi"><b style="color:var(--green)">${money(pagado)}</b><span>Pagado</span></div>
+    <div class="ped-kpi"><b>${money(saldo)}</b><span>Saldo de facturas</span></div>
+    <div class="ped-kpi"><b style="${venc>0.005?'color:var(--red-t)':''}">${money(venc)}</b><span>Vencido</span></div>
+    <div class="ped-kpi"><b style="${porFac>0.005?'color:var(--amber)':''}">${money(porFac)}</b><span>Por facturar · ${PF.length} proforma(s) aprobada(s)</span></div>
+    <div class="ped-kpi"><b>${money(saldo+porFac)}</b><span>Total por cobrar (saldo + por facturar)</span></div></div>`;
+  if(saldo>0.005) h+=`<div class="sec-title" style="margin:4px 0 8px">Antigüedad del saldo</div><div class="ec-aging">${[['aldia','Al día'],['d30','1 a 30 días'],['d60','31 a 60 días'],['d90','61 a 90 días'],['mas','más de 90 días']].map(([k,n])=>`<div class="ped-kpi"><b style="${k!=='aldia'&&A[k]>0.005?'color:var(--red-t)':''}">${money(A[k])}</b><span>${k==='aldia'?n:'Vencido '+n}</span></div>`).join('')}</div>`;
   // Resumen por cliente (administrador, todos)
-  if(adm&&!cid&&T.length){ const G={}; T.forEach(p=>{ const g=G[p.clienteId]||(G[p.clienteId]={f:0,t:0,pa:0,s:0,v:0}); g.f++; g.t+=pfTotales(p).total; g.pa+=pfCobrado(p); if(p.estado==='facturada') g.s+=pfSaldo(p); if(pfVencida(p)) g.v+=pfSaldo(p); });
-    h+=`<div class="sec-title" style="margin:6px 0 8px">Por cliente</div><div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Cliente</th><th class="n">Facturas</th><th class="n">Facturado</th><th class="n">Pagado</th><th class="n">Saldo</th><th class="n">Vencido</th></tr>`
-      +Object.entries(G).sort((a,b)=>b[1].s-a[1].s).map(([k,g])=>`<tr style="cursor:pointer" onclick="_ec.cli='${k}';renderCobros()"><td>${esc(nombreCliente(k))}</td><td class="n">${g.f}</td><td class="n">${money(g.t)}</td><td class="n">${money(g.pa)}</td><td class="n">${money(g.s)}</td><td class="n"${g.v>0.005?' style="color:var(--red-t);font-weight:700"':''}>${money(g.v)}</td></tr>`).join('')+`</table></div>`; }
-  // Facturas
-  h+=`<div class="sec-title" style="margin:14px 0 8px">Facturas</div><div class="cob-tabs pf-noprint">${[['todas','Todas'],['pendiente','Pendientes'],['vencida','Vencidas'],['pagada','Pagadas']].map(([k,n])=>`<div class="chip${_ec.est===k?' selected':''}" onclick="_ec.est='${k}';renderCobros()">${n} (${k==='todas'?T.length:T.filter(p=>estadoFactura(p)[2]===k).length})</div>`).join('')}</div>`;
-  h+=L.length?`<div class="rt-scroll tar-wide"><table class="rt-table cob-tbl"><tr><th>Factura</th><th>Fecha</th><th>Vence</th>${!cid?'<th>Cliente</th>':''}<th>Proforma</th><th class="n">Total</th><th class="n">Pagado</th><th class="n">Saldo</th><th>Estado</th><th>Pagos</th>${adm?'<th class="pf-noprint"></th>':''}</tr>`
-    +L.map(p=>{ const [e,b]=estadoFactura(p), d=diasVencida(p), T2=pfTotales(p);
+  if(adm&&!cid&&R.length){ const G={}; R.forEach(p=>{ const g=G[p.clienteId]||(G[p.clienteId]={f:0,t:0,pa:0,s:0,v:0,pf:0});
+      if(p.estado==='aprobada'){ g.pf+=pfTotales(p).total; return; } g.f++; g.t+=pfTotales(p).total; g.pa+=pfCobrado(p); if(p.estado==='facturada') g.s+=pfSaldo(p); if(pfVencida(p)) g.v+=pfSaldo(p); });
+    h+=`<div class="sec-title" style="margin:6px 0 8px">Por cliente</div><div class="rt-scroll"><table class="rt-table cob-tbl"><tr><th>Cliente</th><th class="n">Facturas</th><th class="n">Facturado</th><th class="n">Pagado</th><th class="n">Saldo</th><th class="n">Vencido</th><th class="n">Por facturar</th><th class="n">Total por cobrar</th></tr>`
+      +Object.entries(G).sort((a,b)=>(b[1].s+b[1].pf)-(a[1].s+a[1].pf)).map(([k,g])=>`<tr style="cursor:pointer" onclick="_ec.cli='${k}';renderCobros()"><td>${esc(nombreCliente(k))}</td><td class="n">${g.f}</td><td class="n">${money(g.t)}</td><td class="n">${money(g.pa)}</td><td class="n">${money(g.s)}</td><td class="n"${g.v>0.005?' style="color:var(--red-t);font-weight:700"':''}>${money(g.v)}</td><td class="n"${g.pf>0.005?' style="color:var(--amber);font-weight:700"':''}>${money(g.pf)}</td><td class="n"><b>${money(g.s+g.pf)}</b></td></tr>`).join('')+`</table></div>`; }
+  // Facturas y lo por facturar
+  const cnt=k=>k==='todas'?R.length:R.filter(p=>estadoFactura(p)[2]===k).length;
+  h+=`<div class="sec-title" style="margin:14px 0 8px">Facturas y por facturar</div><div class="cob-tabs pf-noprint">${[['todas','Todas'],['porfacturar','Por facturar'],['pendiente','Pendientes'],['vencida','Vencidas'],['pagada','Pagadas']].map(([k,n])=>`<div class="chip${_ec.est===k?' selected':''}" onclick="_ec.est='${k}';renderCobros()">${n} (${cnt(k)})</div>`).join('')}</div>`;
+  const pagosTxt=p=>(p.abonos||[]).map(a=>`${esc(a.fecha)} · ${money(a.monto)}${a.forma?' · '+esc(a.forma):''}${a.ref?' · '+esc(a.ref):''}`).join('<br>');
+  const accion=p=>!adm?'':p.estado==='aprobada'?`<button class="btn btn-green btn-sm" onclick="abrirFactura('${p.id}')">Registrar factura</button>`:p.estado==='facturada'?`<button class="btn btn-green btn-sm" onclick="abrirCobro('${p.id}')">Registrar cobro</button>`:'';
+  h+=L.length?`<div class="rt-scroll tar-wide"><table class="rt-table cob-tbl"><tr><th>Factura</th><th>Fecha</th><th>Vence</th>${!cid?'<th>Cliente</th>':''}<th>Proforma</th><th class="n">Por facturar</th><th class="n">Facturado</th><th class="n">Pagado</th><th class="n">Saldo</th><th>Estado</th><th>Pagos</th>${adm?'<th class="pf-noprint"></th>':''}</tr>`
+    +L.map(p=>{ const [e,b]=estadoFactura(p), T2=pfTotales(p), pf=p.estado==='aprobada';
+      if(pf) return `<tr><td class="li-sub">Sin factura</td><td>${esc(fechaAprob(p))}<div class="li-sub">aprobada</div></td><td>—</td>${!cid?`<td>${esc(nombreCliente(p.clienteId))}</td>`:''}
+        <td><a href="#" onclick="event.preventDefault();verProforma('${p.id}')">${esc(p.numero)}</a><div class="li-sub">${p.desde} a ${p.hasta}</div></td><td class="n"><b style="color:var(--amber)">${money(T2.total)}</b></td><td class="n">—</td><td class="n">—</td><td class="n">—</td>
+        <td><span class="badge ${b}">${e}</span></td><td class="ec-pagos">—</td>${adm?`<td class="pf-noprint">${accion(p)}</td>`:''}</tr>`;
+      const d=diasVencida(p);
       return `<tr><td><b>${esc(p.factura.numero)}</b></td><td>${esc(p.factura.fecha)}</td><td>${esc(p.factura.vence)}${p.estado==='facturada'&&d>0?`<div class="li-sub" style="color:var(--red-t)">${d} día${d===1?'':'s'} vencida</div>`:''}</td>${!cid?`<td>${esc(nombreCliente(p.clienteId))}</td>`:''}
-        <td><a href="#" onclick="event.preventDefault();verProforma('${p.id}')">${esc(p.numero)}</a><div class="li-sub">${p.desde} a ${p.hasta}</div></td><td class="n">${money(T2.total)}</td><td class="n">${money(pfCobrado(p))}</td><td class="n"><b>${money(p.estado==='cobrada'?0:pfSaldo(p))}</b></td>
-        <td><span class="badge ${b}">${e}</span></td><td class="ec-pagos">${(p.abonos||[]).map(a=>`${esc(a.fecha)} · ${money(a.monto)}${a.forma?' · '+esc(a.forma):''}${a.ref?' · '+esc(a.ref):''}`).join('<br>')||'—'}</td>
-        ${adm?`<td class="pf-noprint">${p.estado==='facturada'?`<button class="btn btn-green btn-sm" onclick="abrirCobro('${p.id}')">Registrar cobro</button>`:''}</td>`:''}</tr>`; }).join('')+`</table></div>`
-    // En el celular: una tarjeta por factura (al imprimir, la tabla)
-    +`<div class="tar-narrow">${L.map(p=>{ const [e,b]=estadoFactura(p), d=diasVencida(p);
-      return `<div class="tar-card"><div class="ped-top"><div class="tar-card-t">Factura ${esc(p.factura.numero)}</div><span class="badge ${b}">${e}</span></div>
-        <div class="li-sub">${!cid?esc(nombreCliente(p.clienteId))+' · ':''}${esc(p.factura.fecha)} · vence ${esc(p.factura.vence)}${p.estado==='facturada'&&d>0?' · <b style="color:var(--red-t)">'+d+' día'+(d===1?'':'s')+' vencida</b>':''}</div>
-        <div class="tar-card-p"><b>${money(p.estado==='cobrada'?0:pfSaldo(p))}</b><span>saldo</span></div>
-        <div class="tc-nums"><span>Total <b>${money(pfTotales(p).total)}</b></span><span>Pagado <b>${money(pfCobrado(p))}</b></span><span><a href="#" onclick="event.preventDefault();verProforma('${p.id}')">${esc(p.numero)}</a></span></div>
-        ${(p.abonos||[]).length?`<div class="ec-pagos">${p.abonos.map(a=>`${esc(a.fecha)} · ${money(a.monto)}${a.forma?' · '+esc(a.forma):''}${a.ref?' · '+esc(a.ref):''}`).join('<br>')}</div>`:''}
-        ${adm&&p.estado==='facturada'?`<div class="ped-acc"><button class="btn btn-green btn-sm" onclick="abrirCobro('${p.id}')">Registrar cobro</button></div>`:''}</div>`; }).join('')}</div>`
-    :`<div class="empty-text">${T.length?'Ninguna factura en este estado.':'Todavía no hay facturas.'}</div>`;
+        <td><a href="#" onclick="event.preventDefault();verProforma('${p.id}')">${esc(p.numero)}</a><div class="li-sub">${p.desde} a ${p.hasta}</div></td><td class="n">—</td><td class="n">${money(T2.total)}</td><td class="n">${money(pfCobrado(p))}</td><td class="n"><b>${money(p.estado==='cobrada'?0:pfSaldo(p))}</b></td>
+        <td><span class="badge ${b}">${e}</span></td><td class="ec-pagos">${pagosTxt(p)||'—'}</td>${adm?`<td class="pf-noprint">${accion(p)}</td>`:''}</tr>`; }).join('')
+    +`<tr class="tot"><td colspan="${cid?4:5}">Total (${L.length})</td><td class="n">${money(L.filter(p=>p.estado==='aprobada').reduce((a,p)=>a+pfTotales(p).total,0))}</td><td class="n">${money(L.filter(p=>p.factura&&p.estado!=='aprobada').reduce((a,p)=>a+pfTotales(p).total,0))}</td><td class="n">${money(L.reduce((a,p)=>a+pfCobrado(p),0))}</td><td class="n">${money(L.filter(p=>p.estado==='facturada').reduce((a,p)=>a+pfSaldo(p),0))}</td><td colspan="${adm?3:2}"></td></tr></table></div>`
+    // En el celular: una tarjeta por fila (al imprimir, la tabla)
+    +`<div class="tar-narrow">${L.map(p=>{ const [e,b]=estadoFactura(p), pf=p.estado==='aprobada', d=pf?0:diasVencida(p);
+      return `<div class="tar-card"><div class="ped-top"><div class="tar-card-t">${pf?'Proforma '+esc(p.numero):'Factura '+esc(p.factura.numero)}</div><span class="badge ${b}">${e}</span></div>
+        <div class="li-sub">${!cid?esc(nombreCliente(p.clienteId))+' · ':''}${pf?'aprobada el '+esc(fechaAprob(p))+' · período '+p.desde+' a '+p.hasta:esc(p.factura.fecha)+' · vence '+esc(p.factura.vence)}${!pf&&p.estado==='facturada'&&d>0?' · <b style="color:var(--red-t)">'+d+' día'+(d===1?'':'s')+' vencida</b>':''}</div>
+        <div class="tar-card-p"><b${pf?' style="color:var(--amber)"':''}>${money(pf?pfTotales(p).total:p.estado==='cobrada'?0:pfSaldo(p))}</b><span>${pf?'por facturar':'saldo'}</span></div>
+        ${pf?'':`<div class="tc-nums"><span>Facturado <b>${money(pfTotales(p).total)}</b></span><span>Pagado <b>${money(pfCobrado(p))}</b></span><span><a href="#" onclick="event.preventDefault();verProforma('${p.id}')">${esc(p.numero)}</a></span></div>`}
+        ${(p.abonos||[]).length?`<div class="ec-pagos">${pagosTxt(p)}</div>`:''}
+        ${accion(p)?`<div class="ped-acc">${accion(p)}</div>`:''}</div>`; }).join('')}</div>`
+    :`<div class="empty-text">${R.length?'Nada en este estado.':'Todavía no hay facturas ni proformas aprobadas.'}</div>`;
   return h;
 }
 function exportarEstadoCuenta(){
   if(!esAdminU()) return;
-  const T=facturasDe(_ec.cli), wb=XLSX.utils.book_new();
-  const F=[['Factura','Fecha','Vence','Cliente','Proforma','Período','Subtotal','ITBMS','Total','Pagado','Saldo','Estado','Días vencida']];
-  T.forEach(p=>{ const t=pfTotales(p); F.push([p.factura.numero,p.factura.fecha,p.factura.vence,nombreCliente(p.clienteId),p.numero,p.desde+' a '+p.hasta,t.sub,t.itbms,t.total,pfCobrado(p),p.estado==='cobrada'?0:pfSaldo(p),estadoFactura(p)[0],p.estado==='facturada'?diasVencida(p):'']); });
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(F),'Facturas');
+  const T=facturasDe(_ec.cli), PF=porFacturarDe(_ec.cli), wb=XLSX.utils.book_new();
+  const F=[['Factura','Fecha','Vence','Cliente','Proforma','Período','Subtotal','ITBMS','Por facturar','Facturado','Pagado','Saldo','Estado','Días vencida']];
+  PF.forEach(p=>{ const t=pfTotales(p); F.push(['',fechaAprob(p),'',nombreCliente(p.clienteId),p.numero,p.desde+' a '+p.hasta,t.sub,t.itbms,t.total,'','','','Por facturar','']); });
+  T.forEach(p=>{ const t=pfTotales(p); F.push([p.factura.numero,p.factura.fecha,p.factura.vence,nombreCliente(p.clienteId),p.numero,p.desde+' a '+p.hasta,t.sub,t.itbms,'',t.total,pfCobrado(p),p.estado==='cobrada'?0:pfSaldo(p),estadoFactura(p)[0],p.estado==='facturada'?diasVencida(p):'']); });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(F),'Facturas y por facturar');
   const Pg=[['Factura','Cliente','Fecha del pago','Monto','Forma','Referencia','Registró']];
   T.forEach(p=>(p.abonos||[]).forEach(a=>Pg.push([p.factura.numero,nombreCliente(p.clienteId),a.fecha,a.monto,a.forma||'',a.ref||'',a.por||''])));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(Pg),'Pagos');
-  const A=agingDe(T); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Antigüedad','Saldo'],['Al día',rd2(A.aldia)],['Vencido 1 a 30 días',rd2(A.d30)],['Vencido 31 a 60 días',rd2(A.d60)],['Vencido 61 a 90 días',rd2(A.d90)],['Vencido más de 90 días',rd2(A.mas)]]),'Antigüedad');
+  const A=agingDe(T), saldo=T.filter(p=>p.estado==='facturada').reduce((a,p)=>a+pfSaldo(p),0), pf=PF.reduce((a,p)=>a+pfTotales(p).total,0);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Concepto','Monto'],['Al día',rd2(A.aldia)],['Vencido 1 a 30 días',rd2(A.d30)],['Vencido 31 a 60 días',rd2(A.d60)],['Vencido 61 a 90 días',rd2(A.d90)],['Vencido más de 90 días',rd2(A.mas)],['Saldo de facturas',rd2(saldo)],['Por facturar',rd2(pf)],['Total por cobrar',rd2(saldo+pf)]]),'Resumen');
   XLSX.writeFile(wb,'Estado_de_cuenta_'+(_ec.cli?nombreCliente(_ec.cli).replace(/\W+/g,'_')+'_':'')+hoyStr()+'.xlsx');
 }
 
