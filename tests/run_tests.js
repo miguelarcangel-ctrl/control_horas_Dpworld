@@ -430,6 +430,13 @@ async function newPage(browser, opts = {}) {
   ok(ayer.aviso && ayer.ok, 'línea de ayer cerrada hoy: se cierra con sus horas planificadas (8:00 + 8 h), no con el turno; no le da salida a quien ya entró hoy, sí a quien no volvió');
   ok(await page.evaluate(() => { const l = { fecha: hoyStr(), inicio: Date.now() - 3600000, horas: 8, pallets: [] }; return Math.abs(horaCierreLinea(l) - Date.now()) < 2000; }), 'línea de hoy: se cierra en el momento en que se cierra, aunque el turno siga activo');
   ok(ayer.servidor, 'servidor: no da salida por cierre si la entrada abierta es de otro día');
+  const tot = await page.evaluate(() => {
+    const H = 3600000, t0 = Date.now() - 2 * H, mk = (meta, n, pers, est) => ({ ...nuevaLinea(S.lineasTipo[0], meta, 8, hoyStr()), estado: est, inicio: t0, fin: est === 'cerrada' ? Date.now() - H : null,
+      pallets: Array.from({ length: n }, (_, k) => t0 + (k + 1) * 600000), personas: pers.map((x, i) => ({ id: 'z' + x + i, nombre: x, personaId: 'zz' + x, desde: t0 })) });
+    const guard = S.lineas; S.lineas = [mk(15, 9, ['Ana', 'Beto', 'Caro'], 'corriendo'), mk(10, 6, ['Dani', 'Eva'], 'corriendo'), mk(8, 2, ['Ana'], 'cerrada')]; asignarLetras();
+    const h = htmlResumenLineas(lineasHoy()); S.lineas = guard;
+    return /Total del día/.test(h) && /17 <span[^>]*>\/ 33<\/span>/.test(h) && /52% de la meta/.test(h) && /2 en marcha · 1 cerrada/.test(h) && />5<\/div><div class="stat-sub">en líneas ahora/.test(h); });
+  ok(tot, 'líneas: tarjeta «Total del día» con pallets / meta, %, proyección, personas, ritmo y paros sumados');
   ok(pi.excel && pi.insights && pi.causas, 'paros/insumos: Excel (Paros e Insumos de línea), Insights y causas configurables');
 
   // 9g) Marcaje de asistencia: personal con cédula, tablet en modo quiosco, turno armado solo, horas pagadas, planilla
