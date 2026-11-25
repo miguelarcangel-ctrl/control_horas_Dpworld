@@ -720,6 +720,25 @@ async function newPage(browser, opts = {}) {
     S.config = cfg0; Object.assign(S, bk); document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden')); await save();
     return r; });
   ok(fic.campos && fic.guarda && fic.vuelve && fic.tarifasSinCliente, 'ficha del cliente: tarifa negociada por servicio y versión avanzada (vacío vuelve a la general)');
+
+  // Tarifario: el administrador consulta todos o uno; el cliente solo sus precios de venta
+  const tar = await page.evaluate(async () => {
+    const r = {}, yo = currentUser, cfg0 = { ...S.config }, bk = {}; ['clientes', 'tarifasCliente', 'servicios', 'usuariosCliente', 'lineasTipo'].forEach(k => bk[k] = JSON.parse(JSON.stringify(S[k] || {})));
+    Object.assign(S.config, { facturacion: true, horaInicio: '08:00', horaFin: '17:00', horasAlmuerzo: 1, multSobretiempo: 1.5, multSabado: 1, multDomingo: 2 });
+    S.servicios = [{ id: 'sa', nombre: 'Ayudante', puesto: 'ag', costoDia: 30, ventaDia: 40 }];
+    S.clientes = [{ id: 'kA', nombre: 'Cli A' }, { id: 'kB', nombre: 'Cli B' }]; S.tarifasCliente = { kA: { sa: 48 } }; S.usuariosCliente = { cla: 'kA' };
+    S.lineasTipo = [{ id: 'tA', nombre: 'Kit A', clienteId: 'kA', prod: 1, apoyo: [], insumos: [], venta: { unidad: 'caja', precio: 0.5, porPallet: 10, costeo: 'unidad', costoUnidad: 0.2 } },
+      { id: 'tB', nombre: 'Kit B', clienteId: 'kB', prod: 1, apoyo: [], insumos: [], venta: { unidad: 'paleta', precio: 30, porPallet: 1, costeo: 'personal' } }];
+    r.pestana = tabsDe(CATS.find(c => c.id === 'clientes')).some(x => x[0] === 'tarifario');
+    _tarCli = ''; setNav('tarifario'); const todos = document.getElementById('cobContent').innerText;
+    r.admin = /Cli A/.test(todos) && /Cli B/.test(todos) && /48\.00/.test(todos) && /negociada/i.test(todos) && /Costo por día/i.test(todos) && /Kit B/.test(todos);
+    currentUser = { ...yo, rol: 'cliente', username: 'cla', nombre: 'Cliente A' }; setNav('tarifario');
+    const c = document.getElementById('cobContent').innerText;
+    r.cliente = _nav === 'tarifario' && /48\.00/.test(c) && /9\.00/.test(c) && /96\.00/.test(c) && /Kit A/.test(c) && !/Kit B|Cli B|Costo|Margen|negociada/i.test(c) && /ITBMS/.test(c);
+    currentUser = yo; S.config = cfg0; Object.assign(S, bk); _tarCli = ''; setNav('supervisor'); await save();
+    return r; });
+  ok(tar.pestana && tar.admin, 'tarifario: el administrador compara todos los clientes (negociada, costo, maquila) desde Clientes y cobros');
+  ok(tar.cliente, 'tarifario del cliente: solo sus precios (día, hora extra, domingo) y su maquila, sin costos ni otros clientes');
   ok(avs.guarda && avs.filtra, 'avisos: cada interruptor se guarda en el servidor y decide qué avisa (entrada de operador apagada, de supervisor encendida)');
   ok(avs.otro && avs.otroGuarda && avs.botonUsuarios, 'avisos: el administrador elige los avisos de cada usuario desde Usuarios');
   ok(avs.riesgo && avs.mitad && avs.meta && avs.texto && avs.cierre && avs.unaVezServidor, 'avisos de producción: riesgo de no llegar, mitad, meta cumplida y cierre; una sola vez');
