@@ -437,6 +437,24 @@ async function newPage(browser, opts = {}) {
     const h = htmlResumenLineas(lineasHoy()); S.lineas = guard;
     return /Total del día/.test(h) && /17 <span[^>]*>\/ 33<\/span>/.test(h) && /52% de la meta/.test(h) && /2 en marcha · 1 cerrada/.test(h) && />5<\/div><div class="stat-sub">en líneas ahora/.test(h); });
   ok(tot, 'líneas: tarjeta «Total del día» con pallets / meta, %, proyección, personas, ritmo y paros sumados');
+  const qp = await page.evaluate(async () => {
+    const c0 = window.confirm; window.confirm = () => true; const r = {}, H = 3600000, t0 = Date.now() - 2 * H;
+    ['tmp_q1', 'tmp_q2', 'tmp_q3'].forEach((id, i) => mkTmp(id, ['Ana Uno', 'Beto Dos', 'Caro Tres'][i], 'linea', 'entrada', 3 * H));
+    await cargarPersonal(); await cargarMarcas();
+    const l = { ...nuevaLinea(S.lineasTipo[0], 12, 8, hoyStr()), estado: 'corriendo', inicio: t0, pallets: [t0 + H],
+      personas: [{ id: 'a1', nombre: 'Ana Uno', personaId: 'tmp_q1', desde: t0 }, { id: 'a2', nombre: 'Beto Dos', personaId: 'tmp_q2', desde: t0 }, { id: 'a3', nombre: 'Caro Tres', personaId: 'tmp_q3', desde: Date.now() - 2 * 60000 }] };
+    S.lineas.push(l); asignarLetras(); _lineaAbierta = l.id; renderLineaModal();
+    r.boton = /quitarPersonaLinea\('a1'\)/.test(document.getElementById('lineaBody').innerHTML);
+    const n0 = window.__SRV.marcas.length; await quitarPersonaLinea('a1'); await quitarPersonaLinea('a3');
+    const a1 = l.personas.find(p => p.id === 'a1');
+    r.ok = !!a1 && a1.hasta > 0 && !l.personas.some(p => p.id === 'a3') && window.__SRV.marcas.length === n0
+      && Math.abs(horasEnLinea(a1, l) - 2) < 0.05 && disponiblesLinea().some(p => p.id === 'tmp_q1') && !disponiblesLinea().some(p => p.id === 'tmp_q2')
+      && /salió de la línea/.test(document.getElementById('lineaBody').innerHTML);
+    renderLineas(); const html = document.getElementById('lineasList').innerHTML;
+    r.tarjeta = /Beto/.test(html) && !/>Ana ·|· Ana</.test(html) && cuadrillaSinSalida(l).every(p => p.personaId === 'tmp_q2');
+    S.lineas = S.lineas.filter(x => x.id !== l.id); await limpiarTmp(); hideModal('modalLinea'); window.confirm = c0; return r; });
+  ok(qp.boton && qp.ok, 'línea en marcha: quitar a una persona guarda sus horas hasta ese momento, no le marca salida y queda disponible (si se agregó hace < 10 min, se borra)');
+  ok(qp.tarjeta, 'línea en marcha: quien salió de la línea ya no cuenta en la tarjeta ni recibe la salida al cerrar');
   ok(pi.excel && pi.insights && pi.causas, 'paros/insumos: Excel (Paros e Insumos de línea), Insights y causas configurables');
 
   // 9g) Marcaje de asistencia: personal con cédula, tablet en modo quiosco, turno armado solo, horas pagadas, planilla
