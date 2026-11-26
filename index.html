@@ -2829,6 +2829,9 @@ function updateBanner(){
 const tipoLinea=id=>(S.lineasTipo||[]).find(t=>t.id===id);
 // Los pallets se cuentan al total de la línea (l.pallets: hora de cada pallet). La cuadrilla es solo la lista de personas.
 const totalPallets=l=>(l.pallets||[]).length;
+// Cuadrilla activa: quienes siguen en la línea (al quitar a alguien de una línea en marcha queda con «hasta»)
+const activosLinea=l=>(l.personas||[]).filter(p=>!p.hasta);
+const cuadrillaVista=l=>l.estado==='cerrada'?(l.personas||[]):activosLinea(l);
 const paletizadores=l=>l.personas||[];   // todas las personas de la línea (ya no hay puestos)
 const deApoyo=()=>[];
 const apoyoTotal=ap=>(ap||[]).reduce((s,a)=>s+(+a.cant||0),0);
@@ -2922,7 +2925,7 @@ async function almuerzoGrupo(pids, tipo, ts, motivo){
 }
 async function iniciarAlmuerzoLinea(){
   const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='corriendo'||l.paroActivo||l.almuerzoActivo) return;
-  const pids=(l.personas||[]).filter(p=>p.personaId&&estadoMarca(p.personaId).estado==='presente').map(p=>p.personaId);
+  const pids=activosLinea(l).filter(p=>p.personaId&&estadoMarca(p.personaId).estado==='presente').map(p=>p.personaId);
   if(!confirm('¿Enviar a almuerzo a toda la línea '+lin(l)+'?\n\n'+pids.length+' persona(s) quedan en almuerzo desde ahora. Al volver, toca «Terminar almuerzo».')) return;
   l.almuerzoActivo={id:uid(),inicio:Date.now(),por:quien(),personas:pids};
   renderLineaModal(); renderLineas(); await save();
@@ -2938,7 +2941,7 @@ function cerrarAlmuerzoLinea(l, ts){
 async function terminarAlmuerzoLinea(){
   const l=lineaDe(_lineaAbierta); if(!l||!l.almuerzoActivo) return;
   const a=cerrarAlmuerzoLinea(l,Date.now());
-  const pids=(l.personas||[]).filter(p=>p.personaId&&estadoMarca(p.personaId).estado==='almuerzo').map(p=>p.personaId);
+  const pids=activosLinea(l).filter(p=>p.personaId&&estadoMarca(p.personaId).estado==='almuerzo').map(p=>p.personaId);
   renderLineaModal(); renderLineas(); await save();
   await almuerzoGrupo(pids,'regreso_almuerzo',a.fin,'Regreso del almuerzo de la línea '+lin(l));
   const min=Math.round(almDur(a)*60);
@@ -2971,7 +2974,7 @@ function apoyoOperadores(lineaId){
 // Bloques (en la vista de líneas y como resumen en el turno)
 function htmlBloques(L, vacio){
   return L.length?L.map(l=>{
-    const r=ritmoLinea(l), pct=l.meta?Math.min(100,r.tot/l.meta*100):0, nP=(l.personas||[]).length;
+    const r=ritmoLinea(l), pct=l.meta?Math.min(100,r.tot/l.meta*100):0, nP=cuadrillaVista(l).length;
     const est={pendiente:['ba','Por arrancar'],corriendo:['bg','En marcha'],cerrada:['bgy','Cerrada']}[l.estado];
     const c=cuadrilla(l.meta,l.prod,l.horas,l.apoyo);
     const agota=insumosPorAgotar(l);
@@ -2982,7 +2985,7 @@ function htmlBloques(L, vacio){
     return `<div class="lb lb-${l.paroActivo?'paro':l.estado}" onclick="abrirLinea('${l.id}')">
       <div class="lb-top"><span class="lb-name">Línea ${esc(lin(l))}</span><span class="badge ${l.paroActivo?'br':est[0]}">${l.paroActivo?'En paro':est[1]}</span></div>
       <div class="lb-cli">${esc(l.cliente||'')}${l.bodega&&hayBodegas()?' · '+esc(l.bodega):''}${nP?` · ${nP} persona${nP===1?'':'s'}`:''}${l.fecha!==hoyStr()?' · desde '+etiquetaDia(l.fecha).toLowerCase():''}${l.responsable?' · '+esc(l.responsable):''}</div>
-      ${nP?`<div class="lb-names">${nombresCortos(l.personas).map(esc).join(' · ')}</div>`:''}
+      ${nP?`<div class="lb-names">${nombresCortos(cuadrillaVista(l)).map(esc).join(' · ')}</div>`:''}
       <div class="lb-num"><b>${r.tot}</b> / ${l.meta} pallets</div>
       <div class="pbar-wrap"><div class="pbar-fill ${pct>=100||r.proy>=l.meta?'pg':'pa'}" style="width:${pct}%"></div></div>
       <div class="lb-sub">${sub}</div></div>`;
@@ -2996,7 +2999,7 @@ function htmlResumenLineas(L){
   const proy=R.reduce((a,x)=>a+(x.l.estado==='corriendo'?x.r.proy:x.r.tot),0);
   const ritmo=corren.reduce((a,x)=>a+x.r.ritmo,0);
   const pers=new Set(), persAct=new Set();
-  A.forEach(l=>(l.personas||[]).forEach(p=>{ const k=p.personaId||'n:'+normTxt(p.nombre); pers.add(k); if(l.estado==='corriendo') persAct.add(k); }));
+  A.forEach(l=>(l.personas||[]).forEach(p=>{ const k=p.personaId||'n:'+normTxt(p.nombre); pers.add(k); if(l.estado==='corriendo'&&!p.hasta) persAct.add(k); }));
   const hTot=R.reduce((a,x)=>a+x.r.hTot,0), paroH=R.reduce((a,x)=>a+x.r.paroH,0), enParo=A.filter(l=>l.paroActivo).length;
   const ok=proy>=meta;
   return `<div class="lb-resumen">
@@ -3040,11 +3043,12 @@ let _lineaAbierta=null;
 function abrirLinea(id){ _lineaAbierta=id; _cierrePick=false; _paroPick=false; renderLineaModal(); showModal('modalLinea'); }
 function renderLineaModal(foco){
   const l=lineaDe(_lineaAbierta); if(!l) return;
-  const r=ritmoLinea(l), c=cuadrilla(l.meta,l.prod,l.horas), n=(l.personas||[]).length;
+  const r=ritmoLinea(l), c=cuadrilla(l.meta,l.prod,l.horas), n=cuadrillaVista(l).length;
   document.getElementById('lineaTitulo').textContent='Línea '+lin(l);
   const agregar=htmlCuadrillaMarcada(l);
-  const chips=(l.personas||[]).map(p=>{ const e=estadoEnLinea(p), quitar=l.estado==='pendiente';
-    return `<span class="chip selected${e.bloqueo?' chip-off':''}" ${quitar?`onclick="quitarPersonaLinea('${p.id}')" title="Quitar"`:''}>${esc(p.nombre)}${e.bloqueo?' · '+e.texto:''}${quitar?' ×':''}</span>`; }).join('');
+  const chips=cuadrillaVista(l).map(p=>{ const e=estadoEnLinea(p), quitar=l.estado!=='cerrada';
+    return `<span class="chip selected${e.bloqueo?' chip-off':''}" ${quitar?`onclick="quitarPersonaLinea('${p.id}')" title="Quitar de la línea"`:''}>${esc(p.nombre)}${e.bloqueo?' · '+e.texto:''}${quitar?' ×':''}</span>`; }).join('')
+    +(l.estado!=='cerrada'?(l.personas||[]).filter(p=>p.hasta).map(p=>`<span class="chip chip-off" title="Salió de la línea">${esc(p.nombre)} · salió de la línea ${horaHM(p.hasta)}</span>`).join(''):'');
   let h='';
   if(l.estado==='pendiente'){
     h+=`<div class="li-sub">${esc(l.cliente||'')}${l.prod?' · productividad '+l.prod+' pallets por persona-hora':''}</div>
@@ -3095,7 +3099,7 @@ function lineaMetaHoras(){
 }
 // Cuadrilla disponible: quienes marcaron entrada como «Línea de producción» y aún no están en una línea de hoy
 function disponiblesLinea(){
-  const ocupados=new Set((S.lineas||[]).filter(x=>x.estado!=='cerrada'&&(x.fecha===hoyStr()||x.estado==='corriendo')).flatMap(x=>x.personas.map(p=>p.personaId||'n:'+normTxt(p.nombre))));
+  const ocupados=new Set((S.lineas||[]).filter(x=>x.estado!=='cerrada'&&(x.fecha===hoyStr()||x.estado==='corriendo')).flatMap(x=>x.personas.filter(p=>!p.hasta).map(p=>p.personaId||'n:'+normTxt(p.nombre))));
   return presentes(['linea']).filter(p=>!ocupados.has(p.id)&&!ocupados.has('n:'+normTxt(p.nombre)));
 }
 function htmlCuadrillaMarcada(l){
@@ -3116,7 +3120,7 @@ function estadoEnLinea(p){
 }
 // Horas de la persona en la línea: desde que se sumó hasta el cierre, sin su almuerzo ni lo que va después de su salida
 function horasEnLinea(p, l, fin){
-  fin=fin||l.fin||Date.now(); const ini=p.desde||l.inicio; if(!ini) return 0;
+  fin=Math.min(fin||l.fin||Date.now(),p.hasta||Infinity); const ini=p.desde||l.inicio; if(!ini) return 0;
   let h=Math.max(0,fin-ini);
   if(p.personaId&&_marcasCargadas){
     const M=marcasDe(p.personaId); let sal=null;
@@ -3143,7 +3147,19 @@ async function agregarMarcadoLinea(pid){
   l.personas.push({id:uid(),nombre:p.nombre,personaId:pid,desde:l.estado==='corriendo'?Date.now():null});
   renderLineaModal(); renderLineas(); await save();
 }
-async function quitarPersonaLinea(pid){ const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='pendiente') return; lineaMetaHoras(); l.personas=l.personas.filter(p=>p.id!==pid); renderLineaModal(); renderLineas(); await save(); }
+// Quitar a una persona de la línea. Pendiente: se borra. En marcha: sus horas en la línea quedan hasta ahora y queda
+// disponible para otra línea (no se le marca salida); si se agregó hace menos de 10 min (por error), se borra del todo.
+async function quitarPersonaLinea(pid){
+  const l=lineaDe(_lineaAbierta); if(!l||l.estado==='cerrada') return;
+  const p=(l.personas||[]).find(x=>x.id===pid); if(!p||p.hasta) return;
+  if(l.estado==='pendiente'){ lineaMetaHoras(); l.personas=l.personas.filter(x=>x.id!==pid); }
+  else {
+    const reciente=Date.now()-(p.desde||l.inicio||0)<10*60000;
+    if(!confirm('¿Quitar a '+p.nombre+' de la línea '+lin(l)+'?\n\n'+(reciente?'Se agregó hace menos de 10 minutos: se quita como si no hubiera estado.':'Sus horas en la línea cuentan hasta ahora ('+horaHM(Date.now())+').')+' No se le marca salida: queda disponible para otra línea o para el turno.')) return;
+    if(reciente) l.personas=l.personas.filter(x=>x.id!==pid); else Object.assign(p,{hasta:Date.now(),porQuitar:quien()});
+  }
+  renderLineaModal(); renderLineas(); await save(); showToast(p.nombre+' salió de la línea '+lin(l));
+}
 async function arrancarLinea(){
   const l=lineaDe(_lineaAbierta); if(!l) return; lineaMetaHoras();
   if(!(l.meta>0)){ showToast('Pon la meta del día','error'); return; }
@@ -3234,8 +3250,8 @@ function horaCierreLinea(l){
 }
 const ultimoDeLinea=l=>Math.max(l.inicio||0,...(l.pallets||[]),...(l.paros||[]).map(p=>p.fin||p.inicio||0),l.paroActivo?l.paroActivo.inicio:0,...(l.almuerzos||[]).map(a=>a.fin||0));
 function cuadrillaSinSalida(l){
-  const otras=new Set((S.lineas||[]).filter(x=>x.id!==l.id&&x.estado==='corriendo').flatMap(x=>(x.personas||[]).map(p=>p.personaId)));
-  return (l.personas||[]).filter(p=>p.personaId&&!otras.has(p.personaId)&&entradaAbiertaDel(p.personaId,l.fecha));
+  const otras=new Set((S.lineas||[]).filter(x=>x.id!==l.id&&x.estado==='corriendo').flatMap(x=>activosLinea(x).map(p=>p.personaId)));
+  return activosLinea(l).filter(p=>p.personaId&&!otras.has(p.personaId)&&entradaAbiertaDel(p.personaId,l.fecha));
 }
 function htmlCierreLinea(l){
   const sinSal=cuadrillaSinSalida(l), sinSob=(l.insumos||[]).filter(i=>(i.entregas||[]).length&&(i.sobrante==null||i.sobrante===''));
@@ -6226,7 +6242,7 @@ function tvLineasBody(){
   const L=lineasHoy(), now=Date.now();
   if(!L.length) return `<div class="tv-body"><div class="tv-no-turno"><div class="tv-no-title">Sin líneas de producción hoy</div><div style="font-size:.9rem">Actualización automática cada 15 segundos</div></div></div>`;
   const tarjetas=L.map(l=>{
-    const r=ritmoLinea(l,now), pct=l.meta?Math.min(100,r.tot/l.meta*100):0, nP=(l.personas||[]).length;
+    const r=ritmoLinea(l,now), pct=l.meta?Math.min(100,r.tot/l.meta*100):0, nP=cuadrillaVista(l).length;
     const esperado=l.estado==='corriendo'&&l.horas?Math.min(100,r.h/l.horas*100):null;
     const restanH=Math.max(0,l.horas-r.h), necesario=l.estado==='corriendo'&&restanH>0?Math.max(0,l.meta-r.tot)/restanH:null;
     const ultimo=(l.pallets||[]).slice(-1)[0]||0;
