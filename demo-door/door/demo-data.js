@@ -26,6 +26,7 @@
     { id: 'u1', username: 'admin', nombre: 'Administrador Demo', rol: 'admin', pass: 'demo123', activo: true },
     { id: 'u2', username: 'supervisor', nombre: 'Roberto Sánchez', rol: 'supervisor', pass: 'demo123', activo: true },
     { id: 'u3', username: 'linea', nombre: 'Daniela Pinzón', rol: 'responsable', pass: 'demo123', activo: true },
+    { id: 'u4', username: 'lider', nombre: 'Ana Cedeño', rol: 'lider', pass: 'demo123', activo: true },
     // Clientes de Door: cada uno entra con su propia sesión y pide el personal del día siguiente
     { id: 'u4', username: 'cliente', nombre: 'Laura Méndez', rol: 'cliente', pass: 'demo123', activo: true },
     { id: 'u5', username: 'atlantico', nombre: 'Carlos Ríos', rol: 'cliente', pass: 'demo123', activo: true }
