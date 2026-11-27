@@ -558,6 +558,16 @@ async function newPage(browser, opts = {}) {
   ok(la.cedMal && la.tarjeta, 'ingresar como línea: confirma con la cédula y queda en la tarjeta de conteo con el temporizador');
   ok(la.cuenta && la.sync && la.guarda && la.sale, 'ingresar como línea: −/+1/+5 se guardan en el servidor, el supervisor los ve, y «Salir» cierra la sesión del equipo');
   ok(la.verde && la.amarillo && la.rojo && la.sinParos && la.arranque && la.meta && la.pinta, 'ingresar como línea: semáforo verde/amarillo/rojo según los pallets esperados a esta hora (sin paros ni almuerzo), con toda la pantalla del color');
+  const semT = await page.evaluate(async () => {
+    const H = 3600000, guard = S.lineas, t0 = Date.now() - 4 * H, mk = (k, nombre) => ({ ...nuevaLinea(S.lineasTipo[0], 16, 8, hoyStr()), nombre, estado: 'corriendo', inicio: t0, pallets: Array.from({ length: k }, (_, i) => t0 + i * 60000) });
+    const v = mk(8, 'SemV'), a = mk(7, 'SemA'), rj = mk(4, 'SemR'); S.lineas = [...guard, v, a, rj]; asignarLetras();
+    const div = document.createElement('div'); div.innerHTML = htmlBloques([v, a, rj], '');
+    const c = [...div.querySelectorAll('.lb')].map(x => ['verde', 'amarillo', 'rojo'].find(k => x.classList.contains('sem-' + k)));
+    const tv = tvLineasBody(), r = { lista: c.join() === 'verde,amarillo,rojo' && /Vamos bien/.test(div.innerHTML) && /Muy abajo/.test(div.innerHTML),
+      tv: /tvl tvl-corriendo sem sem-verde/.test(tv) && /sem sem-amarillo/.test(tv) && /sem sem-rojo/.test(tv) };
+    abrirLinea(rj.id); r.detalle = !!document.querySelector('#modalLinea .lm-sem.sem-rojo'); hideModal('modalLinea');
+    S.lineas = guard; asignarLetras(); return r; });
+  ok(semT.lista && semT.tv && semT.detalle, 'líneas: las tarjetas que ven supervisor, administrador y la TV se pintan verde/naranja/rojo según el ritmo (mismo semáforo que la tarjeta de la línea)');
   await page.setViewportSize({ width: 844, height: 390 });
   const laH = await page.evaluate(async () => {
     const t0 = Date.now() - 2 * 3600000; _la = { ..._la, paso: 'conteo', ses: { nombre: 'Prueba' }, est: { existe: true, letra: 'A', nombre: 'Prueba', estado: 'corriendo', inicio: t0, meta: 16, horas: 8, pallets: [t0], paros: [], almuerzos: [] } };
