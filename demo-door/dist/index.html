@@ -5181,6 +5181,16 @@ function construirReportes(turnoId, rango){
     plRows.push([f,'Total del día',td.pal,td.meta,pc(td.pal,td.meta),'',r2(td.costo)]); tp.pal+=td.pal; tp.meta+=td.meta; tp.costo+=td.costo; });
   if(Object.keys(porDia).length) plRows.push(['TOTAL','',tp.pal,tp.meta,pc(tp.pal,tp.meta),'',r2(tp.costo)]);
   R.push({nombre:'Producción por línea',filas:plRows});
+  // Resumen de producción por línea: el total de cada línea (por su tipo) en todo el rango, sin detalle por día
+  const rl={};
+  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))).forEach(l=>{
+    const k=l.tipoId||l.nombre, o=rl[k]||(rl[k]={nombre:l.nombre,cliente:l.cliente||'',dias:new Set(),n:0,pal:0,meta:0,costo:0});
+    o.dias.add(l.fecha); o.n++; o.pal+=totalPallets(l); o.meta+=+l.meta||0; o.costo+=(costoLinea(l)||{}).total||0; });
+  const rlRows=[['Línea','Realizado','Meta','%','Días','Líneas armadas','Cliente','Costo ($)']], rt={pal:0,meta:0,n:0,costo:0,dias:new Set()};
+  Object.values(rl).sort((a,b)=>b.pal-a.pal).forEach(o=>{ rlRows.push([o.nombre,o.pal,o.meta,pc(o.pal,o.meta),o.dias.size,o.n,o.cliente,r2(o.costo)]);
+    rt.pal+=o.pal; rt.meta+=o.meta; rt.n+=o.n; rt.costo+=o.costo; o.dias.forEach(d=>rt.dias.add(d)); });
+  if(Object.keys(rl).length) rlRows.push(['TOTAL',rt.pal,rt.meta,pc(rt.pal,rt.meta),rt.dias.size,rt.n,'',r2(rt.costo)]);
+  R.push({nombre:'Resumen por línea',filas:rlRows});
   const parRows=[['Fecha','Línea','Causa','Inicio','Fin','Minutos','Nota','Registrado por']];
   const insRows=[['Fecha','Línea','Insumo','Unidad','Consumo por pallet','Pallets','Esperado','Entregado','Sobrante','Consumo real','Diferencia','Diferencia (%)']];
   (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))).forEach(l=>{
@@ -5206,7 +5216,7 @@ var REPORTES=[
   {id:'marcajes',t:'Marcajes',d:'Cada marca de la tablet, con correcciones'},
   {id:'tareas',t:'Detalle de tareas'},{id:'turnos',t:'Resumen de turnos'},
   {id:'clientes',t:'Costos por cliente',ts:'Horas por cliente'},{id:'colaboradores',t:'Costos por colaborador',ts:'Horas por colaborador'},
-  {id:'eficiencia',t:'Eficiencia por tarea'},{id:'produccion',t:'Producción diaria',d:'Lo realizado en el día (todas las líneas) y la meta'},{id:'prodLinea',t:'Producción diaria por línea',d:'Cada línea de cada día: lo realizado y la meta, con el total del día y del período'},{id:'lineas',t:'Líneas de producción'},{id:'cuadrilla',t:'Cuadrilla de línea'},
+  {id:'eficiencia',t:'Eficiencia por tarea'},{id:'produccion',t:'Producción diaria',d:'Lo realizado en el día (todas las líneas) y la meta'},{id:'resLinea',t:'Resumen de producción por línea',d:'Total de cada línea en el rango de fechas: lo realizado y la meta'},{id:'prodLinea',t:'Producción diaria por línea',d:'Cada línea de cada día: lo realizado y la meta, con el total del día y del período'},{id:'lineas',t:'Líneas de producción'},{id:'cuadrilla',t:'Cuadrilla de línea'},
   {id:'paros',t:'Paros de línea'},{id:'insumos',t:'Insumos de línea'}];
 function nombreReporte(r){ return (currentUser&&currentUser.rol!=='admin'&&r.ts)||r.t; }
 function esAsis(id){ return ['asisGeneral','asisDetalle','marcajes'].includes(id); }
@@ -5249,7 +5259,7 @@ async function descargarReporte(id){
   XLSX.writeFile(wb,`${id?nombreReporte(sel[0]).replace(/\W+/g,'_'):'Reportes'}_${_rep.desde}_a_${_rep.hasta}.xlsx`);
 }
 var REP_IDS={'Detalle Tareas':'tareas','Resumen Turnos':'turnos','Costos por Cliente':'clientes','Eficiencia por Tarea':'eficiencia','Costos por Colaborador':'colaboradores',
-  'Producción diaria':'produccion','Producción por línea':'prodLinea','Líneas de producción':'lineas','Cuadrilla de línea':'cuadrilla','Paros de línea':'paros','Insumos de línea':'insumos'};
+  'Producción diaria':'produccion','Producción por línea':'prodLinea','Resumen por línea':'resLinea','Líneas de producción':'lineas','Cuadrilla de línea':'cuadrilla','Paros de línea':'paros','Insumos de línea':'insumos'};
 function libroDe(R){ const wb=XLSX.utils.book_new(); R.forEach(x=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(x.filas),x.nombre.slice(0,31))); return wb; }
 function exportExcel(turnoId){
   const R=construirReportes(turnoId);
