@@ -54,8 +54,8 @@
     ch_marcar:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(u.rol!=='admin')return err('PERMISO','42501');
       const per=SRV.personal.find(x=>x.key===a.p_key&&x.id===a.p_persona&&x.activo);if(!per||!per.cedula||per.cedula!==normCed(a.p_cedula))return err('CEDULA','28000');
       const now=SRV.ahora?SRV.ahora():Date.now();
-      const ult=SRV.marcas.filter(m=>m.key===a.p_key&&m.persona_id===a.p_persona&&!m.anulado&&Date.parse(m.ts)>now-20*3600000).sort((x,y)=>Date.parse(y.ts)-Date.parse(x.ts))[0];
-      let f=fechaPA(now),pu=null;if(ult&&ult.tipo!=='salida'){f=ult.fecha;pu=ult.puesto;}
+      let ult=SRV.marcas.filter(m=>m.key===a.p_key&&m.persona_id===a.p_persona&&!m.anulado&&Date.parse(m.ts)>now-20*3600000).sort((x,y)=>Date.parse(y.ts)-Date.parse(x.ts))[0];
+      const dn=ult&&ult.tipo!=='salida'&&ult.fecha<fechaPA(now)&&new Date(now).getHours()>=5;if(dn){if(a.p_tipo!=='entrada')return err('SECUENCIA');const tc=Math.min(now,Math.max(new Date(ult.fecha+'T17:00:00').getTime(),Date.parse(ult.ts)));SRV.marcas.push({id:++SRV.marcaSeq,key:a.p_key,persona_id:ult.persona_id,nombre:ult.nombre,fecha:ult.fecha,tipo:'salida',puesto:ult.puesto,ts:new Date(tc).toISOString(),por:u.username,anulado:false,motivo:'Salida automática: no marcó salida; se cerró al marcar la entrada del día siguiente',corregido_por:u.username,corregido_en:new Date().toISOString(),bodega:ult.bodega||null,push_enviado:true});ult=null;}let f=fechaPA(now),pu=null;if(ult&&ult.tipo!=='salida'){f=ult.fecha;pu=ult.puesto;}
       const t=a.p_tipo;
       if(t==='entrada'){if(ult&&ult.tipo!=='salida')return err('SECUENCIA');if(!['supervisor','operador','ag','linea','responsable'].includes(a.p_puesto))return err('PUESTO');pu=a.p_puesto;}
       else if(t==='salida_almuerzo'){if(!ult||!['entrada','regreso_almuerzo'].includes(ult.tipo))return err('SECUENCIA');}

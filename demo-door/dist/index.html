@@ -455,6 +455,14 @@ body.con-sel .avisos-app{bottom:90px}
 .aviso-txt b{font-family:'Barlow Condensed',sans-serif;font-size:.9rem;letter-spacing:.3px;color:var(--t)}
 /* LÍNEAS DE PRODUCCIÓN */
 .lineas{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.rep-filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.rep-filtros .field{min-width:140px}
+.rep-lista .chip .li-sub{margin-left:4px}
+.rep-acc{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 6px;font-size:.85rem}
+.rep-tabla{overflow:auto;max-height:60vh;border:1px solid var(--b1);border-radius:8px}
+.rep-tabla table{border-collapse:collapse;width:max-content;min-width:100%;font-size:.78rem}
+.rep-tabla th{position:sticky;top:0;background:var(--raised);font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.4px;text-transform:uppercase;font-size:.7rem;color:var(--t2);text-align:left;padding:7px 9px;white-space:nowrap;border-bottom:1px solid var(--b1)}
+.rep-tabla td{padding:6px 9px;border-bottom:1px solid var(--b0);white-space:nowrap;max-width:340px;overflow:hidden;text-overflow:ellipsis}
+.rep-tabla td.num{text-align:right;font-variant-numeric:tabular-nums}
 .lb-resumen{grid-column:1/-1;border:1.5px solid var(--b2);border-left:4px solid var(--primary);border-radius:12px;padding:12px 14px;background:var(--card);display:flex;flex-direction:column;gap:9px}
 .lbr-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
 .lbr-tit{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1rem;letter-spacing:.6px;text-transform:uppercase;color:var(--t)}
@@ -2430,7 +2438,7 @@ pintarAvisos();
 // Lo que antes era «Insights», repartido en secciones (pestañas de las categorías): [título]
 var SECCIONES_INS={   // var: el menú se pinta antes de esta línea
   resumen:['Resumen'], prodTareas:['Por tarea'], prodPersonas:['Por persona'], lineasRes:['Líneas'], costosCli:['Costos por cliente'],
-  historico:['Histórico de turnos'], exportar:['Exportar a Excel'],
+  historico:['Histórico de turnos'], exportar:['Reportes'],
   personal:['Personal'], asistencia:['Asistencia y horas'],
   clientes:['Clientes'],
   tareas:['Catálogo de tareas'], lineasCfg:['Líneas y maquila'], plantillas:['Plantillas y planes'], config:['Horario y recargos'], usuarios:['Usuarios y accesos'],
@@ -2456,7 +2464,7 @@ var CATS=[
     ['ins:lineasRes','Líneas',()=>currentUser.rol==='admin'&&(S.lineasTipo||[]).length],
     ['ins:costosCli','Costos por cliente',()=>currentUser.rol==='admin'],
     ['ins:historico','Histórico de turnos',()=>currentUser.rol==='admin',()=>(S.solicitudes||[]).filter(x=>x.estado==='pendiente').length],
-    ['ins:exportar','Exportar a Excel',()=>currentUser.rol==='admin']]},
+    ['ins:exportar','Reportes',()=>currentUser.rol==='admin']]},
   {id:'clientes',t:'Clientes y cobros',tabs:()=>[
     ['ins:clientes','Clientes',()=>currentUser.rol==='admin',()=>Object.keys(S.solicitudesAvanzado||{}).filter(k=>!avanzadoDe(k)).length],
     ['tarifario','Tarifarios',()=>currentUser.rol==='admin'&&facturacionOn()],
@@ -3066,7 +3074,7 @@ function renderPlanesLinea(){
 
 // Ventana de la línea
 let _lineaAbierta=null;
-function abrirLinea(id){ _lineaAbierta=id; _cierrePick=false; _paroPick=false; renderLineaModal(); showModal('modalLinea'); }
+function abrirLinea(id){ _lineaAbierta=id; _cierrePick=false; _paroPick=false; _qp=null; renderLineaModal(); showModal('modalLinea'); }
 function renderLineaModal(foco){
   const l=lineaDe(_lineaAbierta); if(!l) return;
   const r=ritmoLinea(l), c=cuadrilla(l.meta,l.prod,l.horas), n=cuadrillaVista(l).length;
@@ -3074,7 +3082,7 @@ function renderLineaModal(foco){
   const agregar=htmlCuadrillaMarcada(l);
   const chips=cuadrillaVista(l).map(p=>{ const e=estadoEnLinea(p), quitar=l.estado!=='cerrada';
     return `<span class="chip selected${e.bloqueo?' chip-off':''}" ${quitar?`onclick="quitarPersonaLinea('${p.id}')" title="Quitar de la línea"`:''}>${esc(p.nombre)}${e.bloqueo?' · '+e.texto:''}${quitar?' ×':''}</span>`; }).join('')
-    +(l.estado!=='cerrada'?(l.personas||[]).filter(p=>p.hasta).map(p=>`<span class="chip chip-off" title="Salió de la línea">${esc(p.nombre)} · salió de la línea ${horaHM(p.hasta)}</span>`).join(''):'');
+    +(l.estado!=='cerrada'?(l.personas||[]).filter(p=>p.hasta).map(p=>`<span class="chip chip-off" title="Salió de la línea">${esc(p.nombre)} · salió ${horaHM(p.hasta)}${p.pasoA?' → línea '+esc(p.pasoA):p.motivoSalida?' · '+esc(p.motivoSalida):''}</span>`).join(''):'');
   let h='';
   if(l.estado==='pendiente'){
     h+=`<div class="li-sub">${esc(l.cliente||'')}${l.prod?' · productividad '+l.prod+' pallets por persona-hora':''}</div>
@@ -3106,7 +3114,7 @@ function renderLineaModal(foco){
       ${corre&&!l.almuerzoActivo?`<button class="btn btn-ghost" onclick="sumarPallet(-1)" aria-label="Restar un pallet">−</button>`:''}
       <span class="lp-cnt">${r.tot}</span>
       ${corre&&!l.almuerzoActivo?`<button class="btn btn-green" onclick="sumarPallet(1)">+1</button><button class="btn btn-green" onclick="sumarPallet(5)">+5</button>`:''}</div>
-    <div class="asig-ttl">Cuadrilla · ${n} persona${n===1?'':'s'}</div><div class="chip-wrap">${chips||'<span class="li-sub">Sin personas</span>'}</div>`;
+    <div class="asig-ttl">Cuadrilla · ${n} persona${n===1?'':'s'}</div><div class="chip-wrap">${chips||'<span class="li-sub">Sin personas</span>'}</div>${_qp&&_qp.lid===l.id?htmlQuitarPersona(l):''}`;
     h+=htmlAlmLinea(l)+htmlInsumosLinea(l)+htmlParosLinea(l);
     if(corre) h+=`<div class="field"><label>Se suma alguien a la línea</label>${agregar}</div>
       ${_cierrePick?htmlCierreLinea(l):`<button class="btn btn-indigo btn-full" onclick="cerrarLinea()">Cerrar línea</button>`}
@@ -3173,18 +3181,56 @@ async function agregarMarcadoLinea(pid){
   l.personas.push({id:uid(),nombre:p.nombre,personaId:pid,desde:l.estado==='corriendo'?Date.now():null});
   renderLineaModal(); renderLineas(); await save();
 }
-// Quitar a una persona de la línea. Pendiente: se borra. En marcha: sus horas en la línea quedan hasta ahora y queda
-// disponible para otra línea (no se le marca salida); si se agregó hace menos de 10 min (por error), se borra del todo.
-async function quitarPersonaLinea(pid){
+// Quitar a una persona de la línea. Pendiente: se borra. En marcha se pregunta qué pasa con ella:
+//  · pasa a otra línea (se elige cuál): sus horas aquí cuentan hasta ahora y sigue en la otra;
+//  · sale de las líneas (con motivo; «Se fue a casa» le registra la salida);
+//  · se agregó por error: se borra como si no hubiera estado.
+const MOTIVOS_SALE_LINEA=['Se fue a casa','Pasa al turno u otra tarea','Permiso','Enfermedad o accidente','Otro'];
+let _qp=null;
+function quitarPersonaLinea(pid){
   const l=lineaDe(_lineaAbierta); if(!l||l.estado==='cerrada') return;
   const p=(l.personas||[]).find(x=>x.id===pid); if(!p||p.hasta) return;
-  if(l.estado==='pendiente'){ lineaMetaHoras(); l.personas=l.personas.filter(x=>x.id!==pid); }
-  else {
-    const reciente=Date.now()-(p.desde||l.inicio||0)<10*60000;
-    if(!confirm('¿Quitar a '+p.nombre+' de la línea '+lin(l)+'?\n\n'+(reciente?'Se agregó hace menos de 10 minutos: se quita como si no hubiera estado.':'Sus horas en la línea cuentan hasta ahora ('+horaHM(Date.now())+').')+' No se le marca salida: queda disponible para otra línea o para el turno.')) return;
-    if(reciente) l.personas=l.personas.filter(x=>x.id!==pid); else Object.assign(p,{hasta:Date.now(),porQuitar:quien()});
+  if(l.estado==='pendiente'){ lineaMetaHoras(); l.personas=l.personas.filter(x=>x.id!==pid); renderLineaModal(); renderLineas(); return save(); }
+  _qp={lid:l.id,pid,modo:null,motivo:''}; _paroPick=false; _cierrePick=false; renderLineaModal();
+  setTimeout(()=>{ const el=document.getElementById('lmQuitarP'); if(el&&el.scrollIntoView) el.scrollIntoView({block:'nearest'}); },50);
+}
+function htmlQuitarPersona(l){
+  const p=(l.personas||[]).find(x=>x.id===_qp.pid); if(!p) return '';
+  const otras=(S.lineas||[]).filter(x=>x.id!==l.id&&x.estado==='corriendo'&&!activosLinea(x).some(q=>q.personaId&&q.personaId===p.personaId));
+  const op=(m,t)=>`<button type="button" class="btn ${_qp.modo===m?'btn-indigo':'btn-ghost'} btn-sm" onclick="_qp.modo='${m}';renderLineaModal()">${t}</button>`;
+  let h=`<div class="paro-pick" id="lmQuitarP"><div class="asig-ttl">Quitar a ${esc(p.nombre)} de la línea ${esc(lin(l))}</div>
+    <div class="chip-wrap">${op('linea','Pasa a otra línea')}${op('sale','Sale de las líneas')}${op('error','Se agregó por error')}</div>`;
+  if(_qp.modo==='linea') h+=otras.length?`<div class="li-sub">¿A qué línea pasa? Sus horas en esta línea cuentan hasta ahora.</div>
+      <div class="chip-wrap">${otras.map(x=>`<div class="chip" onclick="confirmarQuitar('linea','${x.id}')">Línea ${esc(lin(x))}</div>`).join('')}</div>`
+    :`<div class="warn-box">No hay otra línea en marcha. Arranca la otra línea primero, o elige «Sale de las líneas».</div>`;
+  if(_qp.modo==='sale') h+=`<div class="li-sub">Motivo (obligatorio). «Se fue a casa» le registra la salida a esta hora.</div>
+      <div class="chip-wrap">${MOTIVOS_SALE_LINEA.map(m=>`<div class="chip${_qp.motivo===m?' selected':''}" onclick="_qp.motivo='${m}';renderLineaModal()">${m}</div>`).join('')}</div>
+      ${_qp.motivo==='Otro'?`<input type="text" id="qpOtro" placeholder="Escribe el motivo">`:''}
+      <button class="btn btn-indigo btn-full" ${_qp.motivo?'':'disabled'} onclick="confirmarQuitar('sale')">Quitar de la línea</button>`;
+  if(_qp.modo==='error') h+=`<div class="li-sub">Se quita como si no hubiera estado: no le cuentan horas en esta línea.</div>
+      <button class="btn btn-red btn-full" onclick="confirmarQuitar('error')">Quitar (fue un error)</button>`;
+  return h+`<button class="btn btn-ghost btn-sm" style="align-self:flex-start" onclick="_qp=null;renderLineaModal()">Cancelar</button></div>`;
+}
+async function confirmarQuitar(modo, destId){
+  const l=lineaDe(_qp&&_qp.lid), p=l&&(l.personas||[]).find(x=>x.id===_qp.pid); if(!p) return;
+  const ahora=Date.now(); let msg='';
+  if(modo==='error'){ l.personas=l.personas.filter(x=>x.id!==p.id); msg=p.nombre+' quitado de la línea '+lin(l); }
+  else if(modo==='linea'){
+    const d=lineaDe(destId); if(!d||d.estado!=='corriendo') return;
+    Object.assign(p,{hasta:ahora,porQuitar:quien(),pasoA:lin(d)});
+    d.personas.push({id:uid(),nombre:p.nombre,personaId:p.personaId,desde:ahora,vieneDe:lin(l)});
+    msg=p.nombre+' pasó a la línea '+lin(d);
+  } else {
+    let motivo=_qp.motivo; if(motivo==='Otro'){ motivo=((document.getElementById('qpOtro')||{}).value||'').trim(); if(!motivo){ showToast('Escribe el motivo','error'); return; } }
+    if(!motivo) return;
+    Object.assign(p,{hasta:ahora,porQuitar:quien(),motivoSalida:motivo});
+    msg=p.nombre+' salió de la línea · '+motivo;
+    if(motivo==='Se fue a casa'&&p.personaId&&SESSION){
+      try{ await rpc('ch_salida_cierre',{p_token:SESSION.token,p_key:STATE_KEY,p_persona:p.personaId,p_ts:new Date(ahora).toISOString(),p_motivo:'Se fue a casa · salió de la línea '+lin(l),p_fecha:l.fecha}); await cargarMarcas(); msg+=' · salida registrada'; }
+      catch(e){ showToast('No se pudo registrar su salida: '+e.message,'error'); }
+    }
   }
-  renderLineaModal(); renderLineas(); await save(); showToast(p.nombre+' salió de la línea '+lin(l));
+  _qp=null; renderLineaModal(); renderLineas(); await save(); showToast(msg);
 }
 async function arrancarLinea(){
   const l=lineaDe(_lineaAbierta); if(!l) return; lineaMetaHoras();
@@ -3524,7 +3570,8 @@ function estadoMarca(pid){
   const u=M[M.length-1], e=[...M].reverse().find(x=>x.tipo==='entrada');
   const hoy=hoyStr();
   if(u.tipo==='salida') return {estado:u.fecha===hoy?'salio':'fuera',ultima:u,entrada:e,puesto:u.puesto};
-  if(u.fecha!==hoy&&Date.now()-msTs(u.ts)>20*3600000) return {estado:'fuera',sinSalida:u,ultima:u,entrada:e,puesto:(e||u).puesto};
+  // Día nuevo: desde las 5:00 (o pasadas 20 h) la entrada de un día anterior ya no está abierta; hoy se marca entrada
+  if(u.fecha!==hoy&&(Date.now()-msTs(u.ts)>20*3600000||new Date().getHours()>=5)) return {estado:'fuera',sinSalida:u,ultima:u,entrada:e,puesto:(e||u).puesto};
   return {estado:u.tipo==='salida_almuerzo'?'almuerzo':'presente',ultima:u,entrada:e,puesto:(e||u).puesto,fecha:u.fecha};
 }
 const presentes=puestos=>_personal.filter(p=>{ const e=estadoMarca(p.id); return (e.estado==='presente'||e.estado==='almuerzo')&&(!puestos||puestos.includes(e.puesto)); });
@@ -4712,10 +4759,11 @@ async function aplicarImportMaestro(){
 }
 
 // ═══ EXCEL EXPORT ═══
-function exportExcel(turnoId){
-  const wb=XLSX.utils.book_new();
-  let turnos=turnoId?S.turnosHistorial.filter(t=>t.id===turnoId):[...S.turnosHistorial];
-  if(S.turno&&!turnoId)turnos=[...turnos,{...S.turno,historial:[...S.historial],fin:null,estado:'activo'}];
+// Reportería: cada reporte es una tabla (encabezado + filas). Se ven en pantalla y se descargan uno a uno o todos juntos.
+function construirReportes(turnoId, rango){
+  const R=[], enRango=f=>!rango||((!rango.desde||f>=rango.desde)&&(!rango.hasta||f<=rango.hasta));
+  let turnos=turnoId?S.turnosHistorial.filter(t=>t.id===turnoId):S.turnosHistorial.filter(t=>enRango(t.fecha));
+  if(S.turno&&!turnoId&&enRango(S.turno.fecha))turnos=[...turnos,{...S.turno,historial:[...S.historial],fin:null,estado:'activo'}];
   const engOf=t=>t.fin?engTurnoCerrado(t):calcTurno(t,t.historial||[],[],Date.now());
   const hora=ts=>ts?new Date(ts).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit',hour12:false}):'';
   const r2=n=>Math.round((n||0)*100)/100;
@@ -4725,50 +4773,74 @@ function exportExcel(turnoId){
     const n=(ta.colaboradores||[]).length;
     detRows.push([t.fecha,t.hora,ta.tarea,ta.cliente,(ta.colaboradores||[]).map(c=>c.nombre).join(', '),n,hora(ta.inicio),hora(ta.fin),r2(ta.durH),r2(k.horasPersonaTarea(ta)),ta.cant||0,ta.unidad||'',ta.prod||0,r2(ta.realProd),ta.efic!=null?Math.round(ta.efic):'',r2(k.costoTarea(ta)),ta.nota||'',{productiva:'Productivo',apoyo:'Apoyo',noprod:'No productivo'}[claseDe(ta)],claseDe(ta)==='noprod'?((PAUSAS[causaDe(ta)]||{}).n||causaDe(ta)):'',(ta.excel||{}).actividad||'',(ta.excel||{}).categoria||'',ta.por||'',ta.cantPend?'Sí':'',ta.lineaId&&lineaDe(ta.lineaId)?lineaDe(ta.lineaId).nombre:'',ta.bodega||'']);
   });});
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(detRows),'Detalle Tareas');
+  R.push({nombre:'Detalle Tareas',filas:detRows});
 
   const turRows=[['Fecha','Hora inicio','Hora fin','Equipo','Personas','Jornada','Horas disponibles','Horas trabajadas','Horas libres','Sobretiempo (h)','Tareas','Costo pagado ($)','Costo productivo ($)','Costo perdido ($)','Eficiencia (%)','Causa horas libres','Detalle','Estado','Horas productivas','Horas apoyo','Horas no productivas','Horas sin registrar']];
   turnos.forEach(t=>{const k=engOf(t);
     turRows.push([t.fecha,t.hora,t.fin?hora(t.fin):'En curso',(t.equipo||[]).map(c=>c.nombre).join(', '),(t.equipo||[]).length,t.jornada==='media'?'Media':'Completa',r2(k.disp),r2(k.usadas),r2(k.libres),r2(k.extra),(t.historial||[]).length,r2(k.pagado),r2(k.productivo),r2(k.perdido),k.efic,t.justCausa||'',t.justNota||'',t.estado||'',r2(k.prodH),r2(k.apoyoH),r2(k.noprodH),r2(k.libres)]);
   });
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(turRows),'Resumen Turnos');
+  R.push({nombre:'Resumen Turnos',filas:turRows});
 
   const cliMap={};turnos.forEach(t=>{const k=engOf(t);(t.historial||[]).forEach(ta=>{if(esAlmuerzo(ta))return;const cli=ta.cliente||'N/A';if(!cliMap[cli])cliMap[cli]={tareas:0,horas:0,costo:0};cliMap[cli].tareas++;cliMap[cli].horas+=k.horasPersonaTarea(ta);cliMap[cli].costo+=k.costoTarea(ta);});});
   const cliRows=[['Cliente','# Tareas','Horas-persona','Costo total ($)']];
   Object.entries(cliMap).sort((a,b)=>b[1].costo-a[1].costo).forEach(([cli,d])=>cliRows.push([cli,d.tareas,r2(d.horas),r2(d.costo)]));
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cliRows),'Costos por Cliente');
+  R.push({nombre:'Costos por Cliente',filas:cliRows});
 
   const eficMap={};turnos.forEach(t=>(t.historial||[]).forEach(ta=>{const n=ta.tarea;if(!eficMap[n])eficMap[n]={count:0,eficSum:0,eficCnt:0,horas:0,cant:0,prod:ta.prod,unidad:ta.unidad};eficMap[n].count++;if(ta.efic!=null){eficMap[n].eficSum+=ta.efic;eficMap[n].eficCnt++;}eficMap[n].horas+=(ta.durH||0);eficMap[n].cant+=(ta.cant||0);}));
   const eficRows=[['Tarea','# Ejecuciones','Horas (reloj)','Cantidad total','Prod. real prom. (u/h)','Prod. esperada (u/h)','Eficiencia prom. (%)','Unidad']];
   Object.entries(eficMap).forEach(([n,d])=>eficRows.push([n,d.count,r2(d.horas),d.cant,d.horas>0?r2(d.cant/d.horas):0,d.prod||0,d.eficCnt>0?Math.round(d.eficSum/d.eficCnt):'',d.unidad||'']));
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(eficRows),'Eficiencia por Tarea');
+  R.push({nombre:'Eficiencia por Tarea',filas:eficRows});
 
   const opMap={};turnos.forEach(t=>{const k=engOf(t);Object.values(k.per).forEach(p=>{const n=p.c.nombre;if(!opMap[n])opMap[n]={cargo:p.c.cargo,turnos:0,horas:0,extra:0,libre:0,costo:0,prod:0,apoyo:0,noprod:0};const o=opMap[n];o.turnos++;o.horas+=p.prod+p.apoyo;o.extra+=p.extra;o.libre+=p.libre;o.costo+=p.pagado;o.prod+=p.prod;o.apoyo+=p.apoyo;o.noprod+=p.noprod;});});
   const opRows=[['Colaborador','Cargo','Turnos','Horas trabajadas','Sobretiempo (h)','Horas sin registrar','Costo pagado ($)','Horas productivas','Horas apoyo','Horas no productivas','% productivo']];
   Object.entries(opMap).forEach(([n,d])=>{const b=d.prod+d.apoyo+d.noprod+d.libre;opRows.push([n,{operador:'Operador',ag:'Ayudante General',supervisor:'Supervisor'}[d.cargo]||'Operador',d.turnos,r2(d.horas),r2(d.extra),r2(d.libre),r2(d.costo),r2(d.prod),r2(d.apoyo),r2(d.noprod),b>0?Math.round(d.prod/b*100):''])});
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(opRows),'Costos por Colaborador');
+  R.push({nombre:'Costos por Colaborador',filas:opRows});
 
   // Líneas de producción: control de cantidades
   const linRows=[['Fecha','Línea','Cliente','Bodega','Actividad en Excel','Meta (pallets)','Pallets','Cumplimiento (%)','Personas','Horas línea','Pallets por persona-hora','Productividad objetivo','Horas operadores de apoyo','Minutos en paro','Disponibilidad (%)','Responsable','Inicio','Fin','Estado']];
   const perRows=[['Fecha','Línea','Cliente','Persona','Desde','Horas en la línea (sin almuerzo)']];
   const fechasT=new Set(turnos.map(t=>t.fecha));
-  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(!turnoId||fechasT.has(l.fecha))).forEach(l=>{ const t={fecha:l.fecha};
+  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))).forEach(l=>{ const t={fecha:l.fecha};
     const r=ritmoLinea(l), fin=l.fin||Date.now();
     linRows.push([t.fecha,lin(l),l.cliente||'',l.bodega||'',(l.excel||{}).actividad||'',l.meta,r.tot,l.meta?Math.round(r.tot/l.meta*100):'',l.personas.length,r2(r.h),r.hTot?r2(r.porPersona):'',l.prod||'',r2(apoyoOperadores(l.id).total),Math.round(r.paroH*60),Math.round(r.disponibilidad*100),l.responsable||'',hora(l.inicio),l.fin?hora(l.fin):'En marcha',l.estado==='cerrada'?'Cerrada':'En marcha']);
     l.personas.forEach(p=>perRows.push([t.fecha,lin(l),l.cliente||'',p.nombre,hora(p.desde||l.inicio),r2(horasEnLinea(p,l,fin))]));
   });
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(linRows),'Líneas de producción');
+  R.push({nombre:'Líneas de producción',filas:linRows});
   const parRows=[['Fecha','Línea','Causa','Inicio','Fin','Minutos','Nota','Registrado por']];
   const insRows=[['Fecha','Línea','Insumo','Unidad','Consumo por pallet','Pallets','Esperado','Entregado','Sobrante','Consumo real','Diferencia','Diferencia (%)']];
-  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(!turnoId||fechasT.has(l.fecha))).forEach(l=>{
+  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))).forEach(l=>{
     [...(l.paros||[]),...(l.paroActivo?[l.paroActivo]:[])].forEach(p=>parRows.push([l.fecha,lin(l),p.causa,hora(p.inicio),p.fin?hora(p.fin):'En curso',Math.round(paroDur(p)*60),p.nota||'',p.por||'']));
     (l.insumos||[]).forEach(i=>{ const e=estadoInsumo(i,l); insRows.push([l.fecha,l.nombre,i.nombre,i.unidad,i.porPallet,totalPallets(l),r2(e.esp),r2(e.ent),e.sob??'',e.real==null?'':r2(e.real),e.dif==null?'':r2(e.dif),e.difPct==null?'':Math.round(e.difPct)]); });
   });
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(perRows),'Cuadrilla de línea');
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(parRows),'Paros de línea');
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(insRows),'Insumos de línea');
+  R.push({nombre:'Cuadrilla de línea',filas:perRows});
+  R.push({nombre:'Paros de línea',filas:parRows});
+  R.push({nombre:'Insumos de línea',filas:insRows});
 
-  XLSX.writeFile(wb,turnoId?`Turno_${turnos[0]?.fecha||'N/A'}.xlsx`:`Control_Horas_DPWorld_${fechaLocal(new Date())}.xlsx`);
+  R.turnos=turnos; return R;
+}
+let _rep={id:0,desde:'',hasta:''};
+function htmlReportes(){
+  if(!_rep.desde){ _rep.hasta=hoyStr(); _rep.desde=fechaMenos(hoyStr(),14); }
+  const R=construirReportes(null,{desde:_rep.desde,hasta:_rep.hasta}), x=R[_rep.id]||R[0], cab=x.filas[0]||[], filas=x.filas.slice(1), MAX=300;
+  const celda=v=>typeof v==='number'?`<td class="num">${fmtN(v)}</td>`:`<td>${esc(v==null?'':String(v))}</td>`;
+  return `<div class="rep-filtros"><div class="field"><label>Desde</label><input type="date" value="${_rep.desde}" onchange="_rep.desde=this.value;pintarReportes()"></div>
+      <div class="field"><label>Hasta</label><input type="date" value="${_rep.hasta}" onchange="_rep.hasta=this.value;pintarReportes()"></div>
+      <div class="chip-wrap" style="align-self:flex-end">${[['Hoy',0],['7 días',6],['15 días',14],['30 días',29]].map(([t,d])=>`<div class="chip${_rep.desde===fechaMenos(hoyStr(),d)&&_rep.hasta===hoyStr()?' selected':''}" onclick="_rep.desde=fechaMenos(hoyStr(),${d});_rep.hasta=hoyStr();pintarReportes()">${t}</div>`).join('')}</div></div>
+    <div class="chip-wrap rep-lista">${R.map((r,i)=>`<div class="chip${r===x?' selected':''}" onclick="_rep.id=${i};pintarReportes()">${esc(r.nombre)} <span class="li-sub">${r.filas.length-1}</span></div>`).join('')}</div>
+    <div class="rep-acc"><b>${esc(x.nombre)}</b> · ${filas.length} fila${filas.length===1?'':'s'} · ${etiquetaDia(_rep.desde)} a ${etiquetaDia(_rep.hasta).toLowerCase()}
+      <span class="btn-row"><button class="btn btn-green btn-sm" onclick="descargarReporte(${R.indexOf(x)})">Descargar este reporte</button><button class="btn btn-ghost btn-sm" onclick="descargarReporte(-1)">Descargar todos</button></span></div>
+    ${filas.length?`<div class="rep-tabla"><table><thead><tr>${cab.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${filas.slice(0,MAX).map(f=>`<tr>${cab.map((_,k)=>celda(f[k])).join('')}</tr>`).join('')}</tbody></table></div>
+      ${filas.length>MAX?`<div class="li-sub">Se muestran ${MAX} de ${filas.length} filas. El Excel trae todas.</div>`:''}`:'<div class="empty-text">Sin datos en estas fechas.</div>'}`;
+}
+function pintarReportes(){ const el=document.getElementById('repBox'); if(el) el.innerHTML=htmlReportes(); }
+function descargarReporte(i){
+  const R=construirReportes(null,{desde:_rep.desde,hasta:_rep.hasta}), sel=i<0?R:[R[i]], nom=i<0?'Reportes':R[i].nombre.replace(/\W+/g,'_');
+  XLSX.writeFile(libroDe(sel),`${nom}_${_rep.desde}_a_${_rep.hasta}.xlsx`);
+}
+function libroDe(R){ const wb=XLSX.utils.book_new(); R.forEach(x=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(x.filas),x.nombre.slice(0,31))); return wb; }
+function exportExcel(turnoId){
+  const R=construirReportes(turnoId);
+  XLSX.writeFile(libroDe(R),turnoId?`Turno_${R.turnos[0]?.fecha||'N/A'}.xlsx`:`Control_Horas_DPWorld_${fechaLocal(new Date())}.xlsx`);
 }
 
 // ═══ PLANILLA, COBROS Y PROFORMAS (config.facturacion: Door) ═══
@@ -6002,10 +6074,7 @@ function renderInsights(){
 
   corte('exportar');
   // Exportar
-  h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sExp','cExp')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Exportar Reportería</span></div><span class="chevron open" id="cExp">▼</span></div><div class="sec-body" id="sExp">
-    <div class="info-box">Excel con 9 hojas: Detalle Tareas, Resumen Turnos, Costos por Cliente, Eficiencia por Tarea, Costos por Colaborador, Líneas de producción, Pallets por persona, Paros de línea e Insumos de línea.</div>
-    <button class="btn btn-green btn-full" onclick="exportExcel(null)">Descargar Excel Completo</button>
-  </div></div>`;
+  h+=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sExp','cExp')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Reportes</span></div><span class="chevron open" id="cExp">▼</span></div><div class="sec-body" id="sExp"><div id="repBox">${htmlReportes()}</div></div></div>`;
 
   corte('historico');
   // Histórico turnos
