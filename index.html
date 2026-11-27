@@ -1472,7 +1472,7 @@ body.con-sel .toast{bottom:96px}
 </div>
 <div class="overlay hidden" id="modalAdminPass">
   <div class="modal">
-    <div class="modal-hdr"><span class="modal-title">Contraseña del administrador</span><span class="modal-close" onclick="hideModal('modalAdminPass')">×</span></div>
+    <div class="modal-hdr"><span class="modal-title" id="apTitulo">Contraseña</span><span class="modal-close" onclick="hideModal('modalAdminPass')">×</span></div>
     <div class="li-sub" id="apMotivo"></div>
     <input type="password" id="apPass" autocomplete="off" placeholder="Contraseña" onkeydown="if(event.key==='Enter')confirmarAdminPass()">
     <div class="err-box hidden" id="apErr">Contraseña incorrecta</div>
@@ -2014,7 +2014,7 @@ async function startApp(){
   DPW.quien('Sesión',currentUser.nombre+' · '+(ROL_NOMBRE[currentUser.rol]||currentUser.rol));
   setNav(esResponsable()?'lineas':esCliente()?(marcajeClienteOn()?'miturno':'pedidos'):'supervisor');
   if(esCliente()){ renderAll(); avisarRespuestasCliente(); avisarProformasCliente(); avisarCotizacionesCliente(); avisarAvanzadoCliente(); if(tutorialPendiente()) setTimeout(()=>{ if(!_tour&&tutorialPendiente()) iniciarTutorial(); },900); return; }
-  cargarMisAvisos(); cargarPersonal().then(cargarMarcas).then(()=>{ suscribirPush().then(revisarRegistroAvisos); if(enKiosco()){ if(currentUser.rol==='admin') entrarKiosco(); else try{ localStorage.removeItem(KIOSCO_KEY); }catch(e){} } });
+  cargarMisAvisos(); cargarPersonal().then(cargarMarcas).then(()=>{ suscribirPush().then(revisarRegistroAvisos); if(enKiosco()){ if(['admin','supervisor'].includes(currentUser.rol)) entrarKiosco(); else try{ localStorage.removeItem(KIOSCO_KEY); }catch(e){} } });
   if(_lineasMigradas){ _lineasMigradas=false; save(); }
   const now=new Date();
   document.getElementById('tFecha').value=fechaLocal(now);
@@ -2651,8 +2651,8 @@ var CATS=[
     ['ins:personal','Personal',()=>currentUser.rol==='admin'],
     ['ins:asistencia','Asistencia y horas',()=>currentUser.rol==='admin'],
     ['planilla','Planilla',()=>facturacionOn()&&['admin','supervisor'].includes(currentUser.rol)],
-    ['contingente','Alta de contingente →',()=>currentUser.rol==='supervisor',null,()=>altaContingente()],
-    ['marcaje','Marcaje en esta tablet →',()=>currentUser.rol==='admin',null,()=>activarKiosco()]]},
+    ['contingente','Dar de alta personal →',()=>currentUser.rol==='supervisor',null,()=>altaContingente()],
+    ['marcaje','Marcaje en esta tablet →',()=>['admin','supervisor'].includes(currentUser.rol),null,()=>activarKiosco()]]},
   {id:'productividad',t:'Productividad y costos',tabs:()=>[
     ['ins:resumen','Resumen',()=>currentUser.rol==='admin'],
     ['ins:prodTareas','Por tarea',()=>currentUser.rol==='admin'],
@@ -3991,8 +3991,8 @@ function avisarMarcas(nuevas){
 
 // ── Tablet en modo quiosco (solo con sesión de administrador)
 async function activarKiosco(){
-  if(!currentUser||currentUser.rol!=='admin'){ showToast('Solo el administrador puede activar el marcaje','error'); return; }
-  if(!confirm('¿Dejar este equipo en modo marcaje?\n\nQuedará fijo en la pantalla de asistencia. Para salir se pedirá la contraseña del administrador.')) return;
+  if(!currentUser||!['admin','supervisor'].includes(currentUser.rol)){ showToast('Solo el administrador o un supervisor puede activar el marcaje','error'); return; }
+  if(!confirm('¿Dejar este equipo en modo marcaje?\n\nQuedará fijo en la pantalla de asistencia con tu usuario ('+currentUser.nombre+'). Para salir o dar de alta a alguien desde la tablet se pedirá tu contraseña.')) return;
   try{ localStorage.setItem(KIOSCO_KEY,'1'); }catch(e){}
   await entrarKiosco();
 }
@@ -4078,9 +4078,9 @@ function mostrarOkKiosco(tit, sub, error){
   const o=document.getElementById('kiOk'); document.getElementById('kiOkTit').textContent=tit; document.getElementById('kiOkSub').textContent=sub;
   o.classList.toggle('err',!!error); o.classList.remove('hidden'); clearTimeout(window._kiOkT); window._kiOkT=setTimeout(()=>{ o.classList.add('hidden'); document.getElementById('kiBuscar').value=''; renderKiosco(); },3500);
 }
-// Acciones protegidas con la contraseña del administrador (desde la tablet)
+// Acciones protegidas con la contraseña de quien activó la tablet (administrador o supervisor)
 let _apAccion=null;
-function kioscoAdmin(accion){ _apAccion=accion; document.getElementById('apMotivo').textContent=accion==='salir'?'Para salir del modo marcaje.':'Para dar de alta a una persona.'; document.getElementById('apPass').value=''; document.getElementById('apErr').classList.add('hidden'); showModal('modalAdminPass'); setTimeout(()=>document.getElementById('apPass').focus(),150); }
+function kioscoAdmin(accion){ _apAccion=accion; document.getElementById('apTitulo').textContent='Contraseña de '+((currentUser&&currentUser.nombre)||'quien activó la tablet'); document.getElementById('apMotivo').textContent=accion==='salir'?'Para salir del modo marcaje.':'Para dar de alta a una persona.'; document.getElementById('apPass').value=''; document.getElementById('apErr').classList.add('hidden'); showModal('modalAdminPass'); setTimeout(()=>document.getElementById('apPass').focus(),150); }
 async function confirmarAdminPass(){
   let ok=false; try{ ok=await rpc('ch_check_pass',{p_token:SESSION.token,p_pass:document.getElementById('apPass').value}); }catch(e){}
   if(!ok){ document.getElementById('apErr').classList.remove('hidden'); return; }
