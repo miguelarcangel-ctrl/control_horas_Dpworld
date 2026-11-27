@@ -534,7 +534,7 @@ async function newPage(browser, opts = {}) {
     _la.persona = _la.linea.personas.find(p => p.id === 'tmp_la1'); _la.paso = 'cedula'; renderLA();
     document.getElementById('laCed').value = 'malo'; await lineaEntrar(); r.cedMal = /Cédula incorrecta/.test(ap().innerHTML) && !_la.ses;
     document.getElementById('laCed').value = 'Xtmp_la1'; await lineaEntrar();
-    r.tarjeta = _la.paso === 'conteo' && !!document.getElementById('laT1') && /1<\/b><span>\/ 10 pallets/.test(ap().innerHTML) && /Tiempo en marcha/.test(ap().innerHTML) && /01:00:0\d/.test(document.getElementById('laT1').textContent);
+    r.tarjeta = _la.paso === 'conteo' && !!document.getElementById('laT1') && /1<\/b><span>de 10 pallets/.test(ap().innerHTML) && /Tiempo en marcha/.test(ap().innerHTML) && /01:00:0\d/.test(document.getElementById('laT1').textContent);
     await sumarLA(5); await sumarLA(1); await sumarLA(-1);
     const srvL = SRV.rows[STATE_KEY].value.lineas.find(x => x.id === l.id);
     r.cuenta = srvL.pallets.length === 6 && _la.est.pallets.length === 6 && /6<\/b><span>/.test(ap().innerHTML);
@@ -542,11 +542,31 @@ async function newPage(browser, opts = {}) {
     await reload(); r.sync = totalPallets(lineaDe(l.id)) === 6;
     // queda guardada en el equipo: al volver a abrir, vuelve al conteo
     const gq = localStorage.getItem(LA_KEY);  r.guarda = !!gq && JSON.parse(gq).linea === l.id;
+    // semáforo: pallets contra lo esperado a esta hora (meta 16 en 8 h = 2/h), sin contar paros ni almuerzo
+    const t0 = Date.now() - 4 * H, base = { estado: 'corriendo', inicio: t0, meta: 16, horas: 8, paros: [], almuerzos: [] }, pal = k => Array.from({ length: k }, (_, i) => t0 + i * 60000);
+    r.verde = semaforoLA({ ...base, pallets: pal(8) }).c === 'verde';
+    r.amarillo = semaforoLA({ ...base, pallets: pal(7) }).c === 'amarillo';
+    r.rojo = semaforoLA({ ...base, pallets: pal(4) }).c === 'rojo';
+    r.sinParos = semaforoLA({ ...base, pallets: pal(6), paros: [{ inicio: t0 + H, fin: t0 + 2 * H }] }).c === 'verde';
+    r.arranque = semaforoLA({ ...base, inicio: Date.now() - 600000, pallets: [] }).c === 'neutro' && semaforoLA({ ...base, estado: 'pendiente', pallets: [] }).c === 'neutro';
+    r.meta = semaforoLA({ ...base, pallets: pal(16) }).t === 'Meta cumplida';
+    _la.est = { ..._la.est, ...base, pallets: pal(4) }; renderLA();
+    r.pinta = ap().classList.contains('fondo-rojo') && !!ap().querySelector('.la-ring.s-rojo') && /Muy abajo/.test(ap().innerHTML);
     await salirLA(); r.sale = ap().classList.contains('hidden') && !localStorage.getItem(LA_KEY);
     S.lineas = guard; await save(); await limpiarTmp(); return r; });
   ok(la.boton && la.lineas && la.nombres, 'ingresar como línea: desde el login elige su línea y su nombre (solo la cuadrilla de esa línea)');
   ok(la.cedMal && la.tarjeta, 'ingresar como línea: confirma con la cédula y queda en la tarjeta de conteo con el temporizador');
   ok(la.cuenta && la.sync && la.guarda && la.sale, 'ingresar como línea: −/+1/+5 se guardan en el servidor, el supervisor los ve, y «Salir» cierra la sesión del equipo');
+  ok(la.verde && la.amarillo && la.rojo && la.sinParos && la.arranque && la.meta && la.pinta, 'ingresar como línea: semáforo verde/amarillo/rojo según los pallets esperados a esta hora (sin paros ni almuerzo), con anillo y fondo del color');
+  await page.setViewportSize({ width: 844, height: 390 });
+  const laH = await page.evaluate(async () => {
+    const t0 = Date.now() - 2 * 3600000; _la = { ..._la, paso: 'conteo', ses: { nombre: 'Prueba' }, est: { existe: true, letra: 'A', nombre: 'Prueba', estado: 'corriendo', inicio: t0, meta: 16, horas: 8, pallets: [t0], paros: [], almuerzos: [] } };
+    mostrarLA(true); renderLA();
+    const q = s => document.querySelector('#lineaApp ' + s).getBoundingClientRect(), ring = q('.la-ring'), btns = q('.la-btns');
+    const r = { fila: getComputedStyle(document.querySelector('.la-cuerpo')).flexDirection === 'row', lado: btns.left >= ring.right - 1, cabe: btns.bottom <= innerHeight + 1 };
+    mostrarLA(false); return r; });
+  await page.setViewportSize({ width: 420, height: 900 });
+  ok(laH.fila && laH.lado && laH.cabe, 'ingresar como línea: en horizontal el anillo queda a la izquierda y los botones a la derecha, sin salirse de la pantalla');
   ok(qp.tarjeta, 'línea en marcha: quien salió de la línea ya no cuenta en la tarjeta ni recibe la salida al cerrar');
   const dn = await page.evaluate(async () => {
     const SRV = window.__SRV, ay = fechaMenos(hoyStr(), 1), r = {};

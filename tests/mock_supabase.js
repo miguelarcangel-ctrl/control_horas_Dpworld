@@ -90,7 +90,7 @@
       if(!l||!(l.personas||[]).some(p=>p.personaId===a.p_persona&&!p.hasta)||!per||normCed(per.cedula)!==normCed(a.p_cedula))return err('CEDULA','28000');
       const t='lt'+Math.random();SRV.sesLinea=SRV.sesLinea||{};SRV.sesLinea[t]={key:a.p_key,linea:a.p_linea,nombre:per.nombre};return{data:{token:t,nombre:per.nombre,linea:a.p_linea}};},
     ch_linea_estado:a=>{const se=(SRV.sesLinea||{})[a.p_token];if(!se)return err('SESION','28000');const l=((SRV.rows[se.key]||{}).value.lineas||[]).find(x=>x.id===se.linea);
-      if(!l)return{data:{existe:false}};return{data:{existe:true,id:l.id,letra:l.letra,nombre:l.nombre,cliente:l.cliente,estado:l.estado,meta:l.meta,inicio:l.inicio,fin:l.fin,pallets:clone(l.pallets||[]),paro:l.paroActivo||null,almuerzo:l.almuerzoActivo||null,personas:(l.personas||[]).filter(p=>!p.hasta).length,quien:se.nombre}};},
+      if(!l)return{data:{existe:false}};return{data:{existe:true,id:l.id,letra:l.letra,nombre:l.nombre,cliente:l.cliente,estado:l.estado,meta:l.meta,horas:l.horas,inicio:l.inicio,fin:l.fin,pallets:clone(l.pallets||[]),paro:l.paroActivo||null,almuerzo:l.almuerzoActivo||null,paros:clone(l.paros||[]),almuerzos:clone(l.almuerzos||[]),personas:(l.personas||[]).filter(p=>!p.hasta).length,quien:se.nombre}};},
     ch_linea_pallet:a=>{const se=(SRV.sesLinea||{})[a.p_token];if(!se)return err('SESION','28000');const r=SRV.rows[se.key],l=(r.value.lineas||[]).find(x=>x.id===se.linea);
       if(!l)return err('LINEA');if(l.estado!=='corriendo')return err('LINEA_NO_CORRE');if(l.almuerzoActivo)return err('ALMUERZO');
       l.pallets=l.pallets||[];if(a.p_delta>0)for(let k=0;k<a.p_delta;k++)l.pallets.push(Date.now());else l.pallets.splice(Math.max(0,l.pallets.length+a.p_delta));r.version++;
