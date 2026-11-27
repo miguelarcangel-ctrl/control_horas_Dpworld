@@ -2464,7 +2464,7 @@ var CATS=[
     ['ins:lineasRes','Líneas',()=>currentUser.rol==='admin'&&(S.lineasTipo||[]).length],
     ['ins:costosCli','Costos por cliente',()=>currentUser.rol==='admin'],
     ['ins:historico','Histórico de turnos',()=>currentUser.rol==='admin',()=>(S.solicitudes||[]).filter(x=>x.estado==='pendiente').length],
-    ['ins:exportar','Reportes',()=>currentUser.rol==='admin']]},
+    ['ins:exportar','Reportes',()=>['admin','supervisor'].includes(currentUser.rol)]]},
   {id:'clientes',t:'Clientes y cobros',tabs:()=>[
     ['ins:clientes','Clientes',()=>currentUser.rol==='admin',()=>Object.keys(S.solicitudesAvanzado||{}).filter(k=>!avanzadoDe(k)).length],
     ['tarifario','Tarifarios',()=>currentUser.rol==='admin'&&facturacionOn()],
@@ -4816,6 +4816,11 @@ function construirReportes(turnoId, rango){
   R.push({nombre:'Paros de línea',filas:parRows});
   R.push({nombre:'Insumos de línea',filas:insRows});
 
+  // El supervisor ve la reportería sin costos (como en la Vista TV): se quitan las columnas de dinero
+  if(!currentUser||currentUser.rol!=='admin') R.forEach(x=>{
+    const cab=x.filas[0]||[], fuera=new Set(cab.map((c,i)=>/costo|\(\$\)|pagado|perdido/i.test(c)?i:-1).filter(i=>i>=0));
+    if(fuera.size) x.filas=x.filas.map(f=>f.filter((_,i)=>!fuera.has(i)));
+    x.nombre=x.nombre.replace('Costos por Cliente','Horas por cliente').replace('Costos por Colaborador','Horas por colaborador'); });
   R.turnos=turnos; return R;
 }
 let _rep={id:0,desde:'',hasta:''};
