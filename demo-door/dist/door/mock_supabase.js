@@ -74,6 +74,16 @@
         const t=Math.min(Date.now(),Math.max(Date.parse(a.p_ts||new Date().toISOString()),Date.parse(ult.ts)));
         SRV.marcas.push({id:++SRV.marcaSeq,key:a.p_key,persona_id:pid,nombre:ult.nombre,fecha:ult.fecha,tipo:a.p_tipo,puesto:ult.puesto,ts:new Date(t).toISOString(),por:u.username,anulado:false,motivo:a.p_motivo||('Almuerzo registrado por '+u.username),corregido_por:null,corregido_en:null,bodega:ult.bodega||null,push_enviado:true});n++;});
       return{data:n};},
+    ch_jornada_sin_turno:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(!['admin','supervisor'].includes(u.rol))return err('PERMISO','42501');
+      const v=(SRV.rows[a.p_key]||{}).value||{};if((v.turno&&v.turno.fecha===a.p_fecha)||(v.turnosHistorial||[]).some(t=>t.fecha===a.p_fecha))return{data:0};
+      const at=h=>new Date(a.p_fecha+'T'+h+':00').getTime(),ti=at('08:00'),tf=at('17:00');let n=0;const vistos=new Set();
+      SRV.marcas.filter(e=>e.key===a.p_key&&e.fecha===a.p_fecha&&e.tipo==='entrada'&&!e.anulado&&['supervisor','ag','operador'].includes(e.puesto)).sort((x,y)=>Date.parse(x.ts)-Date.parse(y.ts)).forEach(e=>{
+        if(vistos.has(e.persona_id))return;vistos.add(e.persona_id);
+        if(SRV.marcas.some(s=>s.key===e.key&&s.persona_id===e.persona_id&&s.fecha===e.fecha&&s.tipo==='salida'&&!s.anulado))return;
+        if(Date.parse(e.ts)>ti)e.ts=new Date(ti).toISOString();
+        const mk=(tipo,ts,mot)=>SRV.marcas.push({id:++SRV.marcaSeq,key:e.key,persona_id:e.persona_id,nombre:e.nombre,fecha:e.fecha,tipo,puesto:e.puesto,ts:new Date(ts).toISOString(),por:'sistema',anulado:false,motivo:mot,corregido_por:'sistema',bodega:e.bodega||null,push_enviado:true});
+        mk('salida_almuerzo',at('12:00'),'Almuerzo');mk('regreso_almuerzo',at('13:00'),'Almuerzo');mk('salida',tf,'Salida 17:00: día sin turno abierto (jornada automática)');n++;});
+      return{data:n};},
     ch_marca_bodega:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(u.rol!=='admin')return err('PERMISO','42501');const m=SRV.marcas.find(x=>x.id===a.p_id&&x.key===a.p_key);if(m)m.bodega=String(a.p_bodega||'').trim()||null;return{data:null};},
     ch_marca_cliente:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(u.rol!=='admin')return err('PERMISO','42501');const m=SRV.marcas.find(x=>x.id===a.p_id&&x.key===a.p_key);if(m)m.cliente=String(a.p_cliente||'').trim().slice(0,80)||null;return{data:null};},
     ch_marcajes:a=>{if(!user(a.p_token))return err('SESION','28000');return{data:clone(SRV.marcas.filter(m=>m.key===a.p_key&&m.fecha>=a.p_desde&&m.fecha<=a.p_hasta).sort((x,y)=>Date.parse(x.ts)-Date.parse(y.ts)))};},
