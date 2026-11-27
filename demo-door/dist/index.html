@@ -527,6 +527,18 @@ body.con-sel .avisos-app{bottom:90px}
 .rep-cab{margin-bottom:8px}.rep-tit{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.15rem;letter-spacing:.5px;text-transform:uppercase;color:var(--t)}
 .rep-tabla tr.rep-total td{font-weight:700;border-top:2px solid var(--b2)}
 .rep-tabla tr.rep-sub td{font-weight:700;background:rgba(var(--fg),.04)}
+.cq-lista{display:flex;flex-direction:column;gap:10px}
+.cq-linea{border:1.5px solid var(--b1);border-left:4px solid var(--green);border-radius:12px;padding:10px 14px;background:var(--card)}
+.cq-hdr{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.cq-hdr span{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.1rem;text-transform:uppercase;letter-spacing:.4px;color:var(--t)}
+.cq-hdr b{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.5rem;color:var(--green);white-space:nowrap}
+.cq-meta{font-size:.78rem;color:var(--t3);margin:2px 0 6px}
+.cq-per{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid var(--b0);font-size:.9rem;color:var(--t2)}
+.cq-per small{color:var(--t3);white-space:nowrap}
+.cq-total{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;border-radius:12px;padding:10px 14px;background:rgba(var(--fg),.05)}
+.cq-total span{font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.4px}
+.cq-total b{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.3rem;margin-left:auto}
+.cq-total small{color:var(--t3);width:100%;text-align:right}
 .rep-filtros select{min-width:200px}
 .rep-acc{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 6px;font-size:.85rem}
 .rep-tabla{overflow:auto;max-height:60vh;border:1px solid var(--b1);border-radius:8px}
@@ -5191,6 +5203,19 @@ function construirReportes(turnoId, rango){
     rt.pal+=o.pal; rt.meta+=o.meta; rt.n+=o.n; rt.costo+=o.costo; o.dias.forEach(d=>rt.dias.add(d)); });
   if(Object.keys(rl).length) rlRows.push(['TOTAL',rt.pal,rt.meta,pc(rt.pal,rt.meta),rt.dias.size,rt.n,'',r2(rt.costo)]);
   R.push({nombre:'Resumen por línea',filas:rlRows});
+  // Producción por línea y cuadrilla: por letra de línea (A, B, C…) el total del rango y debajo quién estuvo en ella
+  const cq={};
+  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))).forEach(l=>{
+    const k=l.letra||l.nombre, o=cq[k]||(cq[k]={k,nombres:new Set(),dias:new Set(),pal:0,meta:0,hp:0,per:{}}); const fin=l.fin||Date.now();
+    o.nombres.add(l.nombre); o.dias.add(l.fecha); o.pal+=totalPallets(l); o.meta+=+l.meta||0;
+    (l.personas||[]).forEach(p=>{ const id=p.personaId||p.nombre, h=horasEnLinea(p,l,fin), q=o.per[id]||(o.per[id]={nombre:p.nombre,dias:new Set(),h:0}); q.dias.add(l.fecha); q.h+=h; o.hp+=h; }); });
+  const cqRows=[['Línea','Persona','Pallets','Meta','%','Días','Horas en la línea']], ct={pal:0,meta:0,hp:0,dias:new Set()};
+  Object.values(cq).sort((a,b)=>a.k.length-b.k.length||a.k.localeCompare(b.k)).forEach(o=>{
+    cqRows.push([(/^[A-Z]{1,2}$/.test(o.k)?'Línea '+o.k+' · ':'')+[...o.nombres].join(' / '),'',o.pal,o.meta,pc(o.pal,o.meta),o.dias.size,r2(o.hp)]);
+    Object.values(o.per).sort((a,b)=>a.nombre.localeCompare(b.nombre)).forEach(q=>cqRows.push(['',q.nombre,'','','',q.dias.size,r2(q.h)]));
+    ct.pal+=o.pal; ct.meta+=o.meta; ct.hp+=o.hp; o.dias.forEach(d=>ct.dias.add(d)); });
+  if(Object.keys(cq).length) cqRows.push(['TOTAL','',ct.pal,ct.meta,pc(ct.pal,ct.meta),ct.dias.size,r2(ct.hp)]);
+  R.push({nombre:'Línea y cuadrilla',filas:cqRows});
   const parRows=[['Fecha','Línea','Causa','Inicio','Fin','Minutos','Nota','Registrado por']];
   const insRows=[['Fecha','Línea','Insumo','Unidad','Consumo por pallet','Pallets','Esperado','Entregado','Sobrante','Consumo real','Diferencia','Diferencia (%)']];
   (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))).forEach(l=>{
@@ -5216,7 +5241,7 @@ var REPORTES=[
   {id:'marcajes',t:'Marcajes',d:'Cada marca de la tablet, con correcciones'},
   {id:'tareas',t:'Detalle de tareas'},{id:'turnos',t:'Resumen de turnos'},
   {id:'clientes',t:'Costos por cliente',ts:'Horas por cliente'},{id:'colaboradores',t:'Costos por colaborador',ts:'Horas por colaborador'},
-  {id:'eficiencia',t:'Eficiencia por tarea'},{id:'produccion',t:'Producción diaria',d:'Lo realizado en el día (todas las líneas) y la meta'},{id:'resLinea',t:'Resumen de producción por línea',d:'Total de cada línea en el rango de fechas: lo realizado y la meta'},{id:'prodLinea',t:'Producción diaria por línea',d:'Cada línea de cada día: lo realizado y la meta, con el total del día y del período'},{id:'lineas',t:'Líneas de producción'},{id:'cuadrilla',t:'Cuadrilla de línea'},
+  {id:'eficiencia',t:'Eficiencia por tarea'},{id:'produccion',t:'Producción diaria',d:'Lo realizado en el día (todas las líneas) y la meta'},{id:'cuadLinea',t:'Producción por línea y cuadrilla',d:'Cada línea (A, B, C…) con el total de pallets del rango y debajo las personas que estuvieron en ella'},{id:'resLinea',t:'Resumen de producción por línea',d:'Total de cada línea en el rango de fechas: lo realizado y la meta'},{id:'prodLinea',t:'Producción diaria por línea',d:'Cada línea de cada día: lo realizado y la meta, con el total del día y del período'},{id:'lineas',t:'Líneas de producción'},{id:'cuadrilla',t:'Cuadrilla de línea'},
   {id:'paros',t:'Paros de línea'},{id:'insumos',t:'Insumos de línea'}];
 function nombreReporte(r){ return (currentUser&&currentUser.rol!=='admin'&&r.ts)||r.t; }
 function esAsis(id){ return ['asisGeneral','asisDetalle','marcajes'].includes(id); }
@@ -5242,8 +5267,20 @@ function htmlReportes(){
       <div class="chip-wrap" style="align-self:flex-end">${[['Hoy',0],['7 días',6],['15 días',14],['30 días',29]].map(([t,d])=>`<div class="chip${_rep.desde===fechaMenos(hoyStr(),d)&&_rep.hasta===hoyStr()?' selected':''}" onclick="_rep.desde=fechaMenos(hoyStr(),${d});_rep.hasta=hoyStr();pintarReportes()">${t}</div>`).join('')}</div></div>
     ${!listo?'<div class="empty-text">Cargando los marcajes del período…</div>':`<div class="rep-acc"><span>${filas.length} fila${filas.length===1?'':'s'} · ${etiquetaDia(_rep.desde)} a ${etiquetaDia(_rep.hasta).toLowerCase()}</span>
       <span class="btn-row"><button class="btn btn-green btn-sm" onclick="descargarReporte('${def.id}')">Descargar este reporte</button><button class="btn btn-ghost btn-sm" onclick="descargarReporte('')">Descargar todos</button></span></div>
-    ${filas.length?`<div class="rep-tabla"><table><thead><tr>${cab.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${filas.slice(0,MAX).map(f=>`<tr${f[0]==='TOTAL'?' class="rep-total"':f[1]==='Total del día'?' class="rep-sub"':''}>${cab.map((_,k)=>celda(f[k])).join('')}</tr>`).join('')}</tbody></table></div>
+    ${filas.length&&def.id==='cuadLinea'?htmlCuadLinea(filas):filas.length?`<div class="rep-tabla"><table><thead><tr>${cab.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${filas.slice(0,MAX).map(f=>`<tr${f[0]==='TOTAL'?' class="rep-total"':f[1]==='Total del día'||(def.id==='cuadLinea'&&f[0]&&f[1]==='')?' class="rep-sub"':''}>${cab.map((_,k)=>celda(f[k])).join('')}</tr>`).join('')}</tbody></table></div>
       ${filas.length>MAX?`<div class="li-sub">Se muestran ${MAX} de ${filas.length} filas. El Excel trae todas.</div>`:''}`:'<div class="empty-text">Sin datos en estas fechas.</div>'}`}`;
+}
+// «Producción por línea y cuadrilla» en pantalla: cada línea con su total de pallets y debajo las personas
+function htmlCuadLinea(F){
+  let h='<div class="cq-lista">', abierto=false;
+  F.forEach(f=>{
+    if(f[0]==='TOTAL'){ if(abierto) h+='</div>'; abierto=false;
+      h+=`<div class="cq-total"><span>Total del período</span><b>${f[2]} pallets</b><small>meta ${f[3]}${f[4]!==''?' · '+f[4]+'%':''}</small></div>`; return; }
+    if(f[0]){ if(abierto) h+='</div>'; abierto=true;
+      h+=`<div class="cq-linea"><div class="cq-hdr"><span>${esc(f[0])}</span><b>${f[2]} pallets</b></div><div class="cq-meta">Meta ${f[3]}${f[4]!==''?' · '+f[4]+'% de cumplimiento':''} · ${f[5]} día${f[5]===1?'':'s'}</div>`; return; }
+    h+=`<div class="cq-per"><span>${esc(f[1])}</span><small>${f[5]} día${f[5]===1?'':'s'} · ${fmtN(f[6])} h</small></div>`;
+  });
+  return h+(abierto?'</div>':'')+'</div>';
 }
 async function cargarAsistenciaRep(){
   const d=_rep.desde, h=_rep.hasta;
@@ -5259,7 +5296,7 @@ async function descargarReporte(id){
   XLSX.writeFile(wb,`${id?nombreReporte(sel[0]).replace(/\W+/g,'_'):'Reportes'}_${_rep.desde}_a_${_rep.hasta}.xlsx`);
 }
 var REP_IDS={'Detalle Tareas':'tareas','Resumen Turnos':'turnos','Costos por Cliente':'clientes','Eficiencia por Tarea':'eficiencia','Costos por Colaborador':'colaboradores',
-  'Producción diaria':'produccion','Producción por línea':'prodLinea','Resumen por línea':'resLinea','Líneas de producción':'lineas','Cuadrilla de línea':'cuadrilla','Paros de línea':'paros','Insumos de línea':'insumos'};
+  'Producción diaria':'produccion','Producción por línea':'prodLinea','Resumen por línea':'resLinea','Línea y cuadrilla':'cuadLinea','Líneas de producción':'lineas','Cuadrilla de línea':'cuadrilla','Paros de línea':'paros','Insumos de línea':'insumos'};
 function libroDe(R){ const wb=XLSX.utils.book_new(); R.forEach(x=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(x.filas),x.nombre.slice(0,31))); return wb; }
 function exportExcel(turnoId){
   const R=construirReportes(turnoId);

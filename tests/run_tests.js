@@ -112,7 +112,7 @@ async function newPage(browser, opts = {}) {
   // 8) Excel
   await page.evaluate(() => exportExcel(null));
   const x = await page.evaluate(() => window.__xlsx.w.s.map(s => s[0] + ':' + s[1].length));
-  ok(x.length === 12, 'Excel con 12 hojas: ' + x.join(', '));
+  ok(x.length === 13, 'Excel con 13 hojas: ' + x.join(', '));
   const rp = await page.evaluate(async () => {
     const r = {}; _rep = { id: 'asisGeneral', desde: '', hasta: '' };
     // el menú lleva el submenú «Reportería» con cada reporte
@@ -272,7 +272,7 @@ async function newPage(browser, opts = {}) {
   ok(await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())), 'app instalable: service worker registrado');
   ok(await page.evaluate(async () => (await (await fetch('manifest.webmanifest')).json()).icons.length >= 2), 'app instalable: manifest con íconos');
   await page.evaluate(() => exportExcel(null));
-  const x2 = await page.evaluate(() => window.__xlsx.w.s.slice(-12).map(s => s[1][0]));
+  const x2 = await page.evaluate(() => window.__xlsx.w.s.slice(-13).map(s => s[1][0]));
   ok(x2[0].includes('Tipo de tiempo') && x2[1].includes('Horas sin registrar') && x2[4].includes('% productivo'), 'Excel: columnas de tiempos y nombre en Excel');
 
   // Marcajes de apoyo para las pruebas de líneas (personas temporales que se quitan al terminar)
@@ -380,7 +380,7 @@ async function newPage(browser, opts = {}) {
     r.cierre = l.estado === 'cerrada' && l.fin > 0;
     exportExcel(null);
     const hojas = ['Líneas de producción', 'Cuadrilla de línea'].map(n => window.__xlsx.w.s.find(x => x[0] === n)), lr = hojas[0][1].find(x => /^[A-Z]+ · Inserto botella$/.test(x[1]));
-    const det = window.__xlsx.w.s.slice(-12)[0][1]; const cols = det[0];
+    const det = window.__xlsx.w.s.slice(-13)[0][1]; const cols = det[0];
     const lh = hojas[0][1][0], cu = hojas[1];
     r.excel = lr && lr[lh.indexOf('Pallets')] === 3 && lr[lh.indexOf('Personas')] === 4 && !lh.includes('Paletizan') && Math.abs(lr[lh.indexOf('Horas operadores de apoyo')] - 2) < 0.05 && cu[0] === 'Cuadrilla de línea' && cu[1].length === 5 && det.some(x => x[cols.indexOf('Apoyo a línea')] === 'Inserto botella');
     r.insights = /Horas operadores/.test(buildLineasSection());
@@ -623,9 +623,18 @@ async function newPage(browser, opts = {}) {
     const RL = tablasReporte().resLinea, cr = n => RL[0].indexOf(n), fl = RL.filter(x => x[0] === a.nombre && x[0] !== 'TOTAL');
     r.resumen = RL[0].slice(0, 5).join() === 'Línea,Realizado,Meta,%,Días' && fl.length === 1 && fl[0][cr('Realizado')] === 20 && fl[0][cr('Meta')] === 28 && fl[0][cr('Días')] === 2
       && RL[RL.length - 1][0] === 'TOTAL' && RL[RL.length - 1][cr('Realizado')] === 20 && /Resumen de producción por línea/.test(document.querySelector('.rep-tit').textContent);
+    // línea y cuadrilla: la línea A de dos días suma sus pallets en el rango; debajo, las personas que estuvieron en ella
+    a.letra = 'A'; a2.letra = 'A'; b2.letra = 'B'; a2.personas = [{ id: 'z1', nombre: 'p9', personaId: 'p9', desde: Date.parse(a2.fecha + 'T09:00:00') }, { id: 'z2', nombre: 'p1', personaId: 'p1', desde: Date.parse(a2.fecha + 'T09:00:00') }];
+    _rep = { id: 'cuadLinea', desde: fechaMenos(hoyStr(), 3), hasta: ay }; irTab('rep:cuadLinea');
+    const CQ = tablasReporte().cuadLinea, hA = CQ.findIndex(x => /^Línea A · /.test(x[0])), hB = CQ.findIndex(x => /^Línea B · /.test(x[0]));
+    const debajoA = CQ.slice(hA + 1, hB).map(x => x[1]);
+    r.cuadrilla = CQ[0].slice(0, 3).join() === 'Línea,Persona,Pallets' && CQ[hA][2] === 16 && CQ[hA][5] === 2 && debajoA.join() === 'p1,p2,p3,p9'
+      && CQ.slice(hA + 1, hB).find(x => x[1] === 'p1')[5] === 2 && CQ[hB][2] === 4 && CQ[CQ.length - 1][0] === 'TOTAL' && CQ[CQ.length - 1][2] === 20
+      && document.querySelectorAll('#repBox .cq-linea').length === 2 && /16 pallets/.test(document.querySelector('#repBox .cq-linea .cq-hdr').textContent) && document.querySelectorAll('#repBox .cq-linea')[0].querySelectorAll('.cq-per').length === 4;
+    _rep = { id: 'cuadLinea', desde: ay, hasta: ay }; r.rango = tablasReporte().cuadLinea.find(x => /^Línea A · /.test(x[0]))[2] === 10;
     S.lineas = guard; S.lineasTipo = gt; _rep = { id: 'asisGeneral', desde: '', hasta: '' }; return r; });
   ok(cli.campos && cli.pideCajas && cli.tipo && cli.copia && cli.catalogo, 'catálogo de líneas (como el de tareas): costo y UdM (persona, paleta o caja; por caja pide cajas por paleta); la línea nueva lo copia');
-  ok(cli.caja && cli.paleta && cli.persona && cli.reporte && cli.porLinea && cli.resumen, 'costo de la línea: por caja (paletas × cajas), por paleta o por persona; sale en «Líneas de producción» y «Producción diaria»; «Producción diaria por línea» con total del día y del período; «Resumen de producción por línea» con el total de cada línea en el rango');
+  ok(cli.caja && cli.paleta && cli.persona && cli.reporte && cli.porLinea && cli.resumen && cli.cuadrilla && cli.rango, 'costo de la línea: por caja (paletas × cajas), por paleta o por persona; sale en «Líneas de producción» y «Producción diaria»; «Producción diaria por línea» con total del día y del período; «Resumen de producción por línea» con el total de cada línea en el rango; «Producción por línea y cuadrilla» (línea A con su total y las personas debajo)');
   await page.setViewportSize({ width: 844, height: 390 });
   const laH = await page.evaluate(async () => {
     const t0 = Date.now() - 2 * 3600000; _la = { ..._la, paso: 'conteo', ses: { nombre: 'Prueba' }, est: { existe: true, letra: 'A', nombre: 'Prueba', estado: 'corriendo', inicio: t0, meta: 16, horas: 8, pallets: [t0], paros: [], almuerzos: [] } };
