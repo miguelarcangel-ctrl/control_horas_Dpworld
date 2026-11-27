@@ -516,22 +516,37 @@ async function newPage(browser, opts = {}) {
     r.form = document.getElementById('plMeta').value === '12' && /con cambios/.test(document.getElementById('plTitulo').textContent);
     document.getElementById('plMeta').value = '15'; await guardarPlanLinea();
     const nc = S.lineas[S.lineas.length - 1]; r.cambios = S.lineas.length === ant + 1 && nc.meta === 15 && nc.replicaDe === o2.id;
-    // líder de línea: elige su línea, ve solo esa y cuenta
-    const cu = currentUser; currentUser = { ...cu, id: 'uLider', rol: 'lider', nombre: 'Lider' }; localStorage.removeItem('ch_lider_uLider');
-    const corre = H1[0]; Object.assign(corre, { estado: 'corriendo', inicio: Date.now() - H, pallets: [] });
-    renderLineas(); r.elige = /¿En qué línea estás\?/.test(document.getElementById('lineasList').innerHTML) && document.getElementById('btnLineaHoy').classList.contains('hidden');
-    elegirLineaLider(corre.id);
-    r.sola = document.querySelectorAll('#lineasList .lb').length === 1 && !document.getElementById('btnCambiarLinea').classList.contains('hidden');
-    const lb = document.getElementById('lineaBody').innerHTML;
-    r.modal = /sumarPallet\(1\)/.test(lb) && /Registrar paro/.test(lb) && !/Cerrar línea/.test(lb) && !/lmAlmuerzo/.test(lb) && !/quitarPersonaLinea/.test(lb) && !/Se suma alguien/.test(lb);
-    await sumarPallet(5); r.cuenta = totalPallets(corre) === 5;
-    r.menu = tabsDe(CATS.find(c => c.id === 'operacion')).map(x => x[1]).join() === 'Mi línea' && tabsDe(CATS.find(c => c.id === 'reporteria')).length === 0;
-    currentUser = cu; localStorage.removeItem('ch_lider_uLider'); hideModal('modalLinea');
     S.lineas = guard; await save(); await limpiarTmp(); renderLineas(); return r; });
   ok(rpl.dialogo && rpl.hoy, 'líneas: al crear se ofrece replicar las de ayer (iguales, con cambios o nueva); iguales copian meta, bodega y la cuadrilla que ya marcó');
   ok(rpl.origenHoy && rpl.manana && rpl.planVer, 'líneas: planificar mañana replica las de hoy con la cuadrilla propuesta (se ajusta en «Cuadrilla»)');
   ok(rpl.form && rpl.cambios, 'líneas: «replicar con cambios» abre el formulario con sus datos y guarda la línea nueva');
-  ok(rpl.elige && rpl.sola && rpl.modal && rpl.cuenta && rpl.menu, 'líder de línea: elige su línea, solo ve esa tarjeta y lleva el conteo (sin cuadrilla, almuerzo ni cierre)');
+  const la = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, H = 3600000, guard = S.lineas;
+    ['tmp_la1', 'tmp_la2'].forEach((id, i) => mkTmp(id, ['Lia Uno', 'Leo Dos'][i], 'linea', 'entrada', H));
+    await cargarPersonal(); await cargarMarcas();
+    const l = { ...nuevaLinea(S.lineasTipo[0], 10, 8, hoyStr()), estado: 'corriendo', inicio: Date.now() - H, pallets: [Date.now() - 600000],
+      personas: [{ id: 'q1', nombre: 'Lia Uno', personaId: 'tmp_la1', desde: Date.now() - H }, { id: 'q2', nombre: 'Leo Dos', personaId: 'tmp_la2', desde: Date.now() - H }] };
+    S.lineas = [...guard, l]; asignarLetras(); await save();
+    r.boton = !!document.getElementById('btnIngresarLinea');
+    await lineaInicio(); const ap = () => document.getElementById('lineaApp');
+    r.lineas = !ap().classList.contains('hidden') && /¿En qué línea estás\?/.test(ap().innerHTML) && ap().innerHTML.includes(l.nombre);
+    _la.linea = _la.L.find(x => x.id === l.id); _la.paso = 'nombre'; renderLA(); r.nombres = /Lia Uno/.test(ap().innerHTML) && /Leo Dos/.test(ap().innerHTML);
+    _la.persona = _la.linea.personas.find(p => p.id === 'tmp_la1'); _la.paso = 'cedula'; renderLA();
+    document.getElementById('laCed').value = 'malo'; await lineaEntrar(); r.cedMal = /Cédula incorrecta/.test(ap().innerHTML) && !_la.ses;
+    document.getElementById('laCed').value = 'Xtmp_la1'; await lineaEntrar();
+    r.tarjeta = _la.paso === 'conteo' && !!document.getElementById('laT1') && /1<\/b><span>\/ 10 pallets/.test(ap().innerHTML) && /Tiempo en marcha/.test(ap().innerHTML) && /01:00:0\d/.test(document.getElementById('laT1').textContent);
+    await sumarLA(5); await sumarLA(1); await sumarLA(-1);
+    const srvL = SRV.rows[STATE_KEY].value.lineas.find(x => x.id === l.id);
+    r.cuenta = srvL.pallets.length === 6 && _la.est.pallets.length === 6 && /6<\/b><span>/.test(ap().innerHTML);
+    // el supervisor lo ve al sincronizar
+    await reload(); r.sync = totalPallets(lineaDe(l.id)) === 6;
+    // queda guardada en el equipo: al volver a abrir, vuelve al conteo
+    const gq = localStorage.getItem(LA_KEY);  r.guarda = !!gq && JSON.parse(gq).linea === l.id;
+    await salirLA(); r.sale = ap().classList.contains('hidden') && !localStorage.getItem(LA_KEY);
+    S.lineas = guard; await save(); await limpiarTmp(); return r; });
+  ok(la.boton && la.lineas && la.nombres, 'ingresar como línea: desde el login elige su línea y su nombre (solo la cuadrilla de esa línea)');
+  ok(la.cedMal && la.tarjeta, 'ingresar como línea: confirma con la cédula y queda en la tarjeta de conteo con el temporizador');
+  ok(la.cuenta && la.sync && la.guarda && la.sale, 'ingresar como línea: −/+1/+5 se guardan en el servidor, el supervisor los ve, y «Salir» cierra la sesión del equipo');
   ok(qp.tarjeta, 'línea en marcha: quien salió de la línea ya no cuenta en la tarjeta ni recibe la salida al cerrar');
   const dn = await page.evaluate(async () => {
     const SRV = window.__SRV, ay = fechaMenos(hoyStr(), 1), r = {};
