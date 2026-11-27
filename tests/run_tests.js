@@ -1182,7 +1182,7 @@ async function newPage(browser, opts = {}) {
     document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
     // como supervisor: alta de contingente desde el menú
     SRV.sessions[SESSION.token] = sup.id; currentUser = { id: sup.id, nombre: sup.nombre, username: sup.username, rol: 'supervisor' }; pintarMenu();
-    r.menu = [...document.querySelectorAll('#dpwItems .dpw-gbtn')].some(x => /Personal/.test(x.textContent)) && [...document.querySelectorAll('#dpwItems .dpw-item')].some(x => /contingente/i.test(x.textContent)) && tabsDe(CATS.find(c => c.id === 'personal')).some(x => /contingente/i.test(x[1]));
+    r.menu = [...document.querySelectorAll('#dpwItems .dpw-gbtn')].some(x => /Personal/.test(x.textContent)) && [...document.querySelectorAll('#dpwItems .dpw-item')].some(x => /Dar de alta personal/.test(x.textContent)) && tabsDe(CATS.find(c => c.id === 'personal')).some(x => /Dar de alta personal/.test(x[1]));
     SRV.push = []; await altaContingente();
     r.modal = /contingente/i.test(document.getElementById('peTitulo').textContent) && !document.getElementById('peContInfo').classList.contains('hidden') && document.getElementById('peActivoRow').classList.contains('hidden');
     document.getElementById('peNombre').value = 'Carlos Contingente'; document.getElementById('peCedula').value = '8-777-0001'; _pePuesto = 'operador'; await guardarPersona();
@@ -1192,6 +1192,16 @@ async function newPage(browser, opts = {}) {
     openModalPersona(p.id); document.getElementById('peNombre').value = 'Otro'; document.getElementById('peCedula').value = '8-777-0002'; await guardarPersona();
     r.noEdita = /Solo puedes dar de alta personas nuevas/.test(document.getElementById('peErr').textContent) && SRV.personal.find(x => x.id === p.id).nombre === 'Carlos Contingente';
     hideModal('modalPersona');
+    // el supervisor activa la tablet de marcaje con su usuario y la cierra con su propia contraseña
+    r.tabMarcaje = tabsDe(CATS.find(c => c.id === 'personal')).some(x => x[0] === 'marcaje');
+    const c0 = window.confirm; window.confirm = () => true; await activarKiosco(); window.confirm = c0;
+    r.kiosco = document.body.classList.contains('en-kiosco') && !document.getElementById('viewMarcaje').classList.contains('hidden');
+    const m = await rpc('ch_marcar', { p_token: SESSION.token, p_key: STATE_KEY, p_persona: p.id, p_cedula: '8-777-0001', p_tipo: 'entrada', p_puesto: 'operador' }).catch(e => e.message);
+    r.marca = m && m.tipo === 'entrada' && SRV.marcas.some(x => x.id === m.id && x.por === sup.username);
+    kioscoAdmin('salir'); r.titulo = document.getElementById('apTitulo').textContent === 'Contraseña de ' + sup.nombre;
+    document.getElementById('apPass').value = 'mala'; await confirmarAdminPass(); r.malaNoSale = document.body.classList.contains('en-kiosco');
+    document.getElementById('apPass').value = sup.pass; await confirmarAdminPass(); r.sale = !document.body.classList.contains('en-kiosco');
+    SRV.marcas = SRV.marcas.filter(x => x.persona_id !== p.id);
     // como administrador: aparece marcado como contingente
     SRV.sessions[SESSION.token] = u.id; currentUser = u; pintarMenu(); await cargarPersonal();
     r.admin = /Contingente/.test(buildPersonalSection()) && /alta por super/.test(buildPersonalSection());
@@ -1206,6 +1216,7 @@ async function newPage(browser, opts = {}) {
     r.menuTut = [...document.querySelectorAll('#dpwItems *')].some(x => /Ver tutorial/.test(x.textContent));
     return r; });
   ok(ct.menu && ct.modal && ct.guarda, 'contingente: el supervisor da de alta desde el menú; queda como contingente con su nombre y avisa al admin');
+  ok(ct.tabMarcaje && ct.kiosco && ct.marca && ct.titulo && ct.malaNoSale && ct.sale, 'supervisor: activa la tablet de marcaje con su usuario, marca entradas y sale solo con su propia contraseña');
   ok(ct.noEdita, 'contingente: el supervisor no puede editar personas ya registradas');
   ok(ct.admin, 'contingente: el administrador lo ve marcado como «Contingente» y quién lo dio de alta');
   ok(ct.pendiente && ct.tarjeta && ct.resalta && ct.admin_pasos, 'tutorial: primera sesión con tarjetas que resaltan cada parte (según el perfil)');

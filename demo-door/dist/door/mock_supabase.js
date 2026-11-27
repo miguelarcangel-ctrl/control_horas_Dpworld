@@ -51,7 +51,7 @@
       if(ex)Object.assign(ex,{nombre:a.p_nombre.trim(),puesto_def:a.p_puesto,activo:a.p_activo!==false},ced?{cedula:ced}:{});
       else SRV.personal.push({key:a.p_key,id,nombre:a.p_nombre.trim(),cedula:ced||null,puesto_def:a.p_puesto,activo:u.rol==='supervisor'?true:a.p_activo!==false,contingente:u.rol==='supervisor',creado_por:u.username});
       return{data:id};},
-    ch_marcar:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(u.rol!=='admin')return err('PERMISO','42501');
+    ch_marcar:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(!['admin','supervisor'].includes(u.rol))return err('PERMISO','42501');
       const per=SRV.personal.find(x=>x.key===a.p_key&&x.id===a.p_persona&&x.activo);if(!per||!per.cedula||per.cedula!==normCed(a.p_cedula))return err('CEDULA','28000');
       const now=SRV.ahora?SRV.ahora():Date.now();
       let ult=SRV.marcas.filter(m=>m.key===a.p_key&&m.persona_id===a.p_persona&&!m.anulado&&Date.parse(m.ts)>now-20*3600000).sort((x,y)=>Date.parse(y.ts)-Date.parse(x.ts))[0];
@@ -96,8 +96,8 @@
       l.pallets=l.pallets||[];if(a.p_delta>0)for(let k=0;k<a.p_delta;k++)l.pallets.push(Date.now());else l.pallets.splice(Math.max(0,l.pallets.length+a.p_delta));r.version++;
       return fns.ch_linea_estado({p_token:a.p_token});},
     ch_linea_salir:a=>{delete (SRV.sesLinea||{})[a.p_token];return{data:null};},
-    ch_marca_bodega:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(u.rol!=='admin')return err('PERMISO','42501');const m=SRV.marcas.find(x=>x.id===a.p_id&&x.key===a.p_key);if(m)m.bodega=String(a.p_bodega||'').trim()||null;return{data:null};},
-    ch_marca_cliente:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(u.rol!=='admin')return err('PERMISO','42501');const m=SRV.marcas.find(x=>x.id===a.p_id&&x.key===a.p_key);if(m)m.cliente=String(a.p_cliente||'').trim().slice(0,80)||null;return{data:null};},
+    ch_marca_bodega:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(!['admin','supervisor'].includes(u.rol))return err('PERMISO','42501');const m=SRV.marcas.find(x=>x.id===a.p_id&&x.key===a.p_key);if(m)m.bodega=String(a.p_bodega||'').trim()||null;return{data:null};},
+    ch_marca_cliente:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(!['admin','supervisor'].includes(u.rol))return err('PERMISO','42501');const m=SRV.marcas.find(x=>x.id===a.p_id&&x.key===a.p_key);if(m)m.cliente=String(a.p_cliente||'').trim().slice(0,80)||null;return{data:null};},
     ch_marcajes:a=>{if(!user(a.p_token))return err('SESION','28000');return{data:clone(SRV.marcas.filter(m=>m.key===a.p_key&&m.fecha>=a.p_desde&&m.fecha<=a.p_hasta).sort((x,y)=>Date.parse(x.ts)-Date.parse(y.ts)))};},
     ch_marcaje_admin:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(u.rol!=='admin')return err('PERMISO','42501');if(!String(a.p_motivo||'').trim())return err('MOTIVO');
       if(a.p_id==null){const per=SRV.personal.find(x=>x.key===a.p_key&&x.id===a.p_persona);if(!per)return err('PERSONA');
@@ -105,7 +105,7 @@
       const m=SRV.marcas.find(x=>x.id===a.p_id&&x.key===a.p_key);if(!m)return{data:null};
       if(a.p_ts)m.ts=new Date(a.p_ts).toISOString();if(a.p_tipo)m.tipo=a.p_tipo;if(a.p_puesto)m.puesto=a.p_puesto;if(a.p_anulado!=null)m.anulado=a.p_anulado;
       Object.assign(m,{motivo:a.p_motivo,corregido_por:u.username,corregido_en:new Date().toISOString()});return{data:m.id};},
-    ch_check_pass:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');return{data:u.rol==='admin'&&u.pass===a.p_pass};},
+    ch_check_pass:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');return{data:['admin','supervisor'].includes(u.rol)&&u.pass===a.p_pass};},
     ch_disable_user:a=>{const u=user(a.p_token);if(a.p_id===u.id)return err('ULTIMO_ADMIN');SRV.users.find(x=>x.id===a.p_id).activo=false;return{data:null};},
   };
   // Edge Function push-marcaje simulada: deja registro de los pedidos
