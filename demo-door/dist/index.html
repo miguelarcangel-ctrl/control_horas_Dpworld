@@ -476,20 +476,28 @@ body.con-sel .avisos-app{bottom:90px}
 .la-cuerpo{flex:1;display:flex;flex-direction:column;gap:12px}
 .la-izq{display:flex;flex-direction:column;align-items:center;gap:10px}
 .la-der{display:flex;flex-direction:column;gap:10px;flex:1}
-/* Semáforo: verde va bien, amarillo un poco abajo, rojo muy abajo */
-.la-full.fondo-verde{background:#E3F6EF}.la-full.fondo-amarillo{background:#FDF2DC}.la-full.fondo-rojo{background:#FCE4EA}
-[data-theme="dark"] .la-full.fondo-verde{background:#0c2a24}[data-theme="dark"] .la-full.fondo-amarillo{background:#2e2410}[data-theme="dark"] .la-full.fondo-rojo{background:#33101e}
-.la-sem{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1rem;letter-spacing:1.2px;text-transform:uppercase;padding:6px 16px;border-radius:999px;color:#fff;background:var(--t3)}
-.la-sem.s-verde{background:#0377BE}.la-sem.s-amarillo{background:#D97706}.la-sem.s-rojo{background:#E30613}
-.la-ring{position:relative;width:min(72vw,300px);aspect-ratio:1}
-.la-ring svg{width:100%;height:100%}
-.la-ring-bg{fill:none;stroke:rgba(var(--fg),.08);stroke-width:14}
-.la-ring-fg{fill:none;stroke:var(--t3);stroke-width:14;stroke-linecap:round;transition:stroke-dashoffset .4s ease}
-.la-ring.s-verde .la-ring-fg{stroke:#0377BE}.la-ring.s-amarillo .la-ring-fg{stroke:#D97706}.la-ring.s-rojo .la-ring-fg{stroke:#E30613}
-.la-ring-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
-.la-ring-c b{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(4rem,22vw,6.5rem);color:var(--t);font-variant-numeric:tabular-nums}
-.la-ring-c span{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1.05rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
-.la-ring-c small{font-size:.85rem;color:var(--t3);margin-top:6px}
+/* Semáforo: toda la pantalla del color. Verde va bien, ámbar un poco abajo, rojo muy abajo */
+.la-full.fondo-verde{background:#0377BE}.la-full.fondo-amarillo{background:#F08C00}.la-full.fondo-rojo{background:#E30613}
+.la-full.pintada .la-card{background:transparent;box-shadow:none;color:#fff}
+.la-full.pintada .la-tit,.la-full.pintada .la-big b,.la-full.pintada .la-timer b{color:#fff}
+.la-full.pintada .la-sub,.la-full.pintada .la-big span,.la-full.pintada .la-lbl,.la-full.pintada .la-ult,.la-full.pintada .la-ritmo{color:rgba(255,255,255,.88)}
+.la-full.pintada .la-ritmo b{color:#fff}
+.la-full.pintada .la-timer{background:rgba(255,255,255,.16)}
+.la-full.pintada .la-sem{background:#fff}
+.la-full.fondo-verde .la-sem,.la-full.fondo-verde .la-btns .btn-green{color:#0377BE}
+.la-full.fondo-amarillo .la-sem,.la-full.fondo-amarillo .la-btns .btn-green{color:#C46F00}
+.la-full.fondo-rojo .la-sem,.la-full.fondo-rojo .la-btns .btn-green{color:#E30613}
+.la-full.pintada .la-btns .btn-green{background:#fff!important;border-color:#fff!important;box-shadow:0 6px 18px rgba(0,0,0,.15)}
+.la-full.pintada .la-btns .btn-ghost{background:rgba(255,255,255,.18)!important;border-color:rgba(255,255,255,.5)!important;color:#fff!important}
+.la-full.pintada .la-top .btn-ghost{background:rgba(255,255,255,.18)!important;border-color:rgba(255,255,255,.5)!important;color:#fff!important}
+.la-full.pintada .la-estado{background:rgba(255,255,255,.92)}
+.la-sem{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.1rem;letter-spacing:1.4px;text-transform:uppercase;padding:7px 20px;border-radius:999px;color:#fff;background:var(--t3)}
+.la-big{display:flex;flex-direction:column;align-items:center;line-height:1;width:100%;padding:6px 0}
+.la-big b{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(7rem,42vw,11rem);color:var(--t);font-variant-numeric:tabular-nums}
+.la-big span{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1.25rem;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-top:2px}
+.la-bar{width:min(100%,340px);height:12px;border-radius:999px;background:rgba(var(--fg),.1);margin-top:14px;overflow:hidden}
+.la-bar i{display:block;height:100%;border-radius:999px;background:var(--t3);transition:width .4s ease}
+.la-full.pintada .la-bar{background:rgba(255,255,255,.28)}.la-full.pintada .la-bar i{background:#fff}
 .la-timer{display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px;border-radius:14px;background:rgba(var(--fg),.04)}
 .la-timer b{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:2.6rem;line-height:1;font-variant-numeric:tabular-nums;color:var(--t)}
 .la-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.78rem;letter-spacing:1px;text-transform:uppercase;color:var(--t3)}
@@ -505,8 +513,8 @@ body.con-sel .avisos-app{bottom:90px}
   .la-card{max-width:none;padding:12px 16px;gap:8px}
   .la-cuerpo{flex-direction:row;align-items:stretch;gap:18px}
   .la-izq{flex:0 0 auto;justify-content:center}
-  .la-ring{width:min(62vh,300px)}
-  .la-ring-c b{font-size:clamp(3rem,15vh,5.5rem)}
+  .la-izq{flex:0 0 42%}
+  .la-big b{font-size:clamp(5rem,34vh,9rem)}
   .la-timer b{font-size:2.2rem}
   .la-btns button{height:min(24vh,96px)}
 }
@@ -2146,7 +2154,8 @@ async function lineaInicio(){
 }
 function renderLA(){
   const el=document.getElementById('lineaApp'), volver=paso=>`<button class="btn btn-ghost" onclick="${paso?`_la.paso='${paso}';_la.err='';renderLA()`:'mostrarLA(false)'}">Volver</button>`;
-  el.className='la-full'+(_la.paso==='conteo'&&_la.est&&_la.est.existe!==false?' fondo-'+semaforoLA(_la.est).c:'');
+  const c=_la.paso==='conteo'&&_la.est&&_la.est.existe!==false?semaforoLA(_la.est).c:'';
+  el.className='la-full'+(c?' fondo-'+c:'')+(c&&c!=='neutro'?' pintada':'');
   if(_la.paso==='conteo'){ el.innerHTML=htmlConteoLA(); return; }
   let h='<div class="la-paso">';
   if(_la.paso==='lineas'){
@@ -2206,7 +2215,7 @@ function semaforoLA(e, now){
 function htmlConteoLA(){
   const e=_la.est||{}, P=e.pallets||[], n=P.length, meta=+e.meta||0, pct=meta?Math.min(100,n/meta*100):0, ult=P[n-1];
   if(e.existe===false) return `<div class="la-paso"><div class="la-h">La línea ya no existe</div><button class="btn btn-indigo btn-full" onclick="salirLA()">Salir</button></div>`;
-  const corre=e.estado==='corriendo', bloq=!corre||!!e.almuerzo||_la.ocupado, sm=semaforoLA(e), R=88, C=2*Math.PI*R;
+  const corre=e.estado==='corriendo', bloq=!corre||!!e.almuerzo||_la.ocupado, sm=semaforoLA(e);
   return `<div class="la-card">
     <div class="la-top"><div><div class="la-tit">Línea ${esc((e.letra?e.letra+' · ':'')+(e.nombre||''))}</div>
       <div class="la-sub">${esc(e.cliente||'')}${e.personas?' · '+e.personas+' personas':''} · ${esc((_la.ses&&_la.ses.nombre)||'')}</div></div>
@@ -2217,9 +2226,8 @@ function htmlConteoLA(){
     <div class="la-cuerpo">
       <div class="la-izq">
         <div class="la-sem s-${sm.c}">${sm.t}</div>
-        <div class="la-ring s-${sm.c}"><svg viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="${R}" class="la-ring-bg"/>
-          <circle cx="100" cy="100" r="${R}" class="la-ring-fg" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-pct/100)).toFixed(1)}" transform="rotate(-90 100 100)"/></svg>
-          <div class="la-ring-c"><b id="laN">${n}</b><span>de ${meta} pallets</span><small>${Math.round(meta?n/meta*100:0)}%</small></div></div>
+        <div class="la-big"><b id="laN">${n}</b><span>de ${meta} pallets · ${Math.round(meta?n/meta*100:0)}%</span>
+          <div class="la-bar"><i style="width:${pct.toFixed(1)}%"></i></div></div>
       </div>
       <div class="la-der">
         <div class="la-timer"><span class="la-lbl">${corre?'Tiempo en marcha':'Tiempo de la línea'}</span><b id="laT1">${fmtReloj(e.inicio?(e.fin||Date.now())-e.inicio:0)}</b>

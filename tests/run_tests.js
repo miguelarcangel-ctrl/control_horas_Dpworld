@@ -551,22 +551,22 @@ async function newPage(browser, opts = {}) {
     r.arranque = semaforoLA({ ...base, inicio: Date.now() - 600000, pallets: [] }).c === 'neutro' && semaforoLA({ ...base, estado: 'pendiente', pallets: [] }).c === 'neutro';
     r.meta = semaforoLA({ ...base, pallets: pal(16) }).t === 'Meta cumplida';
     _la.est = { ..._la.est, ...base, pallets: pal(4) }; renderLA();
-    r.pinta = ap().classList.contains('fondo-rojo') && !!ap().querySelector('.la-ring.s-rojo') && /Muy abajo/.test(ap().innerHTML);
+    r.pinta = ap().classList.contains('fondo-rojo') && ap().classList.contains('pintada') && /Muy abajo/.test(ap().innerHTML);
     await salirLA(); r.sale = ap().classList.contains('hidden') && !localStorage.getItem(LA_KEY);
     S.lineas = guard; await save(); await limpiarTmp(); return r; });
   ok(la.boton && la.lineas && la.nombres, 'ingresar como línea: desde el login elige su línea y su nombre (solo la cuadrilla de esa línea)');
   ok(la.cedMal && la.tarjeta, 'ingresar como línea: confirma con la cédula y queda en la tarjeta de conteo con el temporizador');
   ok(la.cuenta && la.sync && la.guarda && la.sale, 'ingresar como línea: −/+1/+5 se guardan en el servidor, el supervisor los ve, y «Salir» cierra la sesión del equipo');
-  ok(la.verde && la.amarillo && la.rojo && la.sinParos && la.arranque && la.meta && la.pinta, 'ingresar como línea: semáforo verde/amarillo/rojo según los pallets esperados a esta hora (sin paros ni almuerzo), con anillo y fondo del color');
+  ok(la.verde && la.amarillo && la.rojo && la.sinParos && la.arranque && la.meta && la.pinta, 'ingresar como línea: semáforo verde/amarillo/rojo según los pallets esperados a esta hora (sin paros ni almuerzo), con toda la pantalla del color');
   await page.setViewportSize({ width: 844, height: 390 });
   const laH = await page.evaluate(async () => {
     const t0 = Date.now() - 2 * 3600000; _la = { ..._la, paso: 'conteo', ses: { nombre: 'Prueba' }, est: { existe: true, letra: 'A', nombre: 'Prueba', estado: 'corriendo', inicio: t0, meta: 16, horas: 8, pallets: [t0], paros: [], almuerzos: [] } };
     mostrarLA(true); renderLA();
-    const q = s => document.querySelector('#lineaApp ' + s).getBoundingClientRect(), ring = q('.la-ring'), btns = q('.la-btns');
+    const q = s => document.querySelector('#lineaApp ' + s).getBoundingClientRect(), ring = q('.la-big'), btns = q('.la-btns');
     const r = { fila: getComputedStyle(document.querySelector('.la-cuerpo')).flexDirection === 'row', lado: btns.left >= ring.right - 1, cabe: btns.bottom <= innerHeight + 1 };
     mostrarLA(false); return r; });
   await page.setViewportSize({ width: 420, height: 900 });
-  ok(laH.fila && laH.lado && laH.cabe, 'ingresar como línea: en horizontal el anillo queda a la izquierda y los botones a la derecha, sin salirse de la pantalla');
+  ok(laH.fila && laH.lado && laH.cabe, 'ingresar como línea: en horizontal el conteo queda a la izquierda y los botones a la derecha, sin salirse de la pantalla');
   ok(qp.tarjeta, 'línea en marcha: quien salió de la línea ya no cuenta en la tarjeta ni recibe la salida al cerrar');
   const dn = await page.evaluate(async () => {
     const SRV = window.__SRV, ay = fechaMenos(hoyStr(), 1), r = {};
