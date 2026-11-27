@@ -559,6 +559,22 @@ body.con-sel .avisos-app{bottom:90px}
 .chip.chip-off{opacity:.6;text-decoration:none}
 #lineaBody #lmPuesto{flex:1 1 140px;max-width:none!important}
 .lb.lb-paro{border-left-color:var(--red);background:rgba(227,6,19,.06)}
+/* Semáforo de ritmo en las tarjetas de línea (lista, turno y TV): toda la tarjeta del color */
+.sem{color:#fff;opacity:1!important}
+.lm-sem{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border-radius:12px;padding:10px 14px;margin-bottom:10px}
+.lm-sem b{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.15rem;letter-spacing:1px;text-transform:uppercase}
+.lm-sem span{font-size:.85rem;opacity:.92}
+.sem.sem-verde{background:#0377BE!important;border-color:#0377BE!important;--semc:#0377BE}
+.sem.sem-amarillo{background:#F08C00!important;border-color:#F08C00!important;--semc:#C46F00}
+.sem.sem-rojo{background:#E30613!important;border-color:#E30613!important;--semc:#E30613}
+.sem :is(.lb-name,.lb-cli,.lb-names,.lb-num,.lb-num b,.lb-sub,.lb-sub b,.tvl-name,.tvl-cli,.tvl-big b,.tvl-big span,.tvl-big em,.tvl-stats span,.tvl-stats b,.tvl-stats small,.tvl-sub){color:#fff!important}
+.sem :is(.lb-cli,.lb-names,.lb-sub,.tvl-cli,.tvl-stats span,.tvl-stats small,.tvl-sub){opacity:.9}
+.sem :is(.badge,.tv-badge){background:#fff!important;color:var(--semc)!important;border-color:#fff!important}
+.sem .pbar-wrap,.sem .tvl-bar{background:rgba(255,255,255,.3)!important}
+.sem :is(.pbar-fill,.tvl-fill){background:#fff!important}
+.sem .tvl-mark{background:rgba(0,0,0,.55);box-shadow:none}
+.sem :is(.tvl-paro,.tvl-agota){background:rgba(255,255,255,.95)!important;color:#E30613!important;border-color:#fff!important}
+.sem .tvl-stats>div{background:rgba(255,255,255,.14)!important;border-color:transparent!important}
 .paro-on{display:flex;justify-content:space-between;align-items:center;gap:10px;background:rgba(227,6,19,.1);border:1.5px solid var(--red);border-radius:10px;padding:10px 12px;color:var(--t)}
 .paro-on b{color:var(--red-t);font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;text-transform:uppercase;letter-spacing:.5px}
 .paro-on small{display:block;font-size:.72rem;color:var(--t3)}
@@ -2212,6 +2228,9 @@ function semaforoLA(e, now){
   const esperado=meta*Math.min(1,hT/horas), r=esperado>0?n/esperado:1;
   return r>=0.95?{c:'verde',t:'Vamos bien',ritmo,nec,hT}:r>=0.8?{c:'amarillo',t:'Un poco abajo',ritmo,nec,hT}:{c:'rojo',t:'Muy abajo',ritmo,nec,hT};
 }
+// Mismo semáforo para las tarjetas que ven supervisores, administrador y la TV
+function semaforoLinea(l, now){ return semaforoLA({...l,pallets:{length:totalPallets(l)},paro:l.paroActivo,almuerzo:l.almuerzoActivo},now); }
+const semClase=sm=>sm&&sm.c!=='neutro'?' sem sem-'+sm.c:'';
 function htmlConteoLA(){
   const e=_la.est||{}, P=e.pallets||[], n=P.length, meta=+e.meta||0, pct=meta?Math.min(100,n/meta*100):0, ult=P[n-1];
   if(e.existe===false) return `<div class="la-paso"><div class="la-h">La línea ya no existe</div><button class="btn btn-indigo btn-full" onclick="salirLA()">Salir</button></div>`;
@@ -3222,7 +3241,7 @@ function apoyoOperadores(lineaId){
 // Bloques (en la vista de líneas y como resumen en el turno)
 function htmlBloques(L, vacio){
   return L.length?L.map(l=>{
-    const r=ritmoLinea(l), pct=l.meta?Math.min(100,r.tot/l.meta*100):0, nP=cuadrillaVista(l).length;
+    const r=ritmoLinea(l), pct=l.meta?Math.min(100,r.tot/l.meta*100):0, nP=cuadrillaVista(l).length, sm=semaforoLinea(l);
     const est={pendiente:['ba','Por arrancar'],corriendo:['bg','En marcha'],cerrada:['bgy','Cerrada']}[l.estado];
     const c=cuadrilla(l.meta,l.prod,l.horas,l.apoyo);
     const agota=insumosPorAgotar(l);
@@ -3230,8 +3249,8 @@ function htmlBloques(L, vacio){
       :l.paroActivo?`<b style="color:var(--red-t)">Paro: ${esc(l.paroActivo.causa)} · ${fmtH(paroDur(l.paroActivo))}</b>`
       :l.estado==='corriendo'?`${fmtN(r.ritmo)} pallets/h · a este ritmo cierras en <b>${r.proy}</b> de ${l.meta}${agota.length?` · <b style="color:var(--amber)">por agotarse: ${agota.map(i=>esc(i.nombre.toLowerCase())).join(', ')}</b>`:''}`
       :`Cumplimiento ${l.meta?Math.round(r.tot/l.meta*100):0}%${r.paroH>0.01?' · paros '+fmtH(r.paroH):''}`;
-    return `<div class="lb lb-${l.paroActivo?'paro':l.estado}" onclick="abrirLinea('${l.id}')">
-      <div class="lb-top"><span class="lb-name">Línea ${esc(lin(l))}</span><span class="badge ${l.paroActivo?'br':est[0]}">${l.paroActivo?'En paro':est[1]}</span></div>
+    return `<div class="lb lb-${l.paroActivo?'paro':l.estado}${semClase(sm)}" onclick="abrirLinea('${l.id}')">
+      <div class="lb-top"><span class="lb-name">Línea ${esc(lin(l))}</span><span class="badge ${l.paroActivo?'br':est[0]}">${l.paroActivo?'En paro':semClase(sm)?sm.t:est[1]}</span></div>
       <div class="lb-cli">${esc(l.cliente||'')}${l.bodega&&hayBodegas()?' · '+esc(l.bodega):''}${nP?` · ${nP} persona${nP===1?'':'s'}`:''}${l.fecha!==hoyStr()?' · desde '+etiquetaDia(l.fecha).toLowerCase():''}${l.responsable?' · '+esc(l.responsable):''}</div>
       ${nP?`<div class="lb-names">${nombresCortos(cuadrillaVista(l)).map(esc).join(' · ')}</div>`:''}
       <div class="lb-num"><b>${r.tot}</b> / ${l.meta} pallets</div>
@@ -3309,6 +3328,8 @@ function renderLineaModal(foco){
     <button class="btn btn-ghost btn-sm" style="align-self:center" onclick="eliminarLinea()">Quitar esta línea</button>`;
   } else {
     const pct=l.meta?Math.round(r.tot/l.meta*100):0, corre=l.estado==='corriendo', ult=(l.pallets||[]).slice(-1)[0];
+    const smL=corre?semaforoLinea(l):null;
+    if(semClase(smL)) h+=`<div class="lm-sem${semClase(smL)}"><b>${smL.t}</b><span>${r.tot} de ${l.meta} pallets · ${fmtN(r.ritmo)}/h${r.tot<l.meta?' · para la meta '+fmtN(smL.nec)+'/h':''}</span></div>`;
     if(corre) h+=l.almuerzoActivo
       ?`<div class="paro-on alm-on"><div><b>En almuerzo</b> · toda la línea<small>desde ${horaHM(l.almuerzoActivo.inicio)} · ${fmtH(almDur(l.almuerzoActivo))}</small></div><button class="btn btn-green" onclick="terminarAlmuerzoLinea()">Terminar almuerzo</button></div>`
       :l.paroActivo
@@ -6662,13 +6683,13 @@ function tvLineasBody(){
     const esperado=l.estado==='corriendo'&&l.horas?Math.min(100,r.h/l.horas*100):null;
     const restanH=Math.max(0,l.horas-r.h), necesario=l.estado==='corriendo'&&restanH>0?Math.max(0,l.meta-r.tot)/restanH:null;
     const ultimo=(l.pallets||[]).slice(-1)[0]||0;
-    const vaBien=r.proy>=l.meta;
-    const estado=l.paroActivo?['tv-br','En paro']:{pendiente:['tv-ba','Por arrancar'],corriendo:[vaBien?'tv-bg':'tv-ba',vaBien?'En meta':'Bajo el ritmo'],cerrada:['tv-bgy','Cerrada']}[l.estado];
+    const vaBien=r.proy>=l.meta, sm=semaforoLinea(l,now);
+    const estado=l.paroActivo?['tv-br','En paro']:{pendiente:['tv-ba','Por arrancar'],corriendo:[vaBien?'tv-bg':'tv-ba',semClase(sm)?sm.t:'Arrancando'],cerrada:['tv-bgy','Cerrada']}[l.estado];
     const agota=insumosPorAgotar(l);
     if(l.estado==='pendiente'){ const c=cuadrilla(l.meta,l.prod,l.horas);
       return `<div class="tvl"><div class="tvl-top"><div><div class="tvl-name">Línea ${esc(lin(l))}</div><div class="tvl-cli">${esc(l.cliente||'')}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
         <div class="tvl-big"><b>0</b><span>/ ${l.meta} pallets</span></div><div class="tvl-sub">Meta del día ${l.meta} pallets · cuadrilla de ${c.total} personas</div></div>`; }
-    return `<div class="tvl tvl-${l.estado}">
+    return `<div class="tvl tvl-${l.estado}${semClase(sm)}">
       <div class="tvl-top"><div><div class="tvl-name">Línea ${esc(lin(l))}</div><div class="tvl-cli">${esc(l.cliente||'')}${l.bodega&&hayBodegas()?' · '+esc(l.bodega):''} · ${nP} persona${nP===1?'':'s'}${l.responsable?' · '+esc(l.responsable):''}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
       ${l.paroActivo?`<div class="tvl-paro">EN PARO · ${esc(l.paroActivo.causa)}<span>${fmtH(paroDur(l.paroActivo,now))}</span></div>`:''}
       ${agota.length?`<div class="tvl-agota">Por agotarse: ${agota.map(i=>esc(i.nombre)+' (alcanza para '+Math.max(0,estadoInsumo(i,l).alcanza)+')').join(' · ')}</div>`:''}
@@ -6686,7 +6707,7 @@ function tvLineasBody(){
     </div>`;
   }).join('');
   return `<div class="tv-body"><div class="tvl-grid tvl-n${Math.min(L.length,3)}">${tarjetas}</div>
-    <div class="tv-bar-legend" style="justify-content:center;gap:18px"><span>La marca blanca en la barra indica dónde debería ir la línea a esta hora</span><span>Actualización automática cada 15 segundos</span></div></div>`;
+    <div class="tv-bar-legend" style="justify-content:center;gap:18px"><span>Verde: va bien · naranja: un poco abajo · rojo: muy abajo, según lo que debería llevar a esta hora. La marca en la barra indica dónde debería ir la línea a esta hora</span><span>Actualización automática cada 15 segundos</span></div></div>`;
 }
 function renderDashboardAnalytics(){
   if(!tvAnalyticsOk()){ _tvMode='live'; renderDashboard(); return; }
