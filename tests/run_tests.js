@@ -492,6 +492,46 @@ async function newPage(browser, opts = {}) {
   ok(qp.boton && qp.panel && qp.ok, 'línea en marcha: quitar a una persona pregunta qué pasa; «sale de las líneas» pide motivo, guarda sus horas y queda disponible; «por error» la borra');
   ok(qp.destinos && qp.mueve, 'línea en marcha: «pasa a otra línea» la deja en la línea elegida desde ese momento');
   ok(qp.casa, 'línea en marcha: «se fue a casa» le registra la salida');
+  const rpl = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, H = 3600000, ay = fechaMenos(hoyStr(), 1), guard = S.lineas;
+    ['tmp_r1', 'tmp_r2', 'tmp_r3'].forEach((id, i) => mkTmp(id, ['Rosa Uno', 'Raul Dos', 'Rita Tres'][i], 'linea', 'entrada', H));
+    if (!SRV.personal.some(x => x.id === 'tmp_r4')) SRV.personal.push({ key: STATE_KEY, id: 'tmp_r4', nombre: 'Ruben Cuatro', cedula: 'X4', puesto_def: 'linea', activo: true });   // no marcó hoy
+    await cargarPersonal(); await cargarMarcas();
+    const t0 = new Date(ay + 'T08:00:00').getTime(), per = ids => ids.map((id, k) => ({ id: 'o' + id + k, nombre: id, personaId: id, desde: t0 }));
+    const o1 = { ...nuevaLinea(S.lineasTipo[0], 20, 8, ay), estado: 'cerrada', inicio: t0, fin: t0 + 9 * H, pallets: [t0 + H], personas: per(['tmp_r1', 'tmp_r2', 'tmp_r4']), bodega: 'B1' };
+    const o2 = { ...nuevaLinea(S.lineasTipo[0], 12, 6, ay), estado: 'cerrada', inicio: t0, fin: t0 + 9 * H, pallets: [], personas: per(['tmp_r3']) };
+    S.lineas = [o1, o2]; asignarLetras();
+    nuevaLineaDialogo(hoyStr()); const body = () => document.getElementById('rpBody').innerHTML;
+    r.dialogo = !document.getElementById('modalReplicar').classList.contains('hidden') && /Replicar las líneas/.test(body()) && /con cambios/.test(body()) && /Totalmente nueva/.test(body());
+    _rpl.modo = 'igual'; renderReplicar(); await replicarLineas();
+    const H1 = S.lineas.filter(l => l.fecha === hoyStr());
+    r.hoy = H1.length === 2 && H1.every(l => l.estado === 'pendiente' && l.replicaDe) && H1.find(l => l.replicaDe === o1.id).meta === 20 && H1.find(l => l.replicaDe === o1.id).bodega === 'B1'
+      && H1.find(l => l.replicaDe === o1.id).personas.map(p => p.personaId).sort().join() === 'tmp_r1,tmp_r2';   // Rubén no marcó hoy
+    // planificar mañana: origen = hoy, la cuadrilla queda completa (propuesta)
+    nuevaLineaDialogo(fechaManana()); r.origenHoy = _rpl.origen === hoyStr(); _rpl.modo = 'igual'; renderReplicar(); await replicarLineas();
+    const M = S.lineas.filter(l => l.fecha === fechaManana()); r.manana = M.length === 2 && M.every(l => l.estado === 'pendiente') && M.some(l => l.personas.length === 2);
+    r.planVer = /Cuadrilla \(2\)/.test(document.getElementById('lineasPlanList').innerHTML);
+    // con cambios: abre el formulario con sus datos
+    const ant = S.lineas.length; nuevaLineaDialogo(hoyStr()); _rpl.modo = 'cambios'; renderReplicar(); rpConCambios(o2.id);
+    r.form = document.getElementById('plMeta').value === '12' && /con cambios/.test(document.getElementById('plTitulo').textContent);
+    document.getElementById('plMeta').value = '15'; await guardarPlanLinea();
+    const nc = S.lineas[S.lineas.length - 1]; r.cambios = S.lineas.length === ant + 1 && nc.meta === 15 && nc.replicaDe === o2.id;
+    // líder de línea: elige su línea, ve solo esa y cuenta
+    const cu = currentUser; currentUser = { ...cu, id: 'uLider', rol: 'lider', nombre: 'Lider' }; localStorage.removeItem('ch_lider_uLider');
+    const corre = H1[0]; Object.assign(corre, { estado: 'corriendo', inicio: Date.now() - H, pallets: [] });
+    renderLineas(); r.elige = /¿En qué línea estás\?/.test(document.getElementById('lineasList').innerHTML) && document.getElementById('btnLineaHoy').classList.contains('hidden');
+    elegirLineaLider(corre.id);
+    r.sola = document.querySelectorAll('#lineasList .lb').length === 1 && !document.getElementById('btnCambiarLinea').classList.contains('hidden');
+    const lb = document.getElementById('lineaBody').innerHTML;
+    r.modal = /sumarPallet\(1\)/.test(lb) && /Registrar paro/.test(lb) && !/Cerrar línea/.test(lb) && !/lmAlmuerzo/.test(lb) && !/quitarPersonaLinea/.test(lb) && !/Se suma alguien/.test(lb);
+    await sumarPallet(5); r.cuenta = totalPallets(corre) === 5;
+    r.menu = tabsDe(CATS.find(c => c.id === 'operacion')).map(x => x[1]).join() === 'Mi línea' && tabsDe(CATS.find(c => c.id === 'reporteria')).length === 0;
+    currentUser = cu; localStorage.removeItem('ch_lider_uLider'); hideModal('modalLinea');
+    S.lineas = guard; await save(); await limpiarTmp(); renderLineas(); return r; });
+  ok(rpl.dialogo && rpl.hoy, 'líneas: al crear se ofrece replicar las de ayer (iguales, con cambios o nueva); iguales copian meta, bodega y la cuadrilla que ya marcó');
+  ok(rpl.origenHoy && rpl.manana && rpl.planVer, 'líneas: planificar mañana replica las de hoy con la cuadrilla propuesta (se ajusta en «Cuadrilla»)');
+  ok(rpl.form && rpl.cambios, 'líneas: «replicar con cambios» abre el formulario con sus datos y guarda la línea nueva');
+  ok(rpl.elige && rpl.sola && rpl.modal && rpl.cuenta && rpl.menu, 'líder de línea: elige su línea, solo ve esa tarjeta y lleva el conteo (sin cuadrilla, almuerzo ni cierre)');
   ok(qp.tarjeta, 'línea en marcha: quien salió de la línea ya no cuenta en la tarjeta ni recibe la salida al cerrar');
   const dn = await page.evaluate(async () => {
     const SRV = window.__SRV, ay = fechaMenos(hoyStr(), 1), r = {};

@@ -459,6 +459,7 @@ body.con-sel .avisos-app{bottom:90px}
    los submenús. Aquí se anula dentro del menú (corregir también en el kit de HubApp). */
 #dpwItems{grid-auto-rows:max-content}
 #dpwItems .dpw-sub{overflow:visible;white-space:normal;letter-spacing:normal;text-transform:none;font-size:inherit;font-weight:inherit;color:inherit}
+.rp-op{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left}.rp-op small{font-family:'Barlow',sans-serif;font-weight:400;text-transform:none;letter-spacing:0;font-size:.78rem;opacity:.85}
 .rep-filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.rep-filtros .field{min-width:140px}
 .rep-cab{margin-bottom:8px}.rep-tit{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.15rem;letter-spacing:.5px;text-transform:uppercase;color:var(--t)}
 .rep-tabla tr.rep-total td{font-weight:700;border-top:2px solid var(--b2)}
@@ -902,13 +903,14 @@ body.en-kiosco .door-demo-tag{display:none}
         <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title" id="lineasHoyTitulo">Líneas de producción · hoy</span></div>
         <div class="sec-hdr-actions">
           <button class="btn btn-ghost btn-sm" id="btnTvLineas" onclick="abrirTvLineas()" title="Abre la pantalla TV en la pestaña de líneas, para dejarla fija en el piso">Pantalla TV</button>
-          <button class="btn btn-ghost btn-sm" onclick="abrirPlanLinea(fechaManana())">Planificar</button>
-          <button class="btn btn-green btn-sm" onclick="abrirPlanLinea(fechaLocal(new Date()))">+ Línea hoy</button>
+          <button class="btn btn-ghost btn-sm" id="btnPlanLinea" onclick="nuevaLineaDialogo(fechaManana())">Planificar</button>
+          <button class="btn btn-green btn-sm" id="btnLineaHoy" onclick="nuevaLineaDialogo(hoyStr())">+ Línea hoy</button>
+          <button class="btn btn-ghost btn-sm hidden" id="btnCambiarLinea" onclick="elegirLineaLider(null)">Cambiar de línea</button>
         </div>
       </div>
       <div class="sec-body"><div class="lineas" id="lineasList"></div></div>
     </div>
-    <div class="sec"><div class="sec-hdr"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Planificadas</span></div></div>
+    <div class="sec" id="secPlanificadas"><div class="sec-hdr"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Planificadas</span></div></div>
       <div class="sec-body" id="lineasPlanList"></div></div>
   </div>
 
@@ -1267,6 +1269,7 @@ body.en-kiosco .door-demo-tag{display:none}
       <select id="uRol">
         <option value="supervisor">Supervisor</option>
         <option value="responsable">Responsable de línea (solo líneas de producción)</option>
+        <option value="lider">Líder de línea (elige su línea y lleva el conteo)</option>
         <option value="admin">Administrador (reportes, personal y configuración)</option>
         <option value="cliente" id="uRolCliente">Cliente (solo pide personal para su empresa)</option>
       </select>
@@ -1478,6 +1481,12 @@ body.en-kiosco .door-demo-tag{display:none}
   <div class="modal">
     <div class="modal-hdr"><span class="modal-title" id="lineaTitulo">Línea</span><span class="modal-close" onclick="hideModal('modalLinea')">×</span></div>
     <div id="lineaBody" style="display:flex;flex-direction:column;gap:10px"></div>
+  </div>
+</div>
+<div class="overlay hidden" id="modalReplicar">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title" id="rpTitulo">Nueva línea</span><span class="modal-close" onclick="hideModal('modalReplicar')">×</span></div>
+    <div id="rpBody" style="display:flex;flex-direction:column;gap:10px"></div>
   </div>
 </div>
 <div class="overlay hidden" id="modalPlanLinea">
@@ -1976,7 +1985,8 @@ function pasosTutorial(){
   }
   P.push({sel:'.dpw-burger',t:'Menú',d:'Aquí están todas las secciones'+(rol==='admin'?' en submenús que se despliegan: Operación del día, Personal, Productividad y costos, Reportería (asistencia general y detallada y cada reporte), Clientes y cobros y Configuración':rol==='supervisor'?' (Turno, Líneas y el alta de personal de contingente)':' (Líneas de producción)')+' y los ajustes: Avisos y este tutorial.'});
   P.push({sel:'[data-dpw="tema"]',t:'Tema claro u oscuro',d:'Cambia los colores de la app según la luz del lugar. Se recuerda en este equipo.'});
-  if(rol!=='responsable'){
+  if(rol==='lider') P.push({nav:'lineas',t:'Tu línea',d:'Al entrar eliges en qué línea estás y solo ves esa. Ahí llevas el conteo: suma los pallets (+1 / +5), registra los paros y las entregas de insumos. «Cambiar de línea» si te mueven a otra.'});
+  if(rol!=='responsable'&&rol!=='lider'){
     if(!S.turno){
       P.push({nav:'supervisor',sel:'button[onclick*="modalAbrirTurno"]',t:'Abrir el turno',d:'El turno se arma con el personal que marcó su entrada en la tablet. Si nadie ha marcado, el botón espera. Quien llega después se suma solo al tablero.'});
       P.push({nav:'supervisor',sel:'#plantillasQuickBtn',t:'Plantillas',d:'Un turno típico guardado: su jornada, sus personas y sus tareas del día. Al usarla, el turno abre ya preparado.'});
@@ -1990,9 +2000,9 @@ function pasosTutorial(){
       P.push({nav:'supervisor',sel:'button[onclick="prepCerrarTurno()"]',t:'Cerrar turno',d:'Al final de la jornada. Antes pide las cantidades que falten.'});
     }
   }
-  if(rol==='responsable'||(S.lineasTipo||[]).length||rol==='admin'){
+  if(rol!=='lider'&&(rol==='responsable'||(S.lineasTipo||[]).length||rol==='admin')){
     P.push({nav:'lineas',sel:'#lineasList',t:'Líneas de producción',d:'Cada bloque es una línea del día: meta, pallets, ritmo y si llega. Ábrelo para armar la cuadrilla con quienes marcaron, sumar los pallets de la línea (+1 / +5), registrar paros e insumos. A la hora de comer, «Almuerzo de la línea» manda a toda la cuadrilla a almuerzo y «Terminar almuerzo» los regresa: nadie marca almuerzo en la tablet. Al terminar, «Cerrar línea» te deja dar la salida a toda la cuadrilla, o dejarla disponible para otra línea.'});
-    P.push({nav:'lineas',sel:'button[onclick*="abrirPlanLinea(fechaManana())"]',t:'Planificar líneas',d:'Programa líneas para cualquier día con su meta: la app calcula cuántas personas hacen falta.'});
+    P.push({nav:'lineas',sel:'#btnPlanLinea',t:'Planificar líneas',d:'Programa líneas para cualquier día con su meta: la app calcula cuántas personas hacen falta. Al crear o planificar puedes replicar las líneas del día anterior (iguales o con cambios) o hacer una nueva.'});
   }
   if(rol==='admin'){
     P.push({nav:'insights',sel:()=>secPorTitulo('Personal y marcaje'),t:'Personal y marcaje',d:'Alta del personal con su cédula para que marque en la tablet. Los registrados por un supervisor salen como «Contingente». Desde aquí también activas la tablet de marcaje.'});
@@ -2351,7 +2361,8 @@ function revisarAlertasLineas(){
   const n0=_avisosApp.length;
   _avisosApp=_avisosApp.filter(a=>{ const d=a.data||{}; return d.accion!=='linea'||tarjetaLineaVigente(a); });
   if(_avisosApp.length!==n0) pintarAvisosApp();
-  (S.lineas||[]).filter(l=>l.estado==='corriendo').forEach(l=>{
+  const mia=esLider()&&miLineaLider();
+  (S.lineas||[]).filter(l=>l.estado==='corriendo'&&(!esLider()||(mia&&l.id===mia.id))).forEach(l=>{
     if(l.paroActivo&&paroDur(l.paroActivo)>=lim) avisarUnaVez('paro|'+l.paroActivo.id,'Línea en paro','Línea '+lin(l)+' lleva '+fmtH(paroDur(l.paroActivo))+' en paro: '+l.paroActivo.causa,{accion:'linea',lid:l.id},'lin_paro');
     insumosPorAgotar(l).forEach(i=>avisarUnaVez('insumo|'+l.id+'|'+i.id+'|'+entregado(i),'Insumo por agotarse','Línea '+lin(l)+': '+i.nombre+' alcanza para menos de 1 pallet',{accion:'linea',lid:l.id},'lin_insumo'));
     // Uso correcto de la línea: pallets sin registrar y línea abierta más allá de sus horas
@@ -2398,7 +2409,7 @@ function claveFinSobre(now){
 }
 // Revisa cada 30 s: personas sin tarea, tareas o pausas largas y cantidades pendientes al final de la jornada
 function revisarAlertas(){
-  if(!S.turno||IS_TV||!currentUser) return;
+  if(!S.turno||IS_TV||!currentUser||esLider()) return;   // el líder de línea solo ve lo de su línea
   const cfg=getConfig(), now=Date.now(), LIM_PAUSA={bano:1/3,almuerzo:1.25,permiso:2,espera:0.5,reunion:1};
   // Quita tarjetas que ya no aplican
   const antes=_avisosApp.length;
@@ -2486,7 +2497,8 @@ var CATS=[
     ['ins:config','Horario y recargos',()=>currentUser.rol==='admin'],
     ['ins:usuarios','Usuarios y accesos',()=>currentUser.rol==='admin']]},
 ];
-function tabsDe(c){ if(!currentUser||esCliente()||IS_TV) return []; return c.tabs().filter(x=>{ try{ return !!x[2](); }catch(e){ return false; } }); }
+function tabsDe(c){ if(!currentUser||esCliente()||IS_TV) return [];
+  if(esLider()) return c.id==='operacion'?[['lineas','Mi línea',()=>true]]:[]; return c.tabs().filter(x=>{ try{ return !!x[2](); }catch(e){ return false; } }); }
 const navKey=()=>_nav==='insights'?(_insSec==='exportar'?'rep:'+_rep.id:'ins:'+_insSec):_nav;
 function catDe(key){ return CATS.find(c=>c.tabs().some(x=>x[0]===key)); }
 function irTab(key){ const c=catDe(key), x=c&&c.tabs().find(t=>t[0]===key); if(x&&x[4]){ x[4](); return; }
@@ -2507,7 +2519,7 @@ function pintarCatBar(){
 }
 var _insSec='resumen';
 function abrirSeccion(k){ _insSec=SECCIONES_INS[k]?k:'resumen'; setNav('insights'); }
-const ROL_NOMBRE={admin:'Administrador',supervisor:'Supervisor',responsable:'Responsable de línea',cliente:'Cliente'};
+const ROL_NOMBRE={admin:'Administrador',supervisor:'Supervisor',responsable:'Responsable de línea',lider:'Líder de línea',cliente:'Cliente'};
 var _nav='supervisor'; // var: pintarAvisos() la usa antes de esta línea
 function pintarMenu(){
   if(!window.DPW||!SECCIONES_INS||!CATS) return;   // al arrancar se llama antes de definir las secciones; se repinta enseguida
@@ -2530,10 +2542,26 @@ function pintarMenu(){
   DPW.menu(items,key||_nav,{plegable:true});
   pintarCatBar();
 }
+// Líder de línea: al entrar elige su línea; solo ve esa tarjeta y lleva el conteo (pallets, paros e insumos)
+function esLider(){ return !!currentUser&&currentUser.rol==='lider'; }
+function miLineaLider(){
+  if(!esLider()) return null; let v=null; try{ v=JSON.parse(localStorage.getItem('ch_lider_'+currentUser.id)||'null'); }catch(e){}
+  const l=v&&lineaDe(v.id); return l&&(l.fecha===hoyStr()||l.estado==='corriendo')&&l.estado!=='cerrada'?l:null;
+}
+function elegirLineaLider(id){
+  try{ if(id) localStorage.setItem('ch_lider_'+currentUser.id,JSON.stringify({id,fecha:hoyStr()})); else localStorage.removeItem('ch_lider_'+currentUser.id); }catch(e){}
+  renderLineas(); if(id) abrirLinea(id);
+}
+function htmlEligeLinea(){
+  const L=lineasHoy().filter(l=>l.estado!=='cerrada');
+  return `<div class="lb-resumen"><div class="lbr-top"><span class="lbr-tit">¿En qué línea estás?</span></div>
+    ${L.length?`<div class="chip-wrap">${L.map(l=>`<div class="chip" onclick="elegirLineaLider('${l.id}')">Línea ${esc(lin(l))}${l.estado==='pendiente'?' · por arrancar':''}</div>`).join('')}</div>`
+      :'<div class="li-sub">Todavía no hay líneas de hoy. Cuando el supervisor la cree, aparece aquí.</div>'}</div>`;
+}
 function esResponsable(){ return !!currentUser&&currentUser.rol==='responsable'; }
 function esCliente(){ return !!currentUser&&currentUser.rol==='cliente'; }
 function setNav(nav){
-  if(esResponsable()&&nav!=='lineas') nav='lineas';
+  if((esResponsable()||esLider())&&nav!=='lineas') nav='lineas';
   if(esCliente()&&!((['proformas','tarifario','estado','cotizaciones'].includes(nav)&&facturacionOn())||(nav==='miturno'&&marcajeClienteOn()))) nav=marcajeClienteOn()?'miturno':'pedidos';
   if(nav==='pedidos'&&!pedidosOn()) nav='supervisor';
   const navCob=['planilla','cobros','tarifas','proformas','tarifario','estado','cotizaciones'].includes(nav);
@@ -2589,7 +2617,7 @@ function hideModal(id){
 // Personal que marcó entrada y quedó sin turno abierto (o, en la línea, sin línea en marcha): aviso a los 15 min y cada 30 min.
 // Lo revisa cualquier equipo con la app abierta, incluida la tablet de marcaje; el servidor lo manda una sola vez por clave.
 function sinTurnoAhora(now){
-  now=now||Date.now(); if(IS_TV||!SESSION||!_marcasCargadas) return null;
+  now=now||Date.now(); if(IS_TV||!SESSION||!_marcasCargadas||esLider()) return null;
   const hoy=hoyStr(), lim=(getConfig().alertaSinTurnoMin||15)*60000;
   const iniJ=inicioJornadaTs(hoy);
   const desde=p=>{ const e=estadoMarca(p.id); return e.entrada&&e.entrada.fecha===hoy?Math.max(msTs(e.entrada.ts),iniJ):null; };
@@ -3080,9 +3108,15 @@ function htmlResumenLineas(L){
 function renderLineas(){
   const hayTipos=(S.lineasTipo||[]).length>0, L=lineasHoy();
   const btv=document.getElementById('btnTvLineas'); if(btv) btv.classList.toggle('hidden',!currentUser||currentUser.rol!=='admin');
+  if(esLider()){ const tt=document.getElementById('lineasHoyTitulo'); }
   const v=document.getElementById('lineasList');
   if(v){
     document.getElementById('lineasHoyTitulo').textContent='Líneas de producción · '+new Date().toLocaleDateString('es-PA',{weekday:'long',day:'numeric',month:'long'});
+    const lid=esLider(), mia=lid&&miLineaLider();
+    ['btnPlanLinea','btnLineaHoy'].forEach(b=>{ const e=document.getElementById(b); if(e) e.classList.toggle('hidden',lid); });
+    const bc=document.getElementById('btnCambiarLinea'); if(bc) bc.classList.toggle('hidden',!mia);
+    const sp=document.getElementById('secPlanificadas'); if(sp) sp.classList.toggle('hidden',lid);
+    if(lid){ v.innerHTML=mia?htmlBloques([mia],''):htmlEligeLinea(); return; }
     v.innerHTML=htmlResumenLineas(L)+htmlBloques(L,hayTipos?'Sin líneas hoy. Usa + Línea hoy, o Planificar para otro día.':(currentUser&&currentUser.rol==='admin'?'Primero crea los tipos de línea en Configuración → Líneas y maquila.':'Pide al administrador que configure los tipos de línea.'));
     renderPlanesLinea();
   }
@@ -3096,7 +3130,7 @@ function renderPlanesLinea(){
   const P=(S.lineas||[]).filter(l=>l.estado==='pendiente'&&l.fecha>hoyStr()).sort((a,b)=>a.fecha.localeCompare(b.fecha));
   el.innerHTML=P.length?P.map(l=>{ const c=cuadrilla(l.meta,l.prod,l.horas);
     return `<div class="plan-linea"><span><b>${etiquetaDia(l.fecha)}</b> · Línea ${esc(lin(l))} · ${l.meta} pallets · ${c.total} personas</span>
-    <span class="btn-row"><button class="btn btn-ghost btn-sm" onclick="abrirPlanLinea(null,'${l.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarPlanLinea('${l.id}')" aria-label="Eliminar plan">×</button></span></div>`; }).join('')
+    <span class="btn-row"><button class="btn btn-ghost btn-sm" onclick="abrirLinea('${l.id}')">Cuadrilla${(l.personas||[]).length?' ('+l.personas.length+')':''}</button><button class="btn btn-ghost btn-sm" onclick="abrirPlanLinea(null,'${l.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarPlanLinea('${l.id}')" aria-label="Eliminar plan">×</button></span></div>`; }).join('')
     :'<div class="empty-text">Nada planificado para los próximos días.</div>';
 }
 
@@ -3108,11 +3142,14 @@ function renderLineaModal(foco){
   const r=ritmoLinea(l), c=cuadrilla(l.meta,l.prod,l.horas), n=cuadrillaVista(l).length;
   document.getElementById('lineaTitulo').textContent='Línea '+lin(l);
   const agregar=htmlCuadrillaMarcada(l);
-  const chips=cuadrillaVista(l).map(p=>{ const e=estadoEnLinea(p), quitar=l.estado!=='cerrada';
+  const lid=esLider();
+  const chips=cuadrillaVista(l).map(p=>{ const e=estadoEnLinea(p), quitar=l.estado!=='cerrada'&&!lid;
     return `<span class="chip selected${e.bloqueo?' chip-off':''}" ${quitar?`onclick="quitarPersonaLinea('${p.id}')" title="Quitar de la línea"`:''}>${esc(p.nombre)}${e.bloqueo?' · '+e.texto:''}${quitar?' ×':''}</span>`; }).join('')
     +(l.estado!=='cerrada'?(l.personas||[]).filter(p=>p.hasta).map(p=>`<span class="chip chip-off" title="Salió de la línea">${esc(p.nombre)} · salió ${horaHM(p.hasta)}${p.pasoA?' → línea '+esc(p.pasoA):p.motivoSalida?' · '+esc(p.motivoSalida):''}</span>`).join(''):'');
   let h='';
-  if(l.estado==='pendiente'){
+  if(l.estado==='pendiente'&&lid){
+    h+=`<div class="info-box">La línea aún no arranca. Cuando el supervisor la arranque, aquí llevas el conteo de pallets.</div><div class="chip-wrap">${chips}</div>`;
+  } else if(l.estado==='pendiente'){
     h+=`<div class="li-sub">${esc(l.cliente||'')}${l.prod?' · productividad '+l.prod+' pallets por persona-hora':''}</div>
     <div class="field-row"><div class="field"><label>Meta del día (pallets)</label><input type="number" id="lmMeta" min="1" value="${l.meta||''}" oninput="lineaMetaHoras()"></div>
     <div class="field"><label>Horas de la línea</label><input type="number" id="lmHoras" min="0.5" step="0.5" value="${l.horas}" oninput="lineaMetaHoras()"></div></div>
@@ -3129,7 +3166,7 @@ function renderLineaModal(foco){
       ?`<div class="paro-on"><div><b>En paro</b> · ${esc(l.paroActivo.causa)}${l.paroActivo.nota?' · '+esc(l.paroActivo.nota):''}<small>desde ${horaHM(l.paroActivo.inicio)} · ${fmtH(paroDur(l.paroActivo))}</small></div><button class="btn btn-green" onclick="reanudarLinea()">Reanudar</button></div>`
       :_paroPick?`<div class="paro-pick"><div class="asig-ttl">Causa del paro</div><div class="chip-wrap">${causasParo().map((c,i)=>`<div class="chip" onclick="iniciarParo(${i})">${esc(c)}</div>`).join('')}</div>
           <input type="text" id="paroNota" placeholder="Nota (opcional)"><button class="btn btn-ghost btn-sm" style="align-self:flex-start" onclick="_paroPick=false;renderLineaModal()">Cancelar</button></div>`
-      :`<div style="display:flex;gap:8px"><button class="btn btn-amber" style="flex:1" onclick="_paroPick=true;renderLineaModal()">Registrar paro</button><button class="btn btn-ghost" style="flex:1" id="lmAlmuerzo" onclick="iniciarAlmuerzoLinea()">Almuerzo de la línea</button></div>`;
+      :`<div style="display:flex;gap:8px"><button class="btn btn-amber" style="flex:1" onclick="_paroPick=true;renderLineaModal()">Registrar paro</button>${lid?'':'<button class="btn btn-ghost" style="flex:1" id="lmAlmuerzo" onclick="iniciarAlmuerzoLinea()">Almuerzo de la línea</button>'}</div>`;
     const agota=insumosPorAgotar(l);
     if(agota.length) h+=`<div class="warn-box">Por agotarse: ${agota.map(i=>esc(i.nombre)+' (alcanza para '+Math.max(0,estadoInsumo(i,l).alcanza)+' pallet'+(estadoInsumo(i,l).alcanza===1?'':'s')+')').join(' · ')}. Pide la entrega antes de que pare la línea.</div>`;
     h+=`<div class="stat-row">
@@ -3144,7 +3181,7 @@ function renderLineaModal(foco){
       ${corre&&!l.almuerzoActivo?`<button class="btn btn-green" onclick="sumarPallet(1)">+1</button><button class="btn btn-green" onclick="sumarPallet(5)">+5</button>`:''}</div>
     <div class="asig-ttl">Cuadrilla · ${n} persona${n===1?'':'s'}</div><div class="chip-wrap">${chips||'<span class="li-sub">Sin personas</span>'}</div>${_qp&&_qp.lid===l.id?htmlQuitarPersona(l):''}`;
     h+=htmlAlmLinea(l)+htmlInsumosLinea(l)+htmlParosLinea(l);
-    if(corre) h+=`<div class="field"><label>Se suma alguien a la línea</label>${agregar}</div>
+    if(corre&&!lid) h+=`<div class="field"><label>Se suma alguien a la línea</label>${agregar}</div>
       ${_cierrePick?htmlCierreLinea(l):`<button class="btn btn-indigo btn-full" onclick="cerrarLinea()">Cerrar línea</button>`}
       ${sePuedeQuitar(l)?`<button class="btn btn-ghost btn-sm" style="align-self:center" id="lmQuitar" onclick="eliminarLinea()">Quitar esta línea (se arrancó por error)</button>`:''}`;
   }
@@ -3396,7 +3433,7 @@ async function eliminarLinea(){
 let _planEdit=null;
 function abrirPlanLinea(fecha, planId){
   const T=S.lineasTipo||[]; if(!T.length){ showToast('Primero configura los tipos de línea en Configuración → Líneas y maquila','error'); return; }
-  _planEdit=planId||null; const pl=planId&&lineaDe(planId);
+  _planEdit=planId||null; _planBase=null; const pl=planId&&lineaDe(planId);
   document.getElementById('plTipo').innerHTML=T.map(t=>`<option value="${t.id}">${esc(t.nombre)}${t.clienteId?' · '+esc((S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||''):''}</option>`).join('');
   document.getElementById('plFecha').min=fechaLocal(new Date());
   if(pl) document.getElementById('plTipo').value=pl.tipoId;
@@ -3426,6 +3463,68 @@ function calcPlanLinea(){
   if(per&&t.prod) h+=`<br>Con ${per} personas alcanzas <b>${metaPosible(per,t.prod,horas)} pallets</b>${c.total&&per<c.total?` · faltan ${c.total-per} personas para la meta`:''}.`;
   document.getElementById('plCalc').innerHTML=h;
 }
+// ── Replicar líneas: al crear una línea hoy (o al planificar mañana) se ofrece copiar las del día anterior,
+// tal cual (tipo, meta, horas, bodega y cuadrilla), con cambios (abre el formulario con sus datos) o hacer una nueva.
+let _rpl={destino:'',origen:'',sel:new Set(),modo:null}, _planBase=null;
+function origenReplica(destino){
+  const F=[...new Set((S.lineas||[]).filter(l=>l.fecha<destino&&(l.estado!=='pendiente'||l.fecha===hoyStr())).map(l=>l.fecha))].sort();
+  return F.pop()||'';
+}
+const lineasOrigen=f=>lineasDeFecha(f).filter(l=>l.estado!=='pendiente'||f===hoyStr());
+function nuevaLineaDialogo(destino){
+  if(!(S.lineasTipo||[]).length){ abrirPlanLinea(destino); return; }
+  const o=origenReplica(destino); if(!o){ abrirPlanLinea(destino); return; }
+  _rpl={destino,origen:o,sel:new Set(lineasOrigen(o).map(l=>l.id)),modo:null}; renderReplicar(); showModal('modalReplicar');
+}
+function renderReplicar(){
+  const {destino,origen,modo}=_rpl, L=lineasOrigen(origen), hoy=destino===hoyStr();
+  document.getElementById('rpTitulo').textContent=hoy?'Nueva línea para hoy':'Planificar · '+etiquetaDia(destino);
+  const op=(m,t,d)=>`<button type="button" class="btn ${modo===m?'btn-indigo':'btn-ghost'} btn-full rp-op" onclick="_rpl.modo='${m}';renderReplicar()"><b>${t}</b><small>${d}</small></button>`;
+  const fila=(l,sel,fn)=>`<div class="chip${sel?' selected':''}" onclick="${fn}('${l.id}')">Línea ${esc(lin(l))} · meta ${l.meta} · ${activosOFinal(l).length} pers.</div>`;
+  let h=`<div class="li-sub">Líneas ${deDia(origen)}: ${L.length}</div>
+    ${op('igual','Replicar las líneas '+deDia(origen),'Mismo tipo, meta, horas, bodega y cuadrilla')}
+    ${op('cambios','Replicar una con cambios','Abre el formulario con sus datos para ajustarlos')}
+    ${op('nueva','Totalmente nueva','El formulario vacío, como siempre')}`;
+  if(modo==='igual') h+=`<div class="li-sub">Toca para quitar o volver a incluir.${hoy?' De la cuadrilla solo pasan quienes ya marcaron entrada hoy y no están en otra línea.':' La cuadrilla queda propuesta: ese día puedes quitar a quien no venga y sumar a quien marque.'}</div>
+      <div class="chip-wrap">${L.map(l=>fila(l,_rpl.sel.has(l.id),'rpToggle')).join('')}</div>
+      <button class="btn btn-green btn-full" ${_rpl.sel.size?'':'disabled'} onclick="replicarLineas()">${hoy?'Crear':'Planificar'} ${_rpl.sel.size} línea${_rpl.sel.size===1?'':'s'}</button>`;
+  if(modo==='cambios') h+=`<div class="li-sub">¿Cuál replicas?</div><div class="chip-wrap">${L.map(l=>fila(l,false,'rpConCambios')).join('')}</div>`;
+  if(modo==='nueva'){ hideModal('modalReplicar'); abrirPlanLinea(destino); return; }
+  document.getElementById('rpBody').innerHTML=h;
+}
+const deDia=f=>{ const e=etiquetaDia(f).toLowerCase(); return /^(hoy|ayer|mañana)$/.test(e)?'de '+e:'del '+e; };
+function rpToggle(id){ _rpl.sel.has(id)?_rpl.sel.delete(id):_rpl.sel.add(id); renderReplicar(); }
+// Cuadrilla con que terminó la línea (sin quienes salieron de ella)
+const activosOFinal=l=>{ const v=new Set(); return (l.personas||[]).filter(p=>!p.hasta&&p.personaId&&!v.has(p.personaId)&&v.add(p.personaId)); };
+// Copia la cuadrilla: hoy, solo quien ya marcó y está libre; otro día, toda (queda propuesta)
+function cuadrillaReplica(l, destino, usados){
+  const hoy=destino===hoyStr(), libres=hoy?new Set(disponiblesLinea().map(p=>p.id)):null, out=[], faltan=[];
+  activosOFinal(l).forEach(p=>{ if(usados.has(p.personaId)) return;
+    if(hoy&&!libres.has(p.personaId)){ faltan.push(p.nombre); return; }
+    usados.add(p.personaId); out.push({id:uid(),nombre:p.nombre,personaId:p.personaId,desde:null}); });
+  return {personas:out,faltan};
+}
+function copiaDeLinea(l, destino, meta, horas, bodega){
+  const t=tipoLinea(l.tipoId)||{id:l.tipoId,nombre:l.nombre,clienteId:l.clienteId,prod:l.prod,apoyo:l.apoyo,insumos:(l.insumos||[]).map(i=>({nombre:i.nombre,unidad:i.unidad,porPallet:i.porPallet}))};
+  return {...nuevaLinea(t,meta!=null?meta:l.meta,horas!=null?horas:l.horas,destino),bodega:bodega!=null?bodega:(l.bodega||''),replicaDe:l.id};
+}
+async function replicarLineas(){
+  const {destino,origen}=_rpl, L=lineasOrigen(origen).filter(l=>_rpl.sel.has(l.id)); if(!L.length) return;
+  const usados=new Set(lineasDeFecha(destino).filter(x=>x.estado!=='cerrada').flatMap(x=>activosLinea(x).map(p=>p.personaId)));
+  let faltan=[];
+  L.forEach(l=>{ const n=copiaDeLinea(l,destino), c=cuadrillaReplica(l,destino,usados); n.personas=c.personas; faltan=faltan.concat(c.faltan); S.lineas.push(n); });
+  asignarLetras(); hideModal('modalReplicar'); renderLineas(); await save();
+  showToast(L.length+' línea'+(L.length===1?'':'s')+(destino===hoyStr()?' creada'+(L.length===1?'':'s')+' para hoy':' planificada'+(L.length===1?'':'s')+' para '+etiquetaDia(destino).toLowerCase())
+    +(faltan.length?' · sin marcar o en otra línea: '+faltan.slice(0,6).map(n=>n.split(' ')[0]).join(', ')+(faltan.length>6?'…':''):''),faltan.length?'info':'success');
+}
+function rpConCambios(id){
+  const l=lineaDe(id); if(!l) return; hideModal('modalReplicar');
+  abrirPlanLinea(_rpl.destino); _planBase=id;
+  if(tipoLinea(l.tipoId)) document.getElementById('plTipo').value=l.tipoId;
+  document.getElementById('plMeta').value=l.meta; document.getElementById('plHoras').value=l.horas;
+  if(l.bodega) document.getElementById('plBodega').value=l.bodega;
+  document.getElementById('plTitulo').textContent='Replicar línea '+lin(l)+' con cambios'; calcPlanLinea();
+}
 async function guardarPlanLinea(){
   const fecha=document.getElementById('plFecha').value, tipoId=document.getElementById('plTipo').value, meta=+document.getElementById('plMeta').value||0, horas=+document.getElementById('plHoras').value||0;
   if(!fecha||!tipoId||!(meta>0)||!(horas>0)){ showToast('Completa fecha, línea, meta y horas','error'); return; }
@@ -3433,8 +3532,11 @@ async function guardarPlanLinea(){
   S.lineas=S.lineas||[];
   const bodega=document.getElementById('plBodega').value||'';
   if(_planEdit){ const l=lineaDe(_planEdit); if(l&&l.estado==='pendiente'){ if(l.fecha!==fecha) delete l.letra; Object.assign(l,{fecha,meta,horas,bodega},l.tipoId!==tipoId?datosDeTipo(t):{}); } }
-  else S.lineas.push({...nuevaLinea(t,meta,horas,fecha),bodega});
-  asignarLetras();
+  else { const nl={...nuevaLinea(t,meta,horas,fecha),bodega}, base=_planBase&&lineaDe(_planBase);
+    if(base){ const usados=new Set(lineasDeFecha(fecha).filter(x=>x.estado!=='cerrada').flatMap(x=>activosLinea(x).map(p=>p.personaId)));
+      nl.personas=cuadrillaReplica(base,fecha,usados).personas; nl.replicaDe=base.id; }
+    S.lineas.push(nl); }
+  _planBase=null; asignarLetras();
   hideModal('modalPlanLinea'); renderLineas(); await save();
   showToast(fecha===hoyStr()?'Línea agregada a las de hoy':'Línea planificada para '+etiquetaDia(fecha).toLowerCase());
 }
