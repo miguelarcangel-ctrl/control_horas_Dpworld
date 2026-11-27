@@ -1929,6 +1929,7 @@ async function doLogout(){
 }
 async function startApp(){
   await loadState();
+  setTimeout(()=>jornadaSinTurnoAuto().catch(()=>{}),4000);
   if(localStorage.getItem(BK_KEY)){ // cambios que quedaron sin subir la última vez
     try{ const b=JSON.parse(localStorage.getItem(BK_KEY)); applyRemote(merge3(b.base,b.local,_base)); await save(); showToast('Cambios pendientes sincronizados'); }catch(e){}
   }
@@ -2606,6 +2607,26 @@ function revisarSinTurno(){
   emitirAviso('tur_sin_abrir',x.key,tit,cuerpo,{accion:'abrir'});
 }
 setInterval(revisarSinTurno,60000);
+// Días sin turno: al terminar la jornada (desde las 17:30) y en los días siguientes, a quien marcó como supervisor,
+// ayudante general u operador y no marcó salida se le completa la jornada del horario base (servidor: ch_jornada_sin_turno).
+// La pide cualquier equipo de administrador o supervisor con la app abierta (la tablet de marcaje, por ejemplo).
+async function jornadaSinTurnoAuto(){
+  if(IS_TV||!SESSION||!currentUser||!['admin','supervisor'].includes(currentUser.rol)) return 0;
+  const hoy=hoyStr(), ahora=new Date(), tarde=ahora.getHours()*60+ahora.getMinutes()>=17*60+30;
+  const conTurno=new Set([...(S.turnosHistorial||[]).map(t=>t.fecha),S.turno&&S.turno.fecha].filter(Boolean));
+  let total=0;
+  for(let d=tarde?0:1; d<=7; d++){
+    const f=fechaMenos(hoy,d); if(conTurno.has(f)) continue;
+    const k='ch_jst_'+STATE_KEY+'_'+f; try{ if(localStorage.getItem(k)) continue; }catch(e){}
+    try{ const n=await rpc('ch_jornada_sin_turno',{p_token:SESSION.token,p_key:STATE_KEY,p_fecha:f})||0; total+=n;
+      try{ localStorage.setItem(k,'1'); }catch(e){}
+      if(n) showToast('Día sin turno ('+etiquetaDia(f).toLowerCase()+'): jornada de '+getConfig().horaInicio+' a '+getConfig().horaFin+' para '+n+' persona'+(n===1?'':'s'),'info');
+    }catch(e){ console.warn('Jornada sin turno:',e.message); break; }
+  }
+  if(total){ await cargarMarcas(); revisarSinTurno(); if(typeof renderEquipo==='function') renderEquipo(); }
+  return total;
+}
+setInterval(()=>jornadaSinTurnoAuto().catch(()=>{}),10*60000);
 
 // ═══ CLOCK ═══
 let _tic=0;

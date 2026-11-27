@@ -496,6 +496,23 @@ async function newPage(browser, opts = {}) {
     r.ok = m.fecha === hoyStr() && auto && auto.fecha === ay && /Salida automática/.test(auto.motivo) && Date.parse(auto.ts) < Date.parse(m.ts);
     await limpiarTmp(); return r; });
   ok(!dn.aplica || (dn.fuera && dn.servidor && dn.ok), 'marcaje: desde las 5:00 de un día nuevo se marca entrada; la entrada abierta de ayer se cierra sola (salida automática)');
+  const jst = await page.evaluate(async () => {
+    const SRV = window.__SRV, f = fechaMenos(hoyStr(), 3), g = fechaMenos(hoyStr(), 4), r = {};
+    const mk = (id, nombre, puesto, fecha, h) => { if (!SRV.personal.some(x => x.id === id)) SRV.personal.push({ key: STATE_KEY, id, nombre, cedula: 'X' + id, puesto_def: puesto, activo: true });
+      SRV.marcas.push({ id: ++SRV.marcaSeq, key: STATE_KEY, persona_id: id, nombre, fecha, tipo: 'entrada', puesto, ts: new Date(fecha + 'T' + h + ':00').toISOString(), por: 'admin', anulado: false }); };
+    mk('tmp_j1', 'Op Sin Turno', 'operador', f, '08:20'); mk('tmp_j2', 'Linea Sin Turno', 'linea', f, '08:10');
+    S.turnosHistorial.push({ id: 'tjst', fecha: g, hora: '08:00', inicio: Date.now(), fin: Date.now(), equipo: [], historial: [], estado: 'cerrado' }); await save();
+    mk('tmp_j3', 'Op Con Turno', 'operador', g, '08:20');
+    Object.keys(localStorage).filter(k => k.startsWith('ch_jst_')).forEach(k => localStorage.removeItem(k));
+    const n = await jornadaSinTurnoAuto();
+    const de = id => SRV.marcas.filter(m => m.persona_id === id && !m.anulado).map(m => m.tipo + '@' + new Date(m.ts).getHours()).join(',');
+    r.op = de('tmp_j1') === 'entrada@8,salida_almuerzo@12,regreso_almuerzo@13,salida@17';
+    r.linea = de('tmp_j2') === 'entrada@8';
+    r.conTurno = de('tmp_j3') === 'entrada@8';
+    r.n = n >= 1; r.unaVez = (await jornadaSinTurnoAuto()) === 0;
+    S.turnosHistorial = S.turnosHistorial.filter(t => t.id !== 'tjst'); await save(); await limpiarTmp(); return r; });
+  ok(jst.op && jst.n && jst.unaVez, 'día sin turno: la app completa sola la jornada de 8 a 5 (con almuerzo) a supervisor, ayudante y operador sin salida');
+  ok(jst.linea && jst.conTurno, 'día sin turno: no toca al personal de línea ni los días que sí tuvieron turno');
   ok(pi.excel && pi.insights && pi.causas, 'paros/insumos: Excel (Paros e Insumos de línea), Insights y causas configurables');
 
   // 9g) Marcaje de asistencia: personal con cédula, tablet en modo quiosco, turno armado solo, horas pagadas, planilla
