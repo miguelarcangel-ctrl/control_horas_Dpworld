@@ -525,6 +525,7 @@ body.con-sel .avisos-app{bottom:90px}
 .rep-filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.rep-filtros .field{min-width:140px}
 .rep-cab{margin-bottom:8px}.rep-tit{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.15rem;letter-spacing:.5px;text-transform:uppercase;color:var(--t)}
 .rep-tabla tr.rep-total td{font-weight:700;border-top:2px solid var(--b2)}
+.rep-tabla tr.rep-sub td{font-weight:700;background:rgba(var(--fg),.04)}
 .rep-filtros select{min-width:200px}
 .rep-acc{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 6px;font-size:.85rem}
 .rep-tabla{overflow:auto;max-height:60vh;border:1px solid var(--b1);border-radius:8px}
@@ -5145,6 +5146,15 @@ function construirReportes(turnoId, rango){
   Object.keys(dia).sort().reverse().forEach(f=>{ const d=dia[f]; prodRows.push([f,d.pal,d.meta,r2(d.costo)]); tt.meta+=d.meta; tt.pal+=d.pal; tt.costo+=d.costo; });
   if(Object.keys(dia).length) prodRows.push(['TOTAL',tt.pal,tt.meta,r2(tt.costo)]);
   R.push({nombre:'Producción diaria',filas:prodRows});
+  // Producción diaria por línea: una fila por línea y día, el total de cada día y el del período
+  const plRows=[['Fecha','Línea','Realizado','Meta','%','Cliente','Costo ($)']], pc=(a,b)=>b?Math.round(a/b*100):'';
+  const porDia={}; (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))).forEach(l=>(porDia[l.fecha]=porDia[l.fecha]||[]).push(l));
+  const tp={pal:0,meta:0,costo:0};
+  Object.keys(porDia).sort().reverse().forEach(f=>{ const td={pal:0,meta:0,costo:0}, L=porDia[f].sort((a,b)=>(a.letra||'').localeCompare(b.letra||'',undefined,{numeric:true})||a.nombre.localeCompare(b.nombre));
+    L.forEach(l=>{ const pal=totalPallets(l), meta=+l.meta||0, co=(costoLinea(l)||{}).total||0; plRows.push([f,lin(l),pal,meta,pc(pal,meta),l.cliente||'',r2(co)]); td.pal+=pal; td.meta+=meta; td.costo+=co; });
+    plRows.push([f,'Total del día',td.pal,td.meta,pc(td.pal,td.meta),'',r2(td.costo)]); tp.pal+=td.pal; tp.meta+=td.meta; tp.costo+=td.costo; });
+  if(Object.keys(porDia).length) plRows.push(['TOTAL','',tp.pal,tp.meta,pc(tp.pal,tp.meta),'',r2(tp.costo)]);
+  R.push({nombre:'Producción por línea',filas:plRows});
   const parRows=[['Fecha','Línea','Causa','Inicio','Fin','Minutos','Nota','Registrado por']];
   const insRows=[['Fecha','Línea','Insumo','Unidad','Consumo por pallet','Pallets','Esperado','Entregado','Sobrante','Consumo real','Diferencia','Diferencia (%)']];
   (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))).forEach(l=>{
@@ -5170,7 +5180,7 @@ var REPORTES=[
   {id:'marcajes',t:'Marcajes',d:'Cada marca de la tablet, con correcciones'},
   {id:'tareas',t:'Detalle de tareas'},{id:'turnos',t:'Resumen de turnos'},
   {id:'clientes',t:'Costos por cliente',ts:'Horas por cliente'},{id:'colaboradores',t:'Costos por colaborador',ts:'Horas por colaborador'},
-  {id:'eficiencia',t:'Eficiencia por tarea'},{id:'produccion',t:'Producción diaria',d:'Lo realizado en el día (todas las líneas) y la meta'},{id:'lineas',t:'Líneas de producción'},{id:'cuadrilla',t:'Cuadrilla de línea'},
+  {id:'eficiencia',t:'Eficiencia por tarea'},{id:'produccion',t:'Producción diaria',d:'Lo realizado en el día (todas las líneas) y la meta'},{id:'prodLinea',t:'Producción diaria por línea',d:'Cada línea de cada día: lo realizado y la meta, con el total del día y del período'},{id:'lineas',t:'Líneas de producción'},{id:'cuadrilla',t:'Cuadrilla de línea'},
   {id:'paros',t:'Paros de línea'},{id:'insumos',t:'Insumos de línea'}];
 function nombreReporte(r){ return (currentUser&&currentUser.rol!=='admin'&&r.ts)||r.t; }
 function esAsis(id){ return ['asisGeneral','asisDetalle','marcajes'].includes(id); }
@@ -5196,7 +5206,7 @@ function htmlReportes(){
       <div class="chip-wrap" style="align-self:flex-end">${[['Hoy',0],['7 días',6],['15 días',14],['30 días',29]].map(([t,d])=>`<div class="chip${_rep.desde===fechaMenos(hoyStr(),d)&&_rep.hasta===hoyStr()?' selected':''}" onclick="_rep.desde=fechaMenos(hoyStr(),${d});_rep.hasta=hoyStr();pintarReportes()">${t}</div>`).join('')}</div></div>
     ${!listo?'<div class="empty-text">Cargando los marcajes del período…</div>':`<div class="rep-acc"><span>${filas.length} fila${filas.length===1?'':'s'} · ${etiquetaDia(_rep.desde)} a ${etiquetaDia(_rep.hasta).toLowerCase()}</span>
       <span class="btn-row"><button class="btn btn-green btn-sm" onclick="descargarReporte('${def.id}')">Descargar este reporte</button><button class="btn btn-ghost btn-sm" onclick="descargarReporte('')">Descargar todos</button></span></div>
-    ${filas.length?`<div class="rep-tabla"><table><thead><tr>${cab.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${filas.slice(0,MAX).map(f=>`<tr${f[0]==='TOTAL'?' class="rep-total"':''}>${cab.map((_,k)=>celda(f[k])).join('')}</tr>`).join('')}</tbody></table></div>
+    ${filas.length?`<div class="rep-tabla"><table><thead><tr>${cab.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${filas.slice(0,MAX).map(f=>`<tr${f[0]==='TOTAL'?' class="rep-total"':f[1]==='Total del día'?' class="rep-sub"':''}>${cab.map((_,k)=>celda(f[k])).join('')}</tr>`).join('')}</tbody></table></div>
       ${filas.length>MAX?`<div class="li-sub">Se muestran ${MAX} de ${filas.length} filas. El Excel trae todas.</div>`:''}`:'<div class="empty-text">Sin datos en estas fechas.</div>'}`}`;
 }
 async function cargarAsistenciaRep(){
@@ -5213,7 +5223,7 @@ async function descargarReporte(id){
   XLSX.writeFile(wb,`${id?nombreReporte(sel[0]).replace(/\W+/g,'_'):'Reportes'}_${_rep.desde}_a_${_rep.hasta}.xlsx`);
 }
 var REP_IDS={'Detalle Tareas':'tareas','Resumen Turnos':'turnos','Costos por Cliente':'clientes','Eficiencia por Tarea':'eficiencia','Costos por Colaborador':'colaboradores',
-  'Producción diaria':'produccion','Líneas de producción':'lineas','Cuadrilla de línea':'cuadrilla','Paros de línea':'paros','Insumos de línea':'insumos'};
+  'Producción diaria':'produccion','Producción por línea':'prodLinea','Líneas de producción':'lineas','Cuadrilla de línea':'cuadrilla','Paros de línea':'paros','Insumos de línea':'insumos'};
 function libroDe(R){ const wb=XLSX.utils.book_new(); R.forEach(x=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(x.filas),x.nombre.slice(0,31))); return wb; }
 function exportExcel(turnoId){
   const R=construirReportes(turnoId);
