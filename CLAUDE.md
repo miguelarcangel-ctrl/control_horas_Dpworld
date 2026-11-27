@@ -10,3 +10,7 @@ El funcionamiento diario de la app (más allá del control del administrador) de
 - Encargado de la línea: personal de línea sin línea en marcha, paros largos, insumos por agotarse, productividad en riesgo, pallets sin registrar y línea abierta más allá de sus horas.
 La lista vive en `AVISOS_OBLIG` (index.html) y `OBLIG` (supabase/functions/push-marcaje); deben coincidir. Un aviso nuevo de operación se agrega a ambas.
 Horario base: 8:00 a 17:00 (Configuración). Lo marcado antes de la hora de inicio no cuenta.
+
+## Comunicación con el dueño
+- Escribir siempre en **español**.
+- Las capturas de pantalla que se le muestran son de la app **Control de Horas de DP World** (logo y colores de DP World), con datos de prueba; no las del prototipo de Door Logistic, salvo que lo pida.
