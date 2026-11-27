@@ -574,11 +574,11 @@ async function newPage(browser, opts = {}) {
     S.lineas = [...guard.filter(l => l.fecha !== ay), mk(ay, 15, 14, 'Cli Uno'), mk(ay, 10, 2, 'Cli Dos'), { ...mk(ay, 9, 0, 'X'), estado: 'pendiente' }];
     _rep = { id: 'produccion', desde: ay, hasta: ay }; irTab('rep:produccion');
     const T = tablasReporte().produccion, f = T[1], tot = T[T.length - 1], c = n => T[0].indexOf(n);
-    const r = { fila: f[0] === ay && f[c('Líneas')] === 2 && f[c('Meta (pallets)')] === 25 && f[c('Pallets')] === 16 && f[c('Cumplimiento (%)')] === 64 && f[c('Diferencia (pallets)')] === -9 && /Cli Uno, Cli Dos/.test(f[c('Clientes')]),
-      total: tot[0] === 'TOTAL' && tot[c('Pallets')] === 16 && /1 día · promedio 16/.test(tot[c('Estado')]),
+    const r = { fila: T[0].join() === 'Fecha,Realizado (pallets),Meta (pallets)' && f.join() === ay + ',16,25',
+      total: tot.join() === 'TOTAL,16,25',
       pantalla: /Producción diaria/.test(document.querySelector('.rep-tit').textContent) && !!document.querySelector('#repBox tr.rep-total') };
     S.lineas = guard; _rep = { id: 'asisGeneral', desde: '', hasta: '' }; setNav('supervisor'); return r; });
-  ok(pd.fila && pd.total && pd.pantalla, 'reportes: «Producción diaria» suma las líneas de cada día (meta, pallets, cumplimiento, diferencia) con el total del período');
+  ok(pd.fila && pd.total && pd.pantalla, 'reportes: «Producción diaria» muestra por fecha lo realizado (todas las líneas) y la meta, con el total');
   await page.setViewportSize({ width: 844, height: 390 });
   const laH = await page.evaluate(async () => {
     const t0 = Date.now() - 2 * 3600000; _la = { ..._la, paso: 'conteo', ses: { nombre: 'Prueba' }, est: { existe: true, letra: 'A', nombre: 'Prueba', estado: 'corriendo', inicio: t0, meta: 16, horas: 8, pallets: [t0], paros: [], almuerzos: [] } };
