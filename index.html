@@ -468,21 +468,55 @@ body.con-sel .avisos-app{bottom:90px}
 .la-opc button small{display:block;font-family:'Barlow',sans-serif;font-weight:400;text-transform:none;letter-spacing:0;color:var(--t3);font-size:.8rem;margin-top:2px}
 .la-in{font-size:1.4rem;padding:14px;border-radius:12px;border:1.5px solid var(--b2);background:var(--card);color:var(--t);width:100%;letter-spacing:1px}
 .la-err{color:var(--red-t);font-weight:600}
-.la-card{max-width:560px;width:100%;margin:0 auto;flex:1;display:flex;flex-direction:column;gap:14px;background:var(--card);border:1.5px solid var(--b2);border-radius:20px;padding:18px 16px;box-shadow:var(--shadow)}
+.la-card{max-width:620px;width:100%;margin:0 auto;flex:1;display:flex;flex-direction:column;gap:12px;background:var(--card);border-radius:22px;padding:16px;box-shadow:var(--shadow)}
 .la-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-.la-tit{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.45rem;text-transform:uppercase;letter-spacing:.4px;color:var(--t);line-height:1.1}
-.la-sub{font-size:.82rem;color:var(--t3);margin-top:2px}
-.la-timer{display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px;border-radius:14px;background:rgba(var(--fg),.04)}
-.la-timer b{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:3rem;line-height:1;font-variant-numeric:tabular-nums;color:var(--primary)}
-.la-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.8rem;letter-spacing:1px;text-transform:uppercase;color:var(--t3)}
-.la-count{display:flex;align-items:baseline;justify-content:center;gap:8px}
-.la-count b{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:6.5rem;line-height:.9;color:var(--t);font-variant-numeric:tabular-nums}
-.la-count span{font-size:1.3rem;color:var(--t3);font-family:'Barlow Condensed',sans-serif;font-weight:700}
-.la-ult{text-align:center;color:var(--t3);font-size:.9rem}
+.la-tit{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.35rem;text-transform:uppercase;letter-spacing:.4px;color:var(--t);line-height:1.1}
+.la-sub{font-size:.8rem;color:var(--t3);margin-top:2px}
+.la-cuerpo{flex:1;display:flex;flex-direction:column;gap:12px}
+.la-izq{display:flex;flex-direction:column;align-items:center;gap:10px}
+.la-der{display:flex;flex-direction:column;gap:10px;flex:1}
+/* Semáforo: toda la pantalla del color. Verde va bien, ámbar un poco abajo, rojo muy abajo */
+.la-full.fondo-verde{background:#00A878}.la-full.fondo-amarillo{background:#F08C00}.la-full.fondo-rojo{background:#E8003D}
+.la-full.pintada .la-card{background:transparent;box-shadow:none;color:#fff}
+.la-full.pintada .la-tit,.la-full.pintada .la-big b,.la-full.pintada .la-timer b{color:#fff}
+.la-full.pintada .la-sub,.la-full.pintada .la-big span,.la-full.pintada .la-lbl,.la-full.pintada .la-ult,.la-full.pintada .la-ritmo{color:rgba(255,255,255,.88)}
+.la-full.pintada .la-ritmo b{color:#fff}
+.la-full.pintada .la-timer{background:rgba(255,255,255,.16)}
+.la-full.pintada .la-sem{background:#fff}
+.la-full.fondo-verde .la-sem,.la-full.fondo-verde .la-btns .btn-green{color:#00A878}
+.la-full.fondo-amarillo .la-sem,.la-full.fondo-amarillo .la-btns .btn-green{color:#C46F00}
+.la-full.fondo-rojo .la-sem,.la-full.fondo-rojo .la-btns .btn-green{color:#E8003D}
+.la-full.pintada .la-btns .btn-green{background:#fff!important;border-color:#fff!important;box-shadow:0 6px 18px rgba(0,0,0,.15)}
+.la-full.pintada .la-btns .btn-ghost{background:rgba(255,255,255,.18)!important;border-color:rgba(255,255,255,.5)!important;color:#fff!important}
+.la-full.pintada .la-top .btn-ghost{background:rgba(255,255,255,.18)!important;border-color:rgba(255,255,255,.5)!important;color:#fff!important}
+.la-full.pintada .la-estado{background:rgba(255,255,255,.92)}
+.la-sem{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.1rem;letter-spacing:1.4px;text-transform:uppercase;padding:7px 20px;border-radius:999px;color:#fff;background:var(--t3)}
+.la-big{display:flex;flex-direction:column;align-items:center;line-height:1;width:100%;padding:6px 0}
+.la-big b{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(7rem,42vw,11rem);color:var(--t);font-variant-numeric:tabular-nums}
+.la-big span{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1.25rem;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-top:2px}
+.la-bar{width:min(100%,340px);height:12px;border-radius:999px;background:rgba(var(--fg),.1);margin-top:14px;overflow:hidden}
+.la-bar i{display:block;height:100%;border-radius:999px;background:var(--t3);transition:width .4s ease}
+.la-full.pintada .la-bar{background:rgba(255,255,255,.28)}.la-full.pintada .la-bar i{background:#fff}
+.la-timer{display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px;border-radius:14px;background:rgba(var(--fg),.04)}
+.la-timer b{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:2.6rem;line-height:1;font-variant-numeric:tabular-nums;color:var(--t)}
+.la-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.78rem;letter-spacing:1px;text-transform:uppercase;color:var(--t3)}
+.la-ult{color:var(--t3);font-size:.85rem}
+.la-ritmo{text-align:center;color:var(--t2);font-size:.92rem}
 .la-btns{display:grid;grid-template-columns:1fr 1.4fr 1.4fr;gap:10px;margin-top:auto}
-.la-btns button{display:flex;align-items:center;justify-content:center;height:92px;font-size:2rem!important;border-radius:18px!important;font-family:'Barlow Condensed',sans-serif;font-weight:800}
-.la-estado{text-align:center;padding:12px;border-radius:12px;font-weight:700}
+.la-btns button{display:flex;align-items:center;justify-content:center;height:88px;font-size:2rem!important;border-radius:18px!important;font-family:'Barlow Condensed',sans-serif;font-weight:800}
+.la-estado{text-align:center;padding:10px;border-radius:12px;font-weight:700}
 .la-estado.paro{background:rgba(232,0,61,.1);color:var(--red-t)}.la-estado.alm{background:rgba(245,162,11,.12);color:var(--amber)}
+/* Horizontal: el anillo a la izquierda; tiempo, ritmo y botones a la derecha */
+@media (orientation:landscape) and (max-height:620px){
+  .la-full{padding:8px}
+  .la-card{max-width:none;padding:12px 16px;gap:8px}
+  .la-cuerpo{flex-direction:row;align-items:stretch;gap:18px}
+  .la-izq{flex:0 0 auto;justify-content:center}
+  .la-izq{flex:0 0 42%}
+  .la-big b{font-size:clamp(5rem,34vh,9rem)}
+  .la-timer b{font-size:2.2rem}
+  .la-btns button{height:min(24vh,96px)}
+}
 .rep-filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.rep-filtros .field{min-width:140px}
 .rep-cab{margin-bottom:8px}.rep-tit{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.15rem;letter-spacing:.5px;text-transform:uppercase;color:var(--t)}
 .rep-tabla tr.rep-total td{font-weight:700;border-top:2px solid var(--b2)}
@@ -2084,7 +2118,7 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 // Desde el login, sin usuario: elige su línea, su nombre y confirma con la cédula del marcaje. Queda en una pantalla que
 // solo cuenta los pallets de esa línea (servidor: ch_linea_publica / ch_linea_login / ch_linea_estado / ch_linea_pallet).
 const LA_KEY='ch_linea_sesion_'+STATE_KEY;
-let _la={paso:'lineas',L:[],linea:null,persona:null,ses:null,est:null,err:'',ocupado:false,tic:null,poll:null};
+let _la={paso:'lineas',L:[],linea:null,persona:null,ses:null,est:null,err:'',ocupado:false,tic:null,poll:null,n10:0};
 const fmtReloj=ms=>{ ms=Math.max(0,ms||0); const t=Math.floor(ms/1000), h=Math.floor(t/3600), m=Math.floor(t%3600/60), sg=t%60; return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(sg).padStart(2,'0'); };
 function mostrarLA(v){ document.getElementById('lineaApp').classList.toggle('hidden',!v); if(!v){ clearInterval(_la.tic); clearInterval(_la.poll); } }
 async function lineaInicio(){
@@ -2094,6 +2128,8 @@ async function lineaInicio(){
 }
 function renderLA(){
   const el=document.getElementById('lineaApp'), volver=paso=>`<button class="btn btn-ghost" onclick="${paso?`_la.paso='${paso}';_la.err='';renderLA()`:'mostrarLA(false)'}">Volver</button>`;
+  const c=_la.paso==='conteo'&&_la.est&&_la.est.existe!==false?semaforoLA(_la.est).c:'';
+  el.className='la-full'+(c?' fondo-'+c:'')+(c&&c!=='neutro'?' pintada':'');
   if(_la.paso==='conteo'){ el.innerHTML=htmlConteoLA(); return; }
   let h='<div class="la-paso">';
   if(_la.paso==='lineas'){
@@ -2134,27 +2170,48 @@ function iniciarRelojLA(){
   clearInterval(_la.tic); clearInterval(_la.poll);
   _la.tic=setInterval(()=>{ const e=_la.est||{}, a=document.getElementById('laT1'), b=document.getElementById('laT2'), P=e.pallets||[];
     if(a) a.textContent=fmtReloj(e.inicio?(e.fin||Date.now())-e.inicio:0);
-    if(b&&P.length) b.textContent=fmtReloj(Date.now()-P[P.length-1]).replace(/^00:/,''); },1000);
+    if(b&&P.length) b.textContent=fmtReloj(Date.now()-P[P.length-1]).replace(/^00:/,'');
+    if(++_la.n10%10===0&&!_la.ocupado&&_la.paso==='conteo') renderLA(); },1000);
   _la.poll=setInterval(()=>{ if(!_la.ocupado) cargarEstadoLA(); },15000);
 }
+// Semáforo de la línea: pallets contra lo esperado a esta hora (meta × horas trabajadas ÷ horas planificadas, sin paros ni almuerzo)
+function semaforoLA(e, now){
+  now=now||Date.now(); const P=e.pallets||[], n=P.length, meta=+e.meta||0, horas=+e.horas||8;
+  if(e.estado!=='corriendo'||!e.inicio||!meta) return {c:'neutro',t:e.estado==='cerrada'?'Línea cerrada':'Sin arrancar'};
+  const fin=e.fin||now, dur=(x,act)=>Math.max(0,Math.min(fin,x.fin||fin)-x.inicio);
+  const fuera=[...(e.almuerzos||[]),...(e.paros||[])].reduce((a,x)=>a+dur(x),0)+(e.almuerzo?dur(e.almuerzo):0)+(e.paro?dur(e.paro):0);
+  const hT=Math.max(0,(fin-e.inicio-fuera)/3600000), ritmo=hT>0?n/hT:0, nec=Math.max(0,meta-n)/Math.max(0.1,horas-hT);
+  if(n>=meta) return {c:'verde',t:'Meta cumplida',ritmo,nec:0,hT};
+  if(hT<0.25) return {c:'neutro',t:'Arrancando',ritmo,nec,hT};
+  const esperado=meta*Math.min(1,hT/horas), r=esperado>0?n/esperado:1;
+  return r>=0.95?{c:'verde',t:'Vamos bien',ritmo,nec,hT}:r>=0.8?{c:'amarillo',t:'Un poco abajo',ritmo,nec,hT}:{c:'rojo',t:'Muy abajo',ritmo,nec,hT};
+}
 function htmlConteoLA(){
-  const e=_la.est||{}, P=e.pallets||[], n=P.length, meta=+e.meta||0, pct=meta?Math.min(100,Math.round(n/meta*100)):0, ult=P[n-1];
+  const e=_la.est||{}, P=e.pallets||[], n=P.length, meta=+e.meta||0, pct=meta?Math.min(100,n/meta*100):0, ult=P[n-1];
   if(e.existe===false) return `<div class="la-paso"><div class="la-h">La línea ya no existe</div><button class="btn btn-indigo btn-full" onclick="salirLA()">Salir</button></div>`;
-  const corre=e.estado==='corriendo', bloq=!corre||!!e.almuerzo||_la.ocupado;
+  const corre=e.estado==='corriendo', bloq=!corre||!!e.almuerzo||_la.ocupado, sm=semaforoLA(e);
   return `<div class="la-card">
     <div class="la-top"><div><div class="la-tit">Línea ${esc((e.letra?e.letra+' · ':'')+(e.nombre||''))}</div>
       <div class="la-sub">${esc(e.cliente||'')}${e.personas?' · '+e.personas+' personas':''} · ${esc((_la.ses&&_la.ses.nombre)||'')}</div></div>
       <button class="btn btn-ghost btn-sm" onclick="salirLA()">Salir</button></div>
     ${e.estado==='pendiente'?'<div class="la-estado alm">La línea aún no arranca. Cuando el supervisor la arranque, aquí cuentas los pallets.</div>':''}
-    ${e.estado==='cerrada'?'<div class="la-estado">La línea se cerró.</div>':''}
     ${e.paro?`<div class="la-estado paro">En paro · ${esc(e.paro.causa||'')}</div>`:''}
     ${e.almuerzo?'<div class="la-estado alm">En almuerzo: los pallets se suman al volver</div>':''}
-    <div class="la-timer"><span class="la-lbl">${corre?'Tiempo en marcha':'Tiempo de la línea'}</span><b id="laT1">${fmtReloj(e.inicio?(e.fin||Date.now())-e.inicio:0)}</b></div>
-    <div class="la-count"><b id="laN">${n}</b><span>/ ${meta} pallets</span></div>
-    <div class="pbar-wrap"><div class="pbar-fill ${pct>=100?'pg':'pa'}" style="width:${pct}%"></div></div>
-    <div class="la-ult">${ult?`Último pallet ${horaHM(ult)} · hace <span id="laT2">${fmtReloj(Date.now()-ult).replace(/^00:/,'')}</span>`:'Sin pallets aún'}${_la.err?`<br><span class="la-err">${esc(_la.err)}</span>`:''}</div>
-    <div class="la-btns"><button class="btn btn-ghost" ${bloq||!n?'disabled':''} onclick="sumarLA(-1)" aria-label="Restar un pallet">−</button>
-      <button class="btn btn-green" ${bloq?'disabled':''} onclick="sumarLA(1)">+1</button><button class="btn btn-green" ${bloq?'disabled':''} onclick="sumarLA(5)">+5</button></div>
+    <div class="la-cuerpo">
+      <div class="la-izq">
+        <div class="la-sem s-${sm.c}">${sm.t}</div>
+        <div class="la-big"><b id="laN">${n}</b><span>de ${meta} pallets · ${Math.round(meta?n/meta*100:0)}%</span>
+          <div class="la-bar"><i style="width:${pct.toFixed(1)}%"></i></div></div>
+      </div>
+      <div class="la-der">
+        <div class="la-timer"><span class="la-lbl">${corre?'Tiempo en marcha':'Tiempo de la línea'}</span><b id="laT1">${fmtReloj(e.inicio?(e.fin||Date.now())-e.inicio:0)}</b>
+          <span class="la-ult">${ult?`Último pallet ${horaHM(ult)} · hace <span id="laT2">${fmtReloj(Date.now()-ult).replace(/^00:/,'')}</span>`:'Sin pallets aún'}</span></div>
+        ${corre&&sm.hT>0?`<div class="la-ritmo">Ritmo <b>${fmtN(sm.ritmo)}</b> pallets/h${n<meta?` · para la meta <b>${fmtN(sm.nec)}</b>/h`:''}</div>`:''}
+        ${_la.err?`<div class="la-err" style="text-align:center">${esc(_la.err)}</div>`:''}
+        <div class="la-btns"><button class="btn btn-ghost" ${bloq||!n?'disabled':''} onclick="sumarLA(-1)" aria-label="Restar un pallet">−</button>
+          <button class="btn btn-green" ${bloq?'disabled':''} onclick="sumarLA(1)">+1</button><button class="btn btn-green" ${bloq?'disabled':''} onclick="sumarLA(5)">+5</button></div>
+      </div>
+    </div>
   </div>`;
 }
 async function sumarLA(d){
