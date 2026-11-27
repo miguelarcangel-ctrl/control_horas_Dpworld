@@ -455,8 +455,14 @@ body.con-sel .avisos-app{bottom:90px}
 .aviso-txt b{font-family:'Barlow Condensed',sans-serif;font-size:.9rem;letter-spacing:.3px;color:var(--t)}
 /* LÍNEAS DE PRODUCCIÓN */
 .lineas{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+/* Submenús del menú: el kit usa «dpw-sub» también para el subtítulo de la cinta (9px, sin desborde) y eso recortaba
+   los submenús. Aquí se anula dentro del menú (corregir también en el kit de HubApp). */
+#dpwItems{grid-auto-rows:max-content}
+#dpwItems .dpw-sub{overflow:visible;white-space:normal;letter-spacing:normal;text-transform:none;font-size:inherit;font-weight:inherit;color:inherit}
 .rep-filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}.rep-filtros .field{min-width:140px}
-.rep-lista .chip .li-sub{margin-left:4px}
+.rep-cab{margin-bottom:8px}.rep-tit{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.15rem;letter-spacing:.5px;text-transform:uppercase;color:var(--t)}
+.rep-tabla tr.rep-total td{font-weight:700;border-top:2px solid var(--b2)}
+.rep-filtros select{min-width:200px}
 .rep-acc{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 6px;font-size:.85rem}
 .rep-tabla{overflow:auto;max-height:60vh;border:1px solid var(--b1);border-radius:8px}
 .rep-tabla table{border-collapse:collapse;width:max-content;min-width:100%;font-size:.78rem}
@@ -1968,7 +1974,7 @@ function pasosTutorial(){
     P.push({t:'Listo',d:'Puedes volver a ver este tutorial desde el menú, en «Ver tutorial».'});
     return P;
   }
-  P.push({sel:'.dpw-burger',t:'Menú',d:'Aquí están todas las secciones'+(rol==='admin'?' por categoría: Operación del día, Personal, Productividad y costos, Clientes y cobros y Configuración. Dentro de cada una, sus pestañas arriba':rol==='supervisor'?' (Turno, Líneas y el alta de personal de contingente)':' (Líneas de producción)')+' y los ajustes: Avisos y este tutorial.'});
+  P.push({sel:'.dpw-burger',t:'Menú',d:'Aquí están todas las secciones'+(rol==='admin'?' en submenús que se despliegan: Operación del día, Personal, Productividad y costos, Reportería (asistencia general y detallada y cada reporte), Clientes y cobros y Configuración':rol==='supervisor'?' (Turno, Líneas y el alta de personal de contingente)':' (Líneas de producción)')+' y los ajustes: Avisos y este tutorial.'});
   P.push({sel:'[data-dpw="tema"]',t:'Tema claro u oscuro',d:'Cambia los colores de la app según la luz del lugar. Se recuerda en este equipo.'});
   if(rol!=='responsable'){
     if(!S.turno){
@@ -2464,8 +2470,8 @@ var CATS=[
     ['ins:prodPersonas','Por persona',()=>currentUser.rol==='admin'],
     ['ins:lineasRes','Líneas',()=>currentUser.rol==='admin'&&(S.lineasTipo||[]).length],
     ['ins:costosCli','Costos por cliente',()=>currentUser.rol==='admin'],
-    ['ins:historico','Histórico de turnos',()=>currentUser.rol==='admin',()=>(S.solicitudes||[]).filter(x=>x.estado==='pendiente').length],
-    ['ins:exportar','Reportes',()=>['admin','supervisor'].includes(currentUser.rol)]]},
+    ['ins:historico','Histórico de turnos',()=>currentUser.rol==='admin',()=>(S.solicitudes||[]).filter(x=>x.estado==='pendiente').length]]},
+  {id:'reporteria',t:'Reportería',tabs:()=>REPORTES.map(r=>['rep:'+r.id,nombreReporte(r),()=>['admin','supervisor'].includes(currentUser.rol)])},
   {id:'clientes',t:'Clientes y cobros',tabs:()=>[
     ['ins:clientes','Clientes',()=>currentUser.rol==='admin',()=>Object.keys(S.solicitudesAvanzado||{}).filter(k=>!avanzadoDe(k)).length],
     ['tarifario','Tarifarios',()=>currentUser.rol==='admin'&&facturacionOn()],
@@ -2481,10 +2487,11 @@ var CATS=[
     ['ins:usuarios','Usuarios y accesos',()=>currentUser.rol==='admin']]},
 ];
 function tabsDe(c){ if(!currentUser||esCliente()||IS_TV) return []; return c.tabs().filter(x=>{ try{ return !!x[2](); }catch(e){ return false; } }); }
-const navKey=()=>_nav==='insights'?'ins:'+_insSec:_nav;
+const navKey=()=>_nav==='insights'?(_insSec==='exportar'?'rep:'+_rep.id:'ins:'+_insSec):_nav;
 function catDe(key){ return CATS.find(c=>c.tabs().some(x=>x[0]===key)); }
 function irTab(key){ const c=catDe(key), x=c&&c.tabs().find(t=>t[0]===key); if(x&&x[4]){ x[4](); return; }
   try{ if(c) localStorage.setItem('ch_cat_'+c.id,key); }catch(e){}
+  if(key.startsWith('rep:')){ _rep.id=key.slice(4); abrirSeccion('exportar'); pintarMenu(); return; }
   if(key.startsWith('ins:')) abrirSeccion(key.slice(4)); else setNav(key); }
 function irCategoria(id){ const c=CATS.find(x=>x.id===id), A=tabsDe(c), T=A.filter(x=>!x[4]);
   if(!T.length){ if(A.length) A[0][4](); return; }   // categoría con solo acciones (p. ej. alta de contingente): la ejecuta
@@ -2492,7 +2499,7 @@ function irCategoria(id){ const c=CATS.find(x=>x.id===id), A=tabsDe(c), T=A.filt
 function pintarCatBar(){
   const el=document.getElementById('catBar'); if(!el) return;
   const key=navKey(), c=!esCliente()&&catDe(key), T=c?tabsDe(c):[];
-  if(!c||T.length<2||enKiosco()){ el.classList.add('hidden'); el.innerHTML=''; return; }
+  if(true||!c||T.length<2||enKiosco()){ el.classList.add('hidden'); el.innerHTML=''; return; }   // los submenús del menú reemplazan a las pestañas
   el.classList.remove('hidden');
   el.innerHTML=`<div class="cat-t">${esc(c.t)}</div><div class="cat-tabs" role="tablist">${T.map(x=>{ const n=x[3]?+x[3]()||0:0;
     return `<button type="button" role="tab" class="cat-tab${x[0]===key?' on':''}${x[4]?' acc':''}" aria-selected="${x[0]===key}" onclick="irTab('${x[0]}')">${esc(x[1])}${n?`<span class="n">${n>99?'99+':n}</span>`:''}</button>`; }).join('')}</div>`;
@@ -2514,13 +2521,13 @@ function pintarMenu(){
     {id:'tarifario',label:'Mi tarifario',hint:'tus precios',hidden:!esCliente()||!facturacionOn(),on:()=>setNav('tarifario')},
     {id:'proformas',label:'Mis proformas',badge:esCliente()&&facturacionOn()?(S.proformas||[]).filter(p=>p.clienteId===miCliente()&&p.estado==='revision').length:0,hidden:!esCliente()||!facturacionOn(),on:()=>setNav('proformas')},
   ];
-  // Equipo de la empresa: una fila por categoría; dentro, sus pestañas
-  CATS.forEach(c=>{ const T=interno?tabsDe(c):[], V=T.filter(x=>!x[4]);
-    items.push({id:'cat-'+c.id,label:c.t,hint:T.length>1||!V.length?T.map(x=>x[1].replace(' →','')).slice(0,3).join(' · ')+(T.length>3?'…':''):'',badge:T.reduce((a,x)=>a+(x[3]?+x[3]()||0:0),0),hidden:!T.length,on:()=>irCategoria(c.id)}); });
+  // Equipo de la empresa: cada categoría es un submenú desplegable con sus secciones
+  CATS.forEach(c=>{ (interno?tabsDe(c):[]).forEach(x=>items.push({id:x[0],label:x[1].replace(' →',''),hint:x[4]?'se abre aparte':'',group:c.t,
+    badge:x[3]?+x[3]()||0:0,on:()=>{ DPW.cerrarMenu&&DPW.cerrarMenu(); irTab(x[0]); }})); });
   items.push(
     {id:'avisos',label:'Avisos',group:'Ayuda',hint:st==='denied'?'Bloqueados en este equipo':st==='granted'?'Elegir qué avisa':'Activar y elegir',hidden:IS_TV||!interno,on:()=>abrirAvisos()},
     {id:'tutorial',label:'Ver tutorial',group:'Ayuda',hint:'qué es cada cosa',hidden:IS_TV||!currentUser,on:()=>{ DPW.cerrarMenu&&DPW.cerrarMenu(); iniciarTutorial(); }});
-  DPW.menu(items,cAct?'cat-'+cAct.id:_nav,{});
+  DPW.menu(items,key||_nav,{plegable:true});
   pintarCatBar();
 }
 function esResponsable(){ return !!currentUser&&currentUser.rol==='responsable'; }
@@ -3920,8 +3927,8 @@ async function guardarCorreccion(){
     hideModal('modalCorreccion'); await cargarAsistencia(_asist.desde,_asist.hasta); await cargarMarcas(); verAsistencia(_asVer); showToast('Marcaje corregido','success');
   }catch(e){ showToast('No se pudo corregir: '+e.message,'error'); }
 }
-function exportarAsistencia(){
-  const R=resumenAsistencia(), wb=XLSX.utils.book_new(), r2=n=>Math.round((n||0)*100)/100, hh=m=>m?horaHM(msTs(m.ts)):'';
+function tablasAsistencia(){
+  const R=resumenAsistencia(), r2=n=>Math.round((n||0)*100)/100, hh=m=>m?horaHM(msTs(m.ts)):'';
   const conC=marcajeClienteOn(), cC=(a,v)=>{ if(conC) a.splice(4,0,v); return a; }, cR=(a,v)=>{ if(conC) a.splice(6,0,v); return a; };
   const dia=[cC(['Fecha','Persona','Posición','Bodega','Entrada','Salida a almuerzo','Regreso de almuerzo','Salida','Horas trabajadas','Jornada (h)','Horas extra','Extra autorizado','Extra sin autorizar','Tardanza (min)','Observaciones'],'Cliente')];
   R.forEach(o=>o.D.sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(d=>dia.push(cC([d.fecha,o.nombre,PUESTOS[d.puesto]||'',d.bodega||'',hh(d.ent),hh(d.salAlm),hh(d.regAlm),hh(d.sal),r2(d.horas),d.jornada,r2(d.extra),r2(d.extraAut),r2(d.extraSin),d.tarde||'',[!d.sal&&d.fecha!==hoyStr()?'Sin salida (no suma extra)':'',d.salidaCierre?(d.sal.motivo||'Salida por cierre sin marcaje'):'',d.descanso?'Día de descanso (recargo del día)':'',d.corregido&&!d.salidaCierre?'Con corrección':''].filter(Boolean).join(' · ')],d.cliente||''))));
@@ -3930,6 +3937,10 @@ function exportarAsistencia(){
   const T=totalAsistencia(R); res.push(['TOTAL',T.dias,r2(T.horas),r2(T.extra),r2(T.extraSin),T.tardes,T.minTarde,T.incompletos,T.cierres]);
   const raw=[cR(['Fecha','Persona','Marcaje','Hora','Posición','Bodega','Registrado por','Anulado','Motivo de corrección','Corregido por','Corregido el'],'Cliente')];
   _asist.marcas.forEach(m=>raw.push(cR([m.fecha,m.nombre,TIPOS_MARCA[m.tipo],new Date(msTs(m.ts)).toLocaleString('es-PA'),PUESTOS[m.puesto]||'',m.bodega||'',m.por||'',m.anulado?'Sí':'',m.motivo||'',m.corregido_por||'',m.corregido_en?new Date(m.corregido_en).toLocaleString('es-PA'):''],m.cliente||'')));
+  return {res,dia,raw};
+}
+function exportarAsistencia(){
+  const {res,dia,raw}=tablasAsistencia(), wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(res),'Resumen por persona');
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(dia),'Asistencia diaria');
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(raw),'Marcajes');
@@ -4837,6 +4848,7 @@ function construirReportes(turnoId, rango){
   R.push({nombre:'Paros de línea',filas:parRows});
   R.push({nombre:'Insumos de línea',filas:insRows});
 
+  R.forEach(x=>{ x.id=REP_IDS[x.nombre]||x.nombre; });
   // El supervisor ve la reportería sin costos (como en la Vista TV): se quitan las columnas de dinero
   if(!currentUser||currentUser.rol!=='admin') R.forEach(x=>{
     const cab=x.filas[0]||[], fuera=new Set(cab.map((c,i)=>/costo|\(\$\)|pagado|perdido/i.test(c)?i:-1).filter(i=>i>=0));
@@ -4844,25 +4856,57 @@ function construirReportes(turnoId, rango){
     x.nombre=x.nombre.replace('Costos por Cliente','Horas por cliente').replace('Costos por Colaborador','Horas por colaborador'); });
   R.turnos=turnos; return R;
 }
-let _rep={id:0,desde:'',hasta:''};
+// Catálogo de la Reportería (cada uno es una fila del submenú «Reportería»). La asistencia sale de los marcajes del rango.
+var REPORTES=[
+  {id:'asisGeneral',t:'Asistencia general',d:'Por persona: días, horas, extra, tardanzas'},
+  {id:'asisDetalle',t:'Asistencia detallada',d:'Día por día: entrada, almuerzo, salida, horas'},
+  {id:'marcajes',t:'Marcajes',d:'Cada marca de la tablet, con correcciones'},
+  {id:'tareas',t:'Detalle de tareas'},{id:'turnos',t:'Resumen de turnos'},
+  {id:'clientes',t:'Costos por cliente',ts:'Horas por cliente'},{id:'colaboradores',t:'Costos por colaborador',ts:'Horas por colaborador'},
+  {id:'eficiencia',t:'Eficiencia por tarea'},{id:'lineas',t:'Líneas de producción'},{id:'cuadrilla',t:'Cuadrilla de línea'},
+  {id:'paros',t:'Paros de línea'},{id:'insumos',t:'Insumos de línea'}];
+function nombreReporte(r){ return (currentUser&&currentUser.rol!=='admin'&&r.ts)||r.t; }
+function esAsis(id){ return ['asisGeneral','asisDetalle','marcajes'].includes(id); }
+var _rep={id:'asisGeneral',desde:'',hasta:''}, _repCarga=null;   // var: el menú se pinta antes de esta línea
+// Todas las tablas del rango (asistencia incluida, si ya está cargada)
+function tablasReporte(){
+  const R=construirReportes(null,{desde:_rep.desde,hasta:_rep.hasta}), out={};
+  R.forEach(x=>out[x.id]=x.filas);
+  if(_asist.desde===_rep.desde&&_asist.hasta===_rep.hasta&&_asist.marcas){ const a=tablasAsistencia(); out.asisGeneral=a.res; out.asisDetalle=a.dia; out.marcajes=a.raw; }
+  return out;
+}
 function htmlReportes(){
   if(!_rep.desde){ _rep.hasta=hoyStr(); _rep.desde=fechaMenos(hoyStr(),14); }
-  const R=construirReportes(null,{desde:_rep.desde,hasta:_rep.hasta}), x=R[_rep.id]||R[0], cab=x.filas[0]||[], filas=x.filas.slice(1), MAX=300;
+  const def=REPORTES.find(r=>r.id===_rep.id)||REPORTES[0]; _rep.id=def.id;
+  const listo=!esAsis(def.id)||(_asist.desde===_rep.desde&&_asist.hasta===_rep.hasta&&_asist.marcas);
+  if(!listo&&!_repCarga) _repCarga=cargarAsistenciaRep();
+  const T=listo?tablasReporte():{}, tab=T[def.id]||[[]], cab=tab[0]||[], filas=tab.slice(1), MAX=300;
   const celda=v=>typeof v==='number'?`<td class="num">${fmtN(v)}</td>`:`<td>${esc(v==null?'':String(v))}</td>`;
-  return `<div class="rep-filtros"><div class="field"><label>Desde</label><input type="date" value="${_rep.desde}" onchange="_rep.desde=this.value;pintarReportes()"></div>
+  return `<div class="rep-cab"><div class="rep-tit">${esc(nombreReporte(def))}</div>${def.d?`<div class="li-sub">${esc(def.d)}</div>`:''}</div>
+    <div class="rep-filtros"><div class="field"><label>Desde</label><input type="date" value="${_rep.desde}" onchange="_rep.desde=this.value;pintarReportes()"></div>
       <div class="field"><label>Hasta</label><input type="date" value="${_rep.hasta}" onchange="_rep.hasta=this.value;pintarReportes()"></div>
+      <div class="field"><label>Reporte</label><select onchange="irTab('rep:'+this.value)">${REPORTES.map(r=>`<option value="${r.id}"${r.id===def.id?' selected':''}>${esc(nombreReporte(r))}</option>`).join('')}</select></div>
       <div class="chip-wrap" style="align-self:flex-end">${[['Hoy',0],['7 días',6],['15 días',14],['30 días',29]].map(([t,d])=>`<div class="chip${_rep.desde===fechaMenos(hoyStr(),d)&&_rep.hasta===hoyStr()?' selected':''}" onclick="_rep.desde=fechaMenos(hoyStr(),${d});_rep.hasta=hoyStr();pintarReportes()">${t}</div>`).join('')}</div></div>
-    <div class="chip-wrap rep-lista">${R.map((r,i)=>`<div class="chip${r===x?' selected':''}" onclick="_rep.id=${i};pintarReportes()">${esc(r.nombre)} <span class="li-sub">${r.filas.length-1}</span></div>`).join('')}</div>
-    <div class="rep-acc"><b>${esc(x.nombre)}</b> · ${filas.length} fila${filas.length===1?'':'s'} · ${etiquetaDia(_rep.desde)} a ${etiquetaDia(_rep.hasta).toLowerCase()}
-      <span class="btn-row"><button class="btn btn-green btn-sm" onclick="descargarReporte(${R.indexOf(x)})">Descargar este reporte</button><button class="btn btn-ghost btn-sm" onclick="descargarReporte(-1)">Descargar todos</button></span></div>
-    ${filas.length?`<div class="rep-tabla"><table><thead><tr>${cab.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${filas.slice(0,MAX).map(f=>`<tr>${cab.map((_,k)=>celda(f[k])).join('')}</tr>`).join('')}</tbody></table></div>
-      ${filas.length>MAX?`<div class="li-sub">Se muestran ${MAX} de ${filas.length} filas. El Excel trae todas.</div>`:''}`:'<div class="empty-text">Sin datos en estas fechas.</div>'}`;
+    ${!listo?'<div class="empty-text">Cargando los marcajes del período…</div>':`<div class="rep-acc"><span>${filas.length} fila${filas.length===1?'':'s'} · ${etiquetaDia(_rep.desde)} a ${etiquetaDia(_rep.hasta).toLowerCase()}</span>
+      <span class="btn-row"><button class="btn btn-green btn-sm" onclick="descargarReporte('${def.id}')">Descargar este reporte</button><button class="btn btn-ghost btn-sm" onclick="descargarReporte('')">Descargar todos</button></span></div>
+    ${filas.length?`<div class="rep-tabla"><table><thead><tr>${cab.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${filas.slice(0,MAX).map(f=>`<tr${f[0]==='TOTAL'?' class="rep-total"':''}>${cab.map((_,k)=>celda(f[k])).join('')}</tr>`).join('')}</tbody></table></div>
+      ${filas.length>MAX?`<div class="li-sub">Se muestran ${MAX} de ${filas.length} filas. El Excel trae todas.</div>`:''}`:'<div class="empty-text">Sin datos en estas fechas.</div>'}`}`;
+}
+async function cargarAsistenciaRep(){
+  const d=_rep.desde, h=_rep.hasta;
+  try{ const m=await rpc('ch_marcajes',{p_token:SESSION.token,p_key:STATE_KEY,p_desde:d,p_hasta:h})||[]; _asist.desde=d; _asist.hasta=h; _asist.marcas=m; }
+  catch(e){ showToast('No se pudo cargar la asistencia: '+e.message,'error'); }
+  _repCarga=null; if(_rep.desde===d&&_rep.hasta===h) pintarReportes(); else pintarReportes();
 }
 function pintarReportes(){ const el=document.getElementById('repBox'); if(el) el.innerHTML=htmlReportes(); }
-function descargarReporte(i){
-  const R=construirReportes(null,{desde:_rep.desde,hasta:_rep.hasta}), sel=i<0?R:[R[i]], nom=i<0?'Reportes':R[i].nombre.replace(/\W+/g,'_');
-  XLSX.writeFile(libroDe(sel),`${nom}_${_rep.desde}_a_${_rep.hasta}.xlsx`);
+async function descargarReporte(id){
+  if(_asist.desde!==_rep.desde||_asist.hasta!==_rep.hasta||!_asist.marcas) await cargarAsistenciaRep();
+  const T=tablasReporte(), sel=REPORTES.filter(r=>(!id||r.id===id)&&T[r.id]);
+  const wb=XLSX.utils.book_new(); sel.forEach(r=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(T[r.id]),nombreReporte(r).slice(0,31)));
+  XLSX.writeFile(wb,`${id?nombreReporte(sel[0]).replace(/\W+/g,'_'):'Reportes'}_${_rep.desde}_a_${_rep.hasta}.xlsx`);
 }
+var REP_IDS={'Detalle Tareas':'tareas','Resumen Turnos':'turnos','Costos por Cliente':'clientes','Eficiencia por Tarea':'eficiencia','Costos por Colaborador':'colaboradores',
+  'Líneas de producción':'lineas','Cuadrilla de línea':'cuadrilla','Paros de línea':'paros','Insumos de línea':'insumos'};
 function libroDe(R){ const wb=XLSX.utils.book_new(); R.forEach(x=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(x.filas),x.nombre.slice(0,31))); return wb; }
 function exportExcel(turnoId){
   const R=construirReportes(turnoId);

@@ -10,10 +10,12 @@ let fails = 0;
 // Menú por categorías: si el nombre es una fila del menú la toca; si es una pestaña, entra por su categoría y toca la pestaña
 const irA = async (page, label) => { await page.click('.dpw-burger');
   const it = page.locator(`.dpw-item:has-text("${label}")`).first();
-  if (await it.count()) { await it.click(); return; }
-  const key = await page.evaluate(l => { for (const c of CATS) { const x = tabsDe(c).find(t => t[1] === l); if (x) { DPW.cerrarMenu(); irCategoria(c.id); return x[0]; } } return null; }, label);
-  if (!key) throw new Error('No está en el menú ni en las pestañas: ' + label);
-  await page.click(`.cat-tab:has-text("${label}")`); };
+  if (await it.count()) {   // si está dentro de un submenú cerrado, primero se despliega
+    if (!(await it.isVisible())) await page.evaluate(l => { const b = [...document.querySelectorAll('.dpw-item')].find(x => x.textContent.includes(l)), sub = b && b.closest('.dpw-sub');
+      if (sub && sub.hidden) document.querySelector('[aria-controls="' + sub.id + '"]').click(); }, label);
+    await it.click(); return; }
+  const key = await page.evaluate(l => { for (const c of CATS) { const x = tabsDe(c).find(t => t[1] === l); if (x) { DPW.cerrarMenu(); irTab(x[0]); return x[0]; } } return null; }, label);
+  if (!key) throw new Error('No está en el menú: ' + label); };
 const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 
 async function newPage(browser, opts = {}) {
@@ -111,18 +113,28 @@ async function newPage(browser, opts = {}) {
   await page.evaluate(() => exportExcel(null));
   const x = await page.evaluate(() => window.__xlsx.w.s.map(s => s[0] + ':' + s[1].length));
   ok(x.length === 9, 'Excel con 9 hojas: ' + x.join(', '));
-  const rp = await page.evaluate(() => {
-    _rep = { id: 0, desde: '', hasta: '' }; abrirSeccion('exportar');
-    const box = document.getElementById('repBox'), r = {};
-    r.pantalla = !!box && box.querySelectorAll('.rep-lista .chip').length === 9 && box.querySelectorAll('.rep-tabla tbody tr').length > 0 && /Detalle Tareas/.test(box.innerHTML);
-    box.querySelectorAll('.rep-lista .chip')[1].click();
-    r.cambia = /Resumen Turnos/.test(document.querySelector('.rep-acc').textContent);
-    descargarReporte(1); r.uno = window.__xlsx.w.s.length === 1 && window.__xlsx.w.s[0][0] === 'Resumen Turnos' && /^Resumen_Turnos_/.test(window.__xlsx.n);
-    descargarReporte(-1); r.todos = window.__xlsx.w.s.length === 9;
-    _rep.desde = '2000-01-01'; _rep.hasta = '2000-01-02'; pintarReportes(); r.rango = /Sin datos en estas fechas/.test(document.getElementById('repBox').innerHTML);
-    _rep = { id: 0, desde: '', hasta: '' }; setNav('supervisor'); return r; });
-  ok(rp.pantalla && rp.cambia, 'reportes: se ven en pantalla, uno por uno (9 reportes), con filtro de fechas');
+  const rp = await page.evaluate(async () => {
+    const r = {}; _rep = { id: 'asisGeneral', desde: '', hasta: '' };
+    // el menú lleva el submenú «Reportería» con cada reporte
+    pintarMenu(); const sub = [...document.querySelectorAll('.dpw-gbtn')].find(b => /Reportería/.test(b.textContent));
+    r.submenu = !!sub && document.querySelectorAll('#dpwItems .dpw-item').length > 0 && REPORTES.every(x => document.querySelector('#dpwItems [data-dpw-id="rep:' + x.id + '"], #dpwItems .dpw-item') );
+    r.filas = [...document.querySelectorAll('#dpwItems .dpw-item')].map(b => b.textContent);
+    irTab('rep:tareas'); const box = document.getElementById('repBox');
+    r.pantalla = !!box && /Detalle de tareas/.test(box.querySelector('.rep-tit').textContent) && box.querySelectorAll('.rep-tabla tbody tr').length > 0 && !box.querySelector('.rep-lista');
+    irTab('rep:turnos'); r.cambia = /Resumen de turnos/.test(document.querySelector('.rep-tit').textContent) && navKey() === 'rep:turnos';
+    await descargarReporte('turnos'); r.uno = window.__xlsx.w.s.length === 1 && window.__xlsx.w.s[0][0] === 'Resumen de turnos' && /^Resumen_de_turnos_/.test(window.__xlsx.n);
+    await descargarReporte(''); r.todos = window.__xlsx.w.s.length === REPORTES.length;
+    // asistencia general y detallada por rango
+    irTab('rep:asisGeneral'); await new Promise(res => setTimeout(res, 120));
+    const T = tablasReporte(), G = T.asisGeneral || [[]];
+    r.asisG = G[0].includes('Días trabajados') && G[G.length - 1][0] === 'TOTAL' && /Asistencia general/.test(document.querySelector('.rep-tit').textContent);
+    irTab('rep:asisDetalle'); await new Promise(res => setTimeout(res, 50)); r.asisD = (T.asisDetalle || [[]])[0].includes('Salida a almuerzo') && /Asistencia detallada/.test(document.querySelector('.rep-tit').textContent);
+    _rep.desde = '2000-01-01'; _rep.hasta = '2000-01-02'; pintarReportes(); await new Promise(res => setTimeout(res, 120)); r.rango = /Sin datos en estas fechas/.test(document.getElementById('repBox').innerHTML);
+    _rep = { id: 'asisGeneral', desde: '', hasta: '' }; setNav('supervisor'); return r; });
+  ok(rp.submenu, 'menú: submenú desplegable «Reportería» con cada reporte');
+  ok(rp.pantalla && rp.cambia, 'reportes: cada uno se abre desde el menú y se ve en pantalla (sin tarjetas), con filtro de fechas');
   ok(rp.uno && rp.todos && rp.rango, 'reportes: se descarga solo el que se ve o todos juntos; el rango de fechas filtra');
+  ok(rp.asisG && rp.asisD, 'reportes: asistencia general (por persona, con total) y detallada (día por día) por rango de fechas');
 
   // 9) Configuración con tarifas
   await irA(page, 'Horario y recargos'); await page.evaluate(() => openConfig()); await page.waitForTimeout(200);
@@ -1040,7 +1052,7 @@ async function newPage(browser, opts = {}) {
     document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
     // como supervisor: alta de contingente desde el menú
     SRV.sessions[SESSION.token] = sup.id; currentUser = { id: sup.id, nombre: sup.nombre, username: sup.username, rol: 'supervisor' }; pintarMenu();
-    r.menu = [...document.querySelectorAll('#dpwItems .dpw-item')].some(x => /Personal/.test(x.textContent) && /contingente/i.test(x.textContent)) && tabsDe(CATS.find(c => c.id === 'personal')).some(x => /contingente/i.test(x[1]));
+    r.menu = [...document.querySelectorAll('#dpwItems .dpw-gbtn')].some(x => /Personal/.test(x.textContent)) && [...document.querySelectorAll('#dpwItems .dpw-item')].some(x => /contingente/i.test(x.textContent)) && tabsDe(CATS.find(c => c.id === 'personal')).some(x => /contingente/i.test(x[1]));
     SRV.push = []; await altaContingente();
     r.modal = /contingente/i.test(document.getElementById('peTitulo').textContent) && !document.getElementById('peContInfo').classList.contains('hidden') && document.getElementById('peActivoRow').classList.contains('hidden');
     document.getElementById('peNombre').value = 'Carlos Contingente'; document.getElementById('peCedula').value = '8-777-0001'; _pePuesto = 'operador'; await guardarPersona();
@@ -1277,13 +1289,13 @@ async function newPage(browser, opts = {}) {
   ok(await page.evaluate(() => ![...document.querySelectorAll('.dpw-item')].some(b => b.textContent.includes('Insights'))), 'supervisor no ve Insights en el menú');
   ok(await page.evaluate(() => document.getElementById('adminKPI').style.display !== 'flex'), 'supervisor no ve costos');
   const rsup = await page.evaluate(() => {
-    const tab = CATS.find(c => c.id === 'productividad'), T = tabsDe(tab).map(x => x[0]);
-    irTab('ins:exportar'); const box = document.getElementById('repBox');
+    const T = tabsDe(CATS.find(c => c.id === 'productividad')).map(x => x[0]), Rp = tabsDe(CATS.find(c => c.id === 'reporteria')).map(x => x[1]);
+    irTab('rep:clientes'); const box = document.getElementById('repBox');
     const R = construirReportes(null, {});
-    return { tab: T.length === 1 && T[0] === 'ins:exportar', ve: !!box && box.querySelectorAll('.rep-lista .chip').length === 9,
+    return { tab: T.length === 0 && Rp.length === REPORTES.length && Rp.includes('Horas por cliente'), ve: !!box && /Horas por cliente/.test(box.querySelector('.rep-tit').textContent),
       sinCostos: !R.some(r => (r.filas[0] || []).some(c => /costo|\(\$\)|pagado|perdido/i.test(c))) && R.some(r => r.nombre === 'Horas por cliente') && !/\$/.test(box.querySelector('thead').textContent) };
   });
-  ok(rsup.tab && rsup.ve, 'supervisor: entra a Reportes (en Productividad solo ve esa pestaña)');
+  ok(rsup.tab && rsup.ve, 'supervisor: ve el submenú Reportería completo (sin los tableros de costos)');
   ok(rsup.sinCostos, 'supervisor: los reportes salen sin costos (horas por cliente y por colaborador)');
 
   // 12) TV: solo con sesión de administrador
