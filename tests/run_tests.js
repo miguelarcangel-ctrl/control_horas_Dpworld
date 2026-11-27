@@ -1259,6 +1259,15 @@ async function newPage(browser, opts = {}) {
   await page.click('#loginBtn'); await page.waitForTimeout(600);
   ok(await page.evaluate(() => ![...document.querySelectorAll('.dpw-item')].some(b => b.textContent.includes('Insights'))), 'supervisor no ve Insights en el menú');
   ok(await page.evaluate(() => document.getElementById('adminKPI').style.display !== 'flex'), 'supervisor no ve costos');
+  const rsup = await page.evaluate(() => {
+    const tab = CATS.find(c => c.id === 'productividad'), T = tabsDe(tab).map(x => x[0]);
+    irTab('ins:exportar'); const box = document.getElementById('repBox');
+    const R = construirReportes(null, {});
+    return { tab: T.length === 1 && T[0] === 'ins:exportar', ve: !!box && box.querySelectorAll('.rep-lista .chip').length === 9,
+      sinCostos: !R.some(r => (r.filas[0] || []).some(c => /costo|\(\$\)|pagado|perdido/i.test(c))) && R.some(r => r.nombre === 'Horas por cliente') && !/\$/.test(box.querySelector('thead').textContent) };
+  });
+  ok(rsup.tab && rsup.ve, 'supervisor: entra a Reportes (en Productividad solo ve esa pestaña)');
+  ok(rsup.sinCostos, 'supervisor: los reportes salen sin costos (horas por cliente y por colaborador)');
 
   // 12) TV: solo con sesión de administrador
   const tv = await newPage(browser, { viewport: { width: 1600, height: 900 } });
