@@ -57,7 +57,7 @@
       let ult=SRV.marcas.filter(m=>m.key===a.p_key&&m.persona_id===a.p_persona&&!m.anulado&&Date.parse(m.ts)>now-20*3600000).sort((x,y)=>Date.parse(y.ts)-Date.parse(x.ts))[0];
       const dn=ult&&ult.tipo!=='salida'&&ult.fecha<fechaPA(now)&&new Date(now).getHours()>=5;if(dn){if(a.p_tipo!=='entrada')return err('SECUENCIA');const tc=Math.min(now,Math.max(new Date(ult.fecha+'T17:00:00').getTime(),Date.parse(ult.ts)));SRV.marcas.push({id:++SRV.marcaSeq,key:a.p_key,persona_id:ult.persona_id,nombre:ult.nombre,fecha:ult.fecha,tipo:'salida',puesto:ult.puesto,ts:new Date(tc).toISOString(),por:u.username,anulado:false,motivo:'Salida automática: no marcó salida; se cerró al marcar la entrada del día siguiente',corregido_por:u.username,corregido_en:new Date().toISOString(),bodega:ult.bodega||null,push_enviado:true});ult=null;}let f=fechaPA(now),pu=null;if(ult&&ult.tipo!=='salida'){f=ult.fecha;pu=ult.puesto;}
       const t=a.p_tipo;
-      if(t==='entrada'){if(ult&&ult.tipo!=='salida')return err('SECUENCIA');if(!['supervisor','operador','ag','linea','responsable'].includes(a.p_puesto))return err('PUESTO');pu=a.p_puesto;}
+      if(t==='entrada'){if(ult&&ult.tipo!=='salida')return err('SECUENCIA');if(!/^[a-z][a-z0-9_]{0,29}$/.test(a.p_puesto||''))return err('PUESTO');pu=a.p_puesto;}
       else if(t==='salida_almuerzo'){if(!ult||!['entrada','regreso_almuerzo'].includes(ult.tipo))return err('SECUENCIA');}
       else if(t==='regreso_almuerzo'){if(!ult||ult.tipo!=='salida_almuerzo')return err('SECUENCIA');}
       else if(t==='salida'){if(!ult||ult.tipo==='salida')return err('SECUENCIA');}
@@ -77,7 +77,7 @@
     ch_jornada_sin_turno:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(!['admin','supervisor'].includes(u.rol))return err('PERMISO','42501');
       const v=(SRV.rows[a.p_key]||{}).value||{};if((v.turno&&v.turno.fecha===a.p_fecha)||(v.turnosHistorial||[]).some(t=>t.fecha===a.p_fecha))return{data:0};
       const at=h=>new Date(a.p_fecha+'T'+h+':00').getTime(),ti=at('08:00'),tf=at('17:00');let n=0;const vistos=new Set();
-      SRV.marcas.filter(e=>e.key===a.p_key&&e.fecha===a.p_fecha&&e.tipo==='entrada'&&!e.anulado&&['supervisor','ag','operador'].includes(e.puesto)).sort((x,y)=>Date.parse(x.ts)-Date.parse(y.ts)).forEach(e=>{
+      SRV.marcas.filter(e=>e.key===a.p_key&&e.fecha===a.p_fecha&&e.tipo==='entrada'&&!e.anulado&&!['linea','responsable'].includes(e.puesto)).sort((x,y)=>Date.parse(x.ts)-Date.parse(y.ts)).forEach(e=>{
         if(vistos.has(e.persona_id))return;vistos.add(e.persona_id);
         if(SRV.marcas.some(s=>s.key===e.key&&s.persona_id===e.persona_id&&s.fecha===e.fecha&&s.tipo==='salida'&&!s.anulado))return;
         if(Date.parse(e.ts)>ti)e.ts=new Date(ti).toISOString();
