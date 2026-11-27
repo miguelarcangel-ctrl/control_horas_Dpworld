@@ -393,34 +393,39 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
   .tv-grid>div{overflow:visible!important;max-height:none!important}
   .tv-wrap [style*="padding:10px 20px"]{padding:8px 12px 0!important}
   .tv-wrap [style*="margin:0 20px"]{margin:0 12px!important}
-  .tvl{padding:14px 16px}
-  .tvl-grid{min-height:0}
+  .tvl{padding:12px 14px;height:clamp(300px,82vw,460px)}
+  .tvl-grid{grid-template-columns:1fr!important;grid-template-rows:none!important;height:auto!important;min-height:0}
 }
-.tvl-grid{display:grid;gap:16px;grid-template-columns:1fr;flex:1;min-height:calc(100vh - 150px)}
-@media (min-width:900px){.tvl-grid.tvl-n2{grid-template-columns:1fr 1fr}.tvl-grid.tvl-n3{grid-template-columns:repeat(3,1fr)}}
-.tvl{background:var(--card);border:1px solid var(--b1);border-radius:16px;padding:22px 26px;display:flex;flex-direction:column;gap:16px;justify-content:space-between}
-.tvl .tv-badge{font-size:.95rem;padding:6px 14px}
+.tvl-grid{display:grid;gap:12px;grid-template-columns:repeat(var(--c,1),minmax(0,1fr));grid-template-rows:repeat(var(--r,1),minmax(0,1fr));height:calc(100vh - 142px);min-height:300px}
+/* Cada tarjeta es un contenedor: el texto crece o se achica con el tamaño de la tarjeta (cq = % de la tarjeta) */
+.tvl{container-type:size;overflow:hidden;background:var(--card);border:1px solid var(--b1);border-radius:16px;padding:12px 16px;display:flex;flex-direction:column;gap:2.2cqh;justify-content:space-between}
+.tvl .tv-badge{font-size:min(4.2cqh,3.4cqw);padding:.35em .8em;white-space:nowrap}
 .tvl.tvl-corriendo{border-left:5px solid var(--green)}
-.tvl-paro{display:flex;justify-content:space-between;align-items:center;background:var(--red);color:#fff;border-radius:12px;padding:12px 18px;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(1.3rem,2.4vw,2.6rem);letter-spacing:.06em}
+.tvl-paro{display:flex;justify-content:space-between;align-items:center;background:var(--red);color:#fff;border-radius:10px;padding:1.2cqh 2.4cqw;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:min(7cqh,5cqw);letter-spacing:.06em}
 .tvl-paro span{font-variant-numeric:tabular-nums}
-.tvl-agota{background:rgba(245,162,11,.15);border:1px solid rgba(245,162,11,.5);color:var(--amber);border-radius:10px;padding:8px 14px;font-weight:700;font-size:clamp(.95rem,1.4vw,1.4rem)}
+.tvl-agota{background:rgba(245,162,11,.15);border:1px solid rgba(245,162,11,.5);color:var(--amber);border-radius:8px;padding:.8cqh 2cqw;font-weight:700;font-size:min(4.2cqh,3.2cqw)}
 .tvl-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-.tvl-name{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(1.6rem,2.4vw,2.6rem);letter-spacing:.06em;text-transform:uppercase;color:var(--t);line-height:1}
-.tvl-cli{font-size:clamp(.85rem,1.1vw,1.25rem);color:var(--t3);margin-top:6px}
-.tvl-big{display:flex;align-items:baseline;gap:10px;font-family:'Barlow Condensed',sans-serif}
-.tvl-big b{font-size:clamp(4rem,11vw,13rem);font-weight:800;line-height:.9;color:var(--t);font-variant-numeric:tabular-nums}
-.tvl-big span{font-size:clamp(1.6rem,2.6vw,3rem);color:var(--t2)}
-.tvl-big em{margin-left:auto;font-style:normal;font-size:clamp(2.2rem,4vw,4.5rem);font-weight:800;color:var(--t2)}
-.tvl-bar{position:relative;height:clamp(18px,2.4vh,30px);border-radius:15px;background:rgba(var(--fg),.08);overflow:visible}
-.tvl-fill{height:100%;border-radius:15px;transition:width 1s ease}
-.tvl-mark{position:absolute;top:-5px;bottom:-5px;width:3px;margin-left:-1px;background:#fff;border-radius:2px;box-shadow:0 0 6px rgba(255,255,255,.6)}
-.tvl-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
-.tvl-stats>div{background:rgba(var(--fg),.04);border:1px solid var(--b0);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column}
-.tvl-stats span{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:clamp(.72rem,1vw,1.05rem);letter-spacing:1px;text-transform:uppercase;color:var(--t3)}
-.tvl-stats b{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:clamp(2rem,3.4vw,3.6rem);color:var(--t);line-height:1.1;font-variant-numeric:tabular-nums}
+.tvl-name{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:min(8cqh,6.2cqw);letter-spacing:.04em;text-transform:uppercase;color:var(--t);line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tvl-top>div:first-child{min-width:0}
+.tvl.con-alerta .tvl-sub{display:none}
+.tvl-cli{font-size:min(4.4cqh,3.4cqw);color:var(--t3);margin-top:.5cqh;line-height:1.25}
+.tvl-big{display:flex;align-items:baseline;gap:2cqw;font-family:'Barlow Condensed',sans-serif}
+.tvl-big b{font-size:min(32cqh,40cqw);font-weight:800;line-height:.85;color:var(--t);font-variant-numeric:tabular-nums}
+.tvl-big span{font-size:min(9cqh,8cqw);color:var(--t2)}
+.tvl-big em{margin-left:auto;font-style:normal;font-size:min(13cqh,12cqw);font-weight:800;color:var(--t2)}
+.tvl-bar{position:relative;height:max(10px,3.6cqh);border-radius:99px;background:rgba(var(--fg),.08);overflow:visible;flex:0 0 auto}
+.tvl-fill{height:100%;border-radius:99px;transition:width 1s ease}
+.tvl-mark{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1px;background:#fff;border-radius:2px;box-shadow:0 0 6px rgba(255,255,255,.6)}
+.tvl-stats{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:1.4cqw}
+.tvl-stats>div{background:rgba(var(--fg),.04);border:1px solid var(--b0);border-radius:8px;padding:1cqh 2cqw;display:flex;flex-direction:column;min-width:0}
+.tvl-stats span{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:min(3.8cqh,3cqw);letter-spacing:.8px;text-transform:uppercase;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tvl-stats b{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:min(11cqh,8.5cqw);color:var(--t);line-height:1.05;font-variant-numeric:tabular-nums}
 .tvl-stats b.g{color:var(--green)}.tvl-stats b.a{color:var(--amber)}
-.tvl-stats small{font-size:clamp(.7rem,.9vw,.95rem);color:var(--t3)}
-.tvl-sub{font-size:.95rem;color:var(--t2)}
+.tvl-stats small{font-size:min(3.4cqh,2.7cqw);color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tvl-sub{font-size:min(3.8cqh,3cqw);color:var(--t2)}
+/* Tarjetas bajas: se quedan con lo esencial (pallets, barra, ritmo, necesario y proyección) */
+@container (max-height:430px){ .tvl-opc,.tvl-sub{display:none!important} }
+@container (max-height:300px){ .tvl-cli{display:none} .tvl-stats small{display:none} }
 .tvl-rank{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
 .tvl-rank>div{display:flex;align-items:baseline;gap:8px;font-size:clamp(.95rem,1.3vw,1.4rem);color:var(--t2);background:rgba(var(--fg),.03);border-radius:8px;padding:6px 10px}
 .tvl-rank span{font-family:'Barlow Condensed',sans-serif;font-weight:800;color:var(--t3);min-width:14px}
@@ -6794,24 +6799,27 @@ function tvLineasBody(){
     if(l.estado==='pendiente'){ const c=cuadrilla(l.meta,l.prod,l.horas);
       return `<div class="tvl"><div class="tvl-top"><div><div class="tvl-name">Línea ${esc(lin(l))}</div><div class="tvl-cli">${esc(l.cliente||'')}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
         <div class="tvl-big"><b>0</b><span>/ ${l.meta} pallets</span></div><div class="tvl-sub">Meta del día ${l.meta} pallets · cuadrilla de ${c.total} personas</div></div>`; }
-    return `<div class="tvl tvl-${l.estado}${semClase(sm)}">
+    return `<div class="tvl tvl-${l.estado}${semClase(sm)}${l.paroActivo||agota.length?' con-alerta':''}">
       <div class="tvl-top"><div><div class="tvl-name">Línea ${esc(lin(l))}</div><div class="tvl-cli">${esc(l.cliente||'')}${l.bodega&&hayBodegas()?' · '+esc(l.bodega):''} · ${nP} persona${nP===1?'':'s'}${l.responsable?' · '+esc(l.responsable):''}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
       ${l.paroActivo?`<div class="tvl-paro">EN PARO · ${esc(l.paroActivo.causa)}<span>${fmtH(paroDur(l.paroActivo,now))}</span></div>`:''}
       ${agota.length?`<div class="tvl-agota">Por agotarse: ${agota.map(i=>esc(i.nombre)+' (alcanza para '+Math.max(0,estadoInsumo(i,l).alcanza)+')').join(' · ')}</div>`:''}
       <div class="tvl-big"><b>${r.tot}</b><span>/ ${l.meta} pallets</span><em>${Math.round(pct)}%</em></div>
       <div class="tvl-bar"><div class="tvl-fill" style="width:${pct}%;background:${vaBien||l.estado==='cerrada'?'var(--green)':'var(--amber)'}"></div>${esperado!=null?`<div class="tvl-mark" style="left:${esperado}%" title="Dónde debería ir a esta hora"></div>`:''}</div>
       <div class="tvl-stats">
-        <div><span>Ritmo actual</span><b>${fmtN(r.ritmo)}</b><small>pallets/h</small></div>
-        ${l.estado==='corriendo'?`<div><span>Ritmo necesario</span><b class="${necesario!=null&&r.ritmo<necesario?'a':'g'}">${necesario!=null?fmtN(necesario):'—'}</b><small>pallets/h para la meta</small></div>
-        <div><span>Proyección</span><b class="${vaBien?'g':'a'}">${r.proy}</b><small>al cierre</small></div>
-        <div><span>Último pallet</span><b>${ultimo?fmtH(msH(now-ultimo)).replace(' min','′'):'—'}</b><small>${ultimo?'atrás':''}</small></div>
-        <div><span>En paro hoy</span><b class="${r.paroH>0.25?'a':''}">${Math.round(r.paroH*60)}′</b><small>${Math.round(r.disponibilidad*100)}% corriendo</small></div>`
+        <div><span>Ritmo</span><b>${fmtN(r.ritmo)}</b><small>pallets/h</small></div>
+        ${l.estado==='corriendo'?`<div><span>Necesario</span><b class="${necesario!=null&&r.ritmo<necesario?'a':'g'}">${necesario!=null?fmtN(necesario):'—'}</b><small>para la meta</small></div>
+        <div><span>Cierre</span><b class="${vaBien?'g':'a'}">${r.proy}</b><small>proyectado</small></div>
+        <div class="tvl-opc"><span>Último</span><b>${ultimo?fmtH(msH(now-ultimo)).replace(' min','′'):'—'}</b><small>${ultimo?'atrás':''}</small></div>
+        <div class="tvl-opc"><span>Paro hoy</span><b class="${r.paroH>0.25?'a':''}">${Math.round(r.paroH*60)}′</b><small>${Math.round(r.disponibilidad*100)}% activa</small></div>`
         :`<div><span>Duración</span><b>${fmtH(r.h)}</b><small></small></div><div><span>Por persona</span><b>${fmtN(r.porPersona)}</b><small>pallets/h</small></div>`}
       </div>
       ${l.estado==='corriendo'&&l.prod?`<div class="tvl-sub">${fmtN(r.porPersona)} pallets por persona-hora · objetivo ${l.prod}</div>`:''}
     </div>`;
   }).join('');
-  return `<div class="tv-body"><div class="tvl-grid tvl-n${Math.min(L.length,3)}">${tarjetas}</div>
+  // Reparte las líneas para que todas quepan en la pantalla con tarjetas de forma parecida (≈ 1.3 de ancho por 1 de alto)
+  const n=L.length, W=Math.max(320,innerWidth-40), H=Math.max(300,innerHeight-142); let C=1, mejor=1e9;
+  for(let c=1;c<=Math.min(n,6);c++){ const r=Math.ceil(n/c), pt=Math.abs(Math.log((W/c)/(H/r)/1.3))+(r*c-n)*0.35; if(pt<mejor){ mejor=pt; C=c; } }
+  return `<div class="tv-body"><div class="tvl-grid" style="--c:${C};--r:${Math.ceil(n/C)}">${tarjetas}</div>
     <div class="tv-bar-legend" style="justify-content:center;gap:18px"><span>Verde: va bien · naranja: un poco abajo · rojo: muy abajo, según lo que debería llevar a esta hora. La marca en la barra indica dónde debería ir la línea a esta hora</span><span>Actualización automática cada 15 segundos</span></div></div>`;
 }
 function renderDashboardAnalytics(){
