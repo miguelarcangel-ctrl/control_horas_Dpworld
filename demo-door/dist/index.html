@@ -1232,14 +1232,10 @@ body.en-kiosco .door-demo-tag{display:none}
     <hr style="margin:4px 0">
     <div class="info-box hidden" id="cfgCostoDoor">Los costos del personal salen de <b>Servicios y tarifas</b> (costo por día de cada servicio) y del costo propio en la ficha de cada persona. Son los mismos para la planilla, los cobros y Productividad y costos.</div>
     <div id="cfgTarifasCargo">
-    <div class="sub-ttl">Tarifas (por día, antes de carga)</div>
-    <div class="field-row">
-      <div class="field"><label>Operador ($/día)</label><input type="number" id="cfgTarOp" min="0" step="0.5"></div>
-      <div class="field"><label>Ayudante general ($/día)</label><input type="number" id="cfgTarAG" min="0" step="0.5"></div>
-    </div>
+    <div class="sub-ttl">Costo del personal</div>
     <div class="field-row">
       <div class="field"><label>Factor de carga (x)</label><input type="number" id="cfgFactor" min="1" max="3" step="0.01"></div>
-      <div class="field"><label>Supervisor ($/día)</label><input type="number" id="cfgTarSup" min="0" step="0.5"></div>
+      <div class="field"><label>Costo por día de cada cargo</label><button type="button" class="btn btn-ghost btn-sm" onclick="hideModal('modalConfig');irTab('ins:cargos')">Ir a Cargos</button></div>
     </div>
     </div>
     <div class="sub-ttl">Avisos al supervisor</div>
@@ -1591,6 +1587,15 @@ body.en-kiosco .door-demo-tag{display:none}
     <button class="btn btn-green btn-full" onclick="guardarCausas()">Guardar</button>
   </div>
 </div>
+<div class="overlay hidden" id="modalCargo">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title" id="cgTitulo">Cargo</span><span class="modal-close" onclick="hideModal('modalCargo')">×</span></div>
+    <div class="field"><label>Nombre del cargo</label><input type="text" id="cgNombre" placeholder="Ej. Verificador"></div>
+    <div class="field"><label>Costo por día ($, antes del factor de carga)</label><input type="number" id="cgCosto" min="0" step="0.5" oninput="pintarCgHora()"></div>
+    <div class="li-sub" id="cgHora"></div>
+    <button class="btn btn-green btn-full" onclick="guardarCargo()">Guardar</button>
+  </div>
+</div>
 <div class="overlay hidden" id="modalTipoLinea">
   <div class="modal">
     <div class="modal-hdr"><span class="modal-title" id="tlTitulo">Tipo de línea</span><span class="modal-close" onclick="hideModal('modalTipoLinea')">×</span></div>
@@ -1598,6 +1603,11 @@ body.en-kiosco .door-demo-tag{display:none}
     <div class="field"><label>Cliente</label><select id="tlCliente" onchange="renderTlExcel()"></select></div>
     <div class="field-row">
       <div class="field"><label>Productividad (pallets por persona por hora, de toda la cuadrilla)</label><input type="number" id="tlProd" min="0" step="0.01"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Costo ($)</label><input type="number" id="tlCosto" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>UdM del costo</label><select id="tlUdm" onchange="pintarTlCosto()"><option value="persona">Por persona (día)</option><option value="paleta">Por paleta</option><option value="caja">Por caja</option></select></div>
+      <div class="field hidden" id="tlCajasField"><label>Cajas por paleta</label><input type="number" id="tlCajas" min="0" step="1"></div>
     </div>
     <div class="field hidden"><label>Puestos de apoyo por línea (no hacen pallets)</label><div id="tlApoyo" style="display:flex;flex-direction:column;gap:6px"></div>
       <button class="btn btn-ghost btn-sm" style="align-self:flex-start;margin-top:4px" onclick="addPuestoApoyo('',1)">+ Puesto</button></div>
@@ -1768,7 +1778,7 @@ function multDia(fecha){
 // Tarifa: día = tarifa × factor de carga; hora = día / horas productivas regulares × recargo del día
 function costoCargo(cargo, fecha){
   const c=getConfig();
-  const dia=(cargo==='operador'?c.tarifaOperador:cargo==='supervisor'?(c.tarifaSupervisor||c.tarifaOperador):c.tarifaAG)*(c.factorCarga||1);
+  const dia=costoDiaCargo(cargo)*(c.factorCarga||1);
   const hp=hpRegular();
   return{dia, hora:(hp>0?dia/hp:dia/8)*multDia(fecha), horasProductivas:hp};
 }
@@ -1913,7 +1923,7 @@ function persistable(){
   return JSON.parse(JSON.stringify(o));
 }
 function normalizeS(){
-  ['clientes','tareasCat','colaboradores','solicitudes','pedidosPersonal','servicios','proformas','cotizaciones','solicitudesCot','turnosProgramados','turnosHistorial','tareasActivas','historial','rutinas','plantillas','temaHSE','maestro','lineasTipo','lineasPlan','nombresLinea','lineas','causasParo']
+  ['clientes','tareasCat','colaboradores','solicitudes','pedidosPersonal','servicios','proformas','cotizaciones','solicitudesCot','turnosProgramados','turnosHistorial','tareasActivas','historial','rutinas','plantillas','temaHSE','maestro','lineasTipo','lineasPlan','nombresLinea','lineas','causasParo','cargos']
     .forEach(k=>{ if(!Array.isArray(S[k])) S[k]=[]; });
   (S.proformas||[]).forEach(p=>{ if(p.estado==='confirmada') p.estado='aprobada'; });   // versión anterior: «confirmada» = aprobada por el cliente
   ['usuariosCliente','tarifasCliente','fichas','clientesAvanzado','solicitudesAvanzado','tarifasOrigen'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object'||Array.isArray(S[k])) S[k]={}; });
@@ -2653,7 +2663,7 @@ var SECCIONES_INS={   // var: el menú se pinta antes de esta línea
   historico:['Histórico de turnos'], exportar:['Reportes'],
   personal:['Personal'], asistencia:['Asistencia y horas'],
   clientes:['Clientes'],
-  tareas:['Catálogo de tareas'], lineasCfg:['Líneas y maquila'], plantillas:['Plantillas y planes'], config:['Horario y recargos'], usuarios:['Usuarios y accesos'],
+  tareas:['Catálogo de tareas'], lineasCfg:['Catálogo de líneas'], plantillas:['Plantillas y planes'], config:['Horario y recargos'], cargos:['Cargos'], usuarios:['Usuarios y accesos'],
 };
 // Categorías del menú y sus pestañas: [clave, nombre, visible(), insignia(), acción en lugar de pantalla]
 // clave: una vista (setNav) o 'ins:<sección>'. Las acciones (Vista TV, alta de contingente, marcaje en tablet) abren algo aparte.
@@ -2686,9 +2696,10 @@ var CATS=[
     ['tarifas','Servicios y tarifas',()=>currentUser.rol==='admin'&&facturacionOn()]]},
   {id:'config',t:'Configuración',tabs:()=>[
     ['ins:tareas','Catálogo de tareas',()=>currentUser.rol==='admin'],
-    ['ins:lineasCfg','Líneas y maquila',()=>currentUser.rol==='admin'],
+    ['ins:lineasCfg','Catálogo de líneas',()=>currentUser.rol==='admin'],
     ['ins:plantillas','Plantillas y planes',()=>currentUser.rol==='admin'],
     ['ins:config','Horario y recargos',()=>currentUser.rol==='admin'],
+    ['ins:cargos','Cargos',()=>currentUser.rol==='admin'&&!facturacionOn()],
     ['ins:usuarios','Usuarios y accesos',()=>currentUser.rol==='admin']]},
 ];
 function tabsDe(c){ if(!currentUser||esCliente()||IS_TV) return []; return c.tabs().filter(x=>{ try{ return !!x[2](); }catch(e){ return false; } }); }
@@ -3122,7 +3133,7 @@ function cuadrilla(meta, prod, horas){
   const n=personasNecesarias(meta,prod,horas);
   return {pal:n,ap:0,total:n,texto:n?`<b>${n} persona${n===1?'':'s'}</b>`:''};
 }
-function datosDeTipo(t){ return {tipoId:t.id,nombre:t.nombre,clienteId:t.clienteId||null,cliente:(S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||'',prod:t.prod||0,apoyo:JSON.parse(JSON.stringify(t.apoyo||[])),
+function datosDeTipo(t){ return {tipoId:t.id,nombre:t.nombre,costo:t.costo?{...t.costo}:null,clienteId:t.clienteId||null,cliente:(S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||'',prod:t.prod||0,apoyo:JSON.parse(JSON.stringify(t.apoyo||[])),
   insumos:(t.insumos||[]).map(i=>({id:uid(),nombre:i.nombre,unidad:i.unidad||'unid',porPallet:+i.porPallet||0,entregas:[],sobrante:null}))}; }
 function nuevaLinea(t, meta, horas, fecha){
   fecha=fecha||hoyStr();
@@ -3288,7 +3299,7 @@ function renderLineas(){
   const v=document.getElementById('lineasList');
   if(v){
     document.getElementById('lineasHoyTitulo').textContent='Líneas de producción · '+new Date().toLocaleDateString('es-PA',{weekday:'long',day:'numeric',month:'long'});
-    v.innerHTML=htmlResumenLineas(L)+htmlBloques(L,hayTipos?'Sin líneas hoy. Usa + Línea hoy, o Planificar para otro día.':(currentUser&&currentUser.rol==='admin'?'Primero crea los tipos de línea en Configuración → Líneas y maquila.':'Pide al administrador que configure los tipos de línea.'));
+    v.innerHTML=htmlResumenLineas(L)+htmlBloques(L,hayTipos?'Sin líneas hoy. Usa + Línea hoy, o Planificar para otro día.':(currentUser&&currentUser.rol==='admin'?'Primero crea los tipos de línea en Configuración → Catálogo de líneas.':'Pide al administrador que configure los tipos de línea.'));
     renderPlanesLinea();
   }
   const sec=document.getElementById('secLineas');
@@ -3602,7 +3613,7 @@ async function eliminarLinea(){
 // Planificar cualquier día (o agregar una línea hoy)
 let _planEdit=null;
 function abrirPlanLinea(fecha, planId){
-  const T=S.lineasTipo||[]; if(!T.length){ showToast('Primero configura los tipos de línea en Configuración → Líneas y maquila','error'); return; }
+  const T=S.lineasTipo||[]; if(!T.length){ showToast('Primero configura los tipos de línea en Configuración → Catálogo de líneas','error'); return; }
   _planEdit=planId||null; _planBase=null; const pl=planId&&lineaDe(planId);
   document.getElementById('plTipo').innerHTML=T.map(t=>`<option value="${t.id}">${esc(t.nombre)}${t.clienteId?' · '+esc((S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||''):''}</option>`).join('');
   document.getElementById('plFecha').min=fechaLocal(new Date());
@@ -3717,18 +3728,28 @@ let _tipoEdit=null;
 const APOYO_INICIAL=[{nombre:'Armado de cajas',cant:1},{nombre:'Bandejas',cant:1},{nombre:'Etiquetado',cant:1}];
 function openModalTipoLinea(id){
   _tipoEdit=id||null; const t=id?tipoLinea(id):{};
-  document.getElementById('tlTitulo').textContent=id?'Editar tipo de línea':'Nuevo tipo de línea';
+  document.getElementById('tlTitulo').textContent=id?'Editar línea del catálogo':'Nueva línea de producción';
   document.getElementById('tlNombre').value=t.nombre||''; document.getElementById('tlProd').value=t.prod??'';
   document.getElementById('tlCliente').innerHTML='<option value="">— Sin cliente —</option>'+S.clientes.map(c=>`<option value="${c.id}"${c.id===t.clienteId?' selected':''}>${esc(c.nombre)}</option>`).join('');
   document.getElementById('tlApoyo').innerHTML=''; (id?(t.apoyo||[]):APOYO_INICIAL).forEach(a=>addPuestoApoyo(a.nombre,a.cant));
   document.getElementById('tlInsumos').innerHTML=''; (id?(t.insumos||[]):INSUMOS_INICIAL).forEach(i=>addInsumoTipo(i.nombre,i.unidad,i.porPallet));
   renderTlExcel(t.excel);
+  const co=t.costo||{}; document.getElementById('tlCosto').value=co.monto??''; document.getElementById('tlUdm').value=co.udm||'paleta';
+  document.getElementById('tlCajas').value=co.cajasPorPallet||((t.insumos||[]).find(i=>/^cajas?$/i.test(i.nombre))||{}).porPallet||''; pintarTlCosto();
   const v=t.venta||{}; document.getElementById('tlVentaField').classList.toggle('hidden',!facturacionOn());
   document.getElementById('tlVUnidad').value=v.unidad||'paleta'; document.getElementById('tlVPrecio').value=v.precio??'';
   document.getElementById('tlVPorPallet').value=v.porPallet??''; document.getElementById('tlVCosteo').value=v.costeo||'personal'; document.getElementById('tlVCosto').value=v.costoUnidad??'';
   pintarTlVenta(); showModal('modalTipoLinea');
 }
 const INSUMOS_INICIAL=[{nombre:'Cajas',unidad:'unid',porPallet:0},{nombre:'Bandejas',unidad:'unid',porPallet:0},{nombre:'Etiquetas',unidad:'unid',porPallet:0},{nombre:'Stretch',unidad:'rollo',porPallet:0}];
+function pintarTlCosto(){ document.getElementById('tlCajasField').classList.toggle('hidden',document.getElementById('tlUdm').value!=='caja'); }
+const UDM_COSTO={persona:['persona','personas'],paleta:['paleta','paletas'],caja:['caja','cajas']};
+// Costo de una línea: monto × cantidad de su UdM (personas que trabajaron en ella, paletas, o cajas = paletas × cajas por paleta)
+function costoLinea(l){
+  const c=l.costo||((tipoLinea(l.tipoId)||{}).costo); if(!c||!(+c.monto>0)) return null;
+  const pal=totalPallets(l), cant=c.udm==='persona'?new Set((l.personas||[]).map(p=>p.personaId||p.id)).size:c.udm==='caja'?pal*(+c.cajasPorPallet||0):pal;
+  return {udm:c.udm,monto:+c.monto,cant,total:cant*c.monto};
+}
 function addInsumoTipo(nombre, unidad, porPallet){
   const d=document.createElement('div'); d.className='edit-row';
   d.innerHTML=`<input type="text" placeholder="Insumo (ej. Cajas)" value="${esc(nombre||'')}"><input type="text" style="max-width:80px" placeholder="Unidad" value="${esc(unidad||'unid')}"><input type="number" min="0" step="any" style="max-width:100px" placeholder="Por pallet" value="${porPallet||''}" title="Consumo estándar por pallet"><button class="btn btn-red btn-sm" onclick="this.parentNode.remove()" aria-label="Quitar insumo">×</button>`;
@@ -3751,12 +3772,17 @@ async function guardarTipoLinea(){
   const apoyo=[...document.querySelectorAll('#tlApoyo .edit-row')].map(r=>{ const [n,c]=r.querySelectorAll('input'); return {nombre:n.value.trim(),cant:Math.max(0,Math.round(+c.value||0))}; }).filter(a=>a.nombre);
   const insumos=[...document.querySelectorAll('#tlInsumos .edit-row')].map(r=>{ const [n,u,q]=r.querySelectorAll('input'); return {nombre:n.value.trim(),unidad:u.value.trim()||'unid',porPallet:Math.max(0,+q.value||0)}; }).filter(i=>i.nombre&&i.porPallet>0);
   const d={nombre,prod,apoyo:[],insumos,clienteId:document.getElementById('tlCliente').value||null,excel:document.getElementById('tlExcel').value||null};
+  const monto=+document.getElementById('tlCosto').value||0, udm=document.getElementById('tlUdm').value, cajas=+document.getElementById('tlCajas').value||0;
+  if(monto>0&&udm==='caja'&&!(cajas>0)){ showToast('Indica cuántas cajas trae cada paleta','error'); return; }
+  d.costo=monto>0?{monto,udm,cajasPorPallet:udm==='caja'?cajas:0}:null;
   if(facturacionOn()){ const u=document.getElementById('tlVUnidad').value, pr=+document.getElementById('tlVPrecio').value||0;
     d.venta={unidad:u,precio:pr,porPallet:u==='paleta'?1:(+document.getElementById('tlVPorPallet').value||0),costeo:document.getElementById('tlVCosteo').value,costoUnidad:+document.getElementById('tlVCosto').value||0};
     if(pr>0&&u!=='paleta'&&!(d.venta.porPallet>0)){ showToast('Indica cuántas unidades de cobro trae cada pallet','error'); return; }
     if(pr>0&&d.venta.costeo==='unidad'&&!(d.venta.costoUnidad>0)){ showToast('Indica el costo por unidad','error'); return; } }
   S.lineasTipo=S.lineasTipo||[];
   if(_tipoEdit) Object.assign(tipoLinea(_tipoEdit),d); else S.lineasTipo.push({id:uid(),...d});
+  // el costo nuevo aplica a las líneas de este tipo que aún no cierran; las cerradas guardan el que tenían
+  if(_tipoEdit) (S.lineas||[]).filter(l=>l.tipoId===_tipoEdit&&l.estado!=='cerrada').forEach(l=>{ l.costo=d.costo?{...d.costo}:null; });
   hideModal('modalTipoLinea'); renderInsights(); renderAll(); await save(); showToast('Tipo de línea guardado');
 }
 function openModalCausas(){ document.getElementById('causasLista').innerHTML=''; causasParo().forEach(addCausa); showModal('modalCausas'); }
@@ -3771,11 +3797,23 @@ async function eliminarTipoLinea(id){ if(!confirm('¿Eliminar este tipo de líne
 // modo 'cfg' (Configuración: tipos y causas) · 'res' (Productividad: resultados, paros, insumos) · sin modo: todo
 function buildLineasSection(modo){
   const T=S.lineasTipo||[], L=(S.lineas||[]).filter(l=>l.estado!=='pendiente'), CFG=modo!=='res', RES=modo!=='cfg';
-  let h=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sLinCfg','cLinCfg')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Líneas de producción</span></div><div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalTipoLinea()">+ Tipo</button><span class="chevron open" id="cLinCfg">▼</span></div></div><div class="sec-body" id="sLinCfg">`;
+  let h=`<div class="sec"><div class="sec-hdr" onclick="toggleSec('sLinCfg','cLinCfg')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">${CFG?'Catálogo de líneas de producción':'Líneas de producción'}</span></div><div class="sec-hdr-actions">${CFG?`<button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalTipoLinea()">+ Nueva</button>`:''}<span class="chevron open" id="cLinCfg">▼</span></div></div><div class="sec-body" id="sLinCfg">`;
   if(CFG&&!T.length) h+=`<div class="warn-box">Crea los tipos de línea (por ejemplo Inserto botella, Canastilla) con su productividad (pallets por persona-hora). Luego los supervisores podrán planificarlas y arrancarlas desde el tablero.</div>`;
-  if(CFG) T.forEach(t=>{ const mk=t.excel&&maestroRow(t.excel), ap=(t.apoyo||[]).filter(a=>+a.cant>0);
-    h+=`<div class="list-item"><div class="li-info"><div class="li-name">${esc(t.nombre)}</div><div class="li-sub">${esc((S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||'Sin cliente')} · ${t.prod} pallets por persona-hora${mk?' · Excel: '+esc(mk.actividad):''}</div></div>
-    <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalTipoLinea('${t.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarTipoLinea('${t.id}')" aria-label="Eliminar tipo">×</button></div></div>`; });
+  if(CFG&&T.length&&!T.some(t=>t.costo&&t.costo.monto)) h+=`<div class="info-box">Pon el <b>costo</b> y su <b>UdM</b> (por persona, por paleta o por caja) en cada línea con <b>Editar</b>: sale en los reportes de líneas y de producción diaria.</div>`;
+  const caja=(l,v,c,sub)=>`<div style="background:var(--bg);border-radius:6px;padding:5px 7px;text-align:center"><div style="font-size:.58rem;font-weight:700;text-transform:uppercase;color:var(--mid)">${l}</div><div style="font-weight:800;font-size:.82rem;color:${c}">${v}</div>${sub?`<div style="font-size:.62rem;color:var(--mid)">${sub}</div>`:''}</div>`;
+  if(CFG) T.forEach(t=>{ const mk=t.excel&&maestroRow(t.excel), cli=(S.clientes.find(c=>c.id===t.clienteId)||{}).nombre;
+    const hechas=(S.lineas||[]).filter(l=>l.tipoId===t.id&&l.estado==='cerrada').map(l=>ritmoLinea(l)), hT=hechas.reduce((a,r)=>a+r.hTot,0), real=hT?hechas.reduce((a,r)=>a+r.tot,0)/hT:null;
+    const tc=t.costo&&t.costo.monto?t.costo:null, co=tc?money(tc.monto):'Sin costo', cs=tc?'por '+UDM_COSTO[tc.udm][0]+(tc.udm==='persona'?' (día)':tc.udm==='caja'?' · '+tc.cajasPorPallet+' por paleta':''):'';
+    h+=`<div class="list-item" style="flex-direction:column;align-items:flex-start;gap:5px">
+      <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="li-name">${esc(t.nombre)}</span><span class="badge ${cli?'bi':'bgy'}" style="font-size:.58rem">${esc(cli||'Sin cliente')}</span>${mk?`<span class="badge bi" style="font-size:.58rem" title="${esc(mk.actividad)}">Excel</span>`:''}</div>
+        <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalTipoLinea('${t.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarTipoLinea('${t.id}')" aria-label="Eliminar línea del catálogo">×</button></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;width:100%">
+        ${caja('Prod. objetivo',t.prod,'var(--accent)','por persona-hora')}
+        ${caja('Prod. real',real!=null?fmtN(real):'Sin datos',real==null?'var(--mid)':real>=t.prod?'var(--green)':'var(--amber)',real!=null?'por persona-hora':'')}
+        ${caja('Costo',co,tc?'var(--purple)':'var(--mid)',cs)}
+      </div></div>`; });
   if(RES&&L.length){
     const por={}; L.forEach(l=>{ const o=por[l.nombre]||(por[l.nombre]={n:0,pal:0,meta:0,hPal:0,hTot:0,pers:0,hOp:0}); const r=ritmoLinea(l); o.n++; o.pal+=r.tot; o.meta+=l.meta||0; o.hPal+=r.hPal; o.hTot+=r.hTot; o.pers+=l.personas.length; o.hOp+=apoyoOperadores(l.id).total; });
     h+=`<table class="rt-table"><tr><th>Línea</th><th>Días</th><th>Pallets</th><th>Meta</th><th>Cumpl.</th><th>Personas prom.</th><th>Pallets/persona-h</th><th>Horas operadores</th></tr>`+
@@ -3844,6 +3882,16 @@ function buildProdPersonasSection(){
 const cargoNombre=c=>({operador:'Operador',ag:'Ayudante General',supervisor:'Supervisor',responsable:'Responsable de línea'}[c]||'Operador');
 const cargoCorto=c=>({operador:'Op',ag:'AG',supervisor:'Sup',responsable:'Resp'}[c]||'Op');
 const PUESTOS={operador:'Operador',ag:'Ayudante general',supervisor:'Supervisor',linea:'Línea de producción',responsable:'Responsable de línea'};
+// Cargos (Configuración → Cargos): nombre y costo por día de cada uno. Los cinco de siempre no se borran; el administrador agrega los demás.
+// PUESTOS se rehace con la lista para que el marcaje, el personal y los reportes muestren los cargos nuevos.
+const CARGOS_BASE=['operador','ag','supervisor','linea','responsable'];
+function cargos(){
+  if((S.cargos||[]).length) return S.cargos;
+  const c=getConfig(), t={operador:c.tarifaOperador,ag:c.tarifaAG,supervisor:c.tarifaSupervisor||c.tarifaOperador,linea:c.tarifaAG,responsable:c.tarifaAG};
+  return CARGOS_BASE.map(id=>({id,nombre:{operador:'Operador',ag:'Ayudante general',supervisor:'Supervisor',linea:'Línea de producción',responsable:'Responsable de línea'}[id],costoDia:+t[id]||0}));
+}
+function syncPuestos(){ const C=cargos(); Object.keys(PUESTOS).forEach(k=>{ if(!C.some(c=>c.id===k)) delete PUESTOS[k]; }); C.forEach(c=>{ PUESTOS[c.id]=c.nombre; }); }
+function costoDiaCargo(id){ const C=cargos(); return +((C.find(c=>c.id===id)||C.find(c=>c.id==='ag')||{}).costoDia)||0; }
 const TIPOS_MARCA={entrada:'Entrada',salida_almuerzo:'Salida a almuerzo',regreso_almuerzo:'Regreso de almuerzo',salida:'Salida'};
 let _personal=[], _marcas=[], _marcasCargadas=false;
 const KIOSCO_KEY='ch_kiosco_'+STATE_KEY;
@@ -4928,7 +4976,7 @@ function htmlFichaCliente(id){
       <div class="li-sub">Además de su personal del día: qué hace cada persona, tareas con su productividad y el costo del día a su tarifa.${sol?' <span class="badge ba">La solicitó '+esc(sol.por||'')+' el '+esc(sol.fecha)+'</span>':''}</div></div>`; }
   if(id){ const U=Object.entries(S.usuariosCliente||{}).filter(([,c])=>c===id).map(([u])=>u), TL=(S.lineasTipo||[]).filter(t=>t.clienteId===id);
     if(U.length||pedidosOn()) h+=`<div class="li-sub" style="margin-bottom:6px"><b>Usuarios del cliente:</b> ${U.length?U.map(u=>'@'+esc(u)).join(', '):'ninguno'} · se crean en Configuración → Usuarios y accesos, con rol «Cliente».</div>`;
-    if(TL.length) h+=`<div class="li-sub" style="margin-bottom:8px"><b>Maquilas:</b> ${TL.map(t=>{ const v=t.venta||{}; return esc(t.nombre)+(+v.precio>0?' ('+money(v.precio)+' por '+UNID_COBRO[v.unidad||'paleta'][0]+')':''); }).join(' · ')} · se editan en Configuración → Líneas y maquila.</div>`; }
+    if(TL.length) h+=`<div class="li-sub" style="margin-bottom:8px"><b>Maquilas:</b> ${TL.map(t=>{ const v=t.venta||{}; return esc(t.nombre)+(+v.precio>0?' ('+money(v.precio)+' por '+UNID_COBRO[v.unidad||'paleta'][0]+')':''); }).join(' · ')} · se editan en Configuración → Catálogo de líneas.</div>`; }
   return h;
 }
 function leerFichaCliente(cid){
@@ -5101,22 +5149,22 @@ function construirReportes(turnoId, rango){
   R.push({nombre:'Costos por Colaborador',filas:opRows});
 
   // Líneas de producción: control de cantidades
-  const linRows=[['Fecha','Línea','Cliente','Bodega','Actividad en Excel','Meta (pallets)','Pallets','Cumplimiento (%)','Personas','Horas línea','Pallets por persona-hora','Productividad objetivo','Horas operadores de apoyo','Minutos en paro','Disponibilidad (%)','Responsable','Inicio','Fin','Estado']];
+  const linRows=[['Fecha','Línea','Cliente','Bodega','Actividad en Excel','Meta (pallets)','Pallets','Cumplimiento (%)','Personas','Horas línea','Pallets por persona-hora','Productividad objetivo','Horas operadores de apoyo','Minutos en paro','Disponibilidad (%)','Responsable','Inicio','Fin','Estado','UdM del costo','Cantidad (UdM)','Costo unitario ($)','Costo de la línea ($)']];
   const perRows=[['Fecha','Línea','Cliente','Persona','Desde','Horas en la línea (sin almuerzo)']];
   const fechasT=new Set(turnos.map(t=>t.fecha));
   (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))).forEach(l=>{ const t={fecha:l.fecha};
     const r=ritmoLinea(l), fin=l.fin||Date.now();
-    linRows.push([t.fecha,lin(l),l.cliente||'',l.bodega||'',(l.excel||{}).actividad||'',l.meta,r.tot,l.meta?Math.round(r.tot/l.meta*100):'',l.personas.length,r2(r.h),r.hTot?r2(r.porPersona):'',l.prod||'',r2(apoyoOperadores(l.id).total),Math.round(r.paroH*60),Math.round(r.disponibilidad*100),l.responsable||'',hora(l.inicio),l.fin?hora(l.fin):'En marcha',l.estado==='cerrada'?'Cerrada':'En marcha']);
+    linRows.push([t.fecha,lin(l),l.cliente||'',l.bodega||'',(l.excel||{}).actividad||'',l.meta,r.tot,l.meta?Math.round(r.tot/l.meta*100):'',l.personas.length,r2(r.h),r.hTot?r2(r.porPersona):'',l.prod||'',r2(apoyoOperadores(l.id).total),Math.round(r.paroH*60),Math.round(r.disponibilidad*100),l.responsable||'',hora(l.inicio),l.fin?hora(l.fin):'En marcha',l.estado==='cerrada'?'Cerrada':'En marcha',...(cl=>cl?[UDM_COSTO[cl.udm][0],cl.cant,r2(cl.monto),r2(cl.total)]:['','','',''])(costoLinea(l))]);
     l.personas.forEach(p=>perRows.push([t.fecha,lin(l),l.cliente||'',p.nombre,hora(p.desde||l.inicio),r2(horasEnLinea(p,l,fin))]));
   });
   R.push({nombre:'Líneas de producción',filas:linRows});
   // Producción diaria: fecha, lo realizado (todas las líneas sumadas) y la meta; al final el total del período
   const dia={};
   (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))).forEach(l=>{
-    const d=dia[l.fecha]||(dia[l.fecha]={meta:0,pal:0}); d.meta+=+l.meta||0; d.pal+=totalPallets(l); });
-  const prodRows=[['Fecha','Realizado (pallets)','Meta (pallets)']], tt={meta:0,pal:0};
-  Object.keys(dia).sort().reverse().forEach(f=>{ const d=dia[f]; prodRows.push([f,d.pal,d.meta]); tt.meta+=d.meta; tt.pal+=d.pal; });
-  if(Object.keys(dia).length) prodRows.push(['TOTAL',tt.pal,tt.meta]);
+    const d=dia[l.fecha]||(dia[l.fecha]={meta:0,pal:0,costo:0}); d.meta+=+l.meta||0; d.pal+=totalPallets(l); d.costo+=(costoLinea(l)||{}).total||0; });
+  const prodRows=[['Fecha','Realizado (pallets)','Meta (pallets)','Costo de líneas ($)']], tt={meta:0,pal:0,costo:0};
+  Object.keys(dia).sort().reverse().forEach(f=>{ const d=dia[f]; prodRows.push([f,d.pal,d.meta,r2(d.costo)]); tt.meta+=d.meta; tt.pal+=d.pal; tt.costo+=d.costo; });
+  if(Object.keys(dia).length) prodRows.push(['TOTAL',tt.pal,tt.meta,r2(tt.costo)]);
   R.push({nombre:'Producción diaria',filas:prodRows});
   const parRows=[['Fecha','Línea','Causa','Inicio','Fin','Minutos','Nota','Registrado por']];
   const insRows=[['Fecha','Línea','Insumo','Unidad','Consumo por pallet','Pallets','Esperado','Entregado','Sobrante','Consumo real','Diferencia','Diferencia (%)']];
@@ -5721,7 +5769,7 @@ function aplicarCotizacion(c){
       ((S.tarifasOrigen=S.tarifasOrigen||{})[cid]=S.tarifasOrigen[cid]||{})[s.id]=c.numero; out.push(s.nombre+' '+money(l.precio)+' por día'); }
     else if(l.tipo==='maquila'){ const t=l.tipoLineaId&&tipoLinea(l.tipoLineaId);
       if(t){ t.venta=Object.assign({costeo:'personal',costoUnidad:0,porPallet:1},t.venta||{},{unidad:l.unidad||'paleta',precio:+l.precio||0,cot:c.numero}); if(!t.clienteId) t.clienteId=cid; out.push(t.nombre+' '+money(l.precio)+' por '+(l.unidad||'unidad')); }
-      else out.push((l.desc||'Maquila')+': crear su tipo de línea en Configuración → Líneas y maquila'); } });
+      else out.push((l.desc||'Maquila')+': crear su tipo de línea en Configuración → Catálogo de líneas'); } });
   c.aplicado=out; return out;
 }
 // Aprobación (administrador): el cliente acepta por fuera (correo, teléfono, PDF firmado) y Door la aprueba aquí.
@@ -6223,10 +6271,57 @@ async function avisarRespuestasCliente(){
   try{ await save(); }finally{ _pedAvisando=false; }
 }
 
+// ═══ CARGOS ═══
+function buildCargosSection(){
+  const C=cargos(), f=getConfig().factorCarga||1, hp=hpRegular()||8, n=id=>(_personal||[]).filter(p=>p.puesto_def===id&&p.activo!==false).length;
+  const caja=(l,v,sub,c)=>`<div style="background:var(--bg);border-radius:6px;padding:5px 7px;text-align:center"><div style="font-size:.58rem;font-weight:700;text-transform:uppercase;color:var(--mid)">${l}</div><div style="font-weight:800;font-size:.82rem;color:${c}">${v}</div>${sub?`<div style="font-size:.62rem;color:var(--mid)">${sub}</div>`:''}</div>`;
+  return `<div class="sec"><div class="sec-hdr" onclick="toggleSec('sCargos','cCargos')"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Cargos</span></div>
+    <div class="sec-hdr-actions"><button class="btn btn-green btn-sm" onclick="event.stopPropagation();openModalCargo()">+ Nuevo</button><span class="chevron open" id="cCargos">▼</span></div></div>
+    <div class="sec-body" id="sCargos">
+    <div class="info-box">Costo por día de cada cargo, antes del factor de carga (×${f.toFixed(2)}, en Horario y recargos). Costo por hora = (día × carga) ÷ ${fmtN(hp)} h de jornada; sábado, domingo y sobretiempo llevan su recargo. Los cargos nuevos salen al dar de alta personal y al marcar en la tablet.</div>
+    ${C.map(c=>`<div class="list-item cg-item" data-id="${c.id}" style="flex-direction:column;align-items:flex-start;gap:5px">
+      <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="li-name">${esc(c.nombre)}</span>${n(c.id)?`<span class="badge bi" style="font-size:.58rem">${n(c.id)} persona${n(c.id)===1?'':'s'}</span>`:''}</div>
+        <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalCargo('${c.id}')">Editar</button>${CARGOS_BASE.includes(c.id)?'':`<button class="btn btn-red btn-sm" onclick="eliminarCargo('${c.id}')" aria-label="Eliminar cargo">×</button>`}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;width:100%">
+        ${caja('Costo por día',money(c.costoDia),'antes de carga','var(--accent)')}${caja('Con carga',money(c.costoDia*f),'por día','var(--purple)')}${caja('Por hora',money(c.costoDia*f/hp),'jornada regular','var(--green)')}
+      </div></div>`).join('')}
+    </div></div>`;
+}
+let _cargoEdit=null;
+function openModalCargo(id){
+  _cargoEdit=id||null; const c=id?cargos().find(x=>x.id===id):{};
+  document.getElementById('cgTitulo').textContent=id?'Editar cargo':'Nuevo cargo';
+  document.getElementById('cgNombre').value=c.nombre||''; document.getElementById('cgCosto').value=c.costoDia??''; pintarCgHora(); showModal('modalCargo');
+}
+function pintarCgHora(){ const d=+document.getElementById('cgCosto').value||0, f=getConfig().factorCarga||1, hp=hpRegular()||8;
+  document.getElementById('cgHora').textContent=d?`Con carga: ${money(d*f)} por día · ${money(d*f/hp)} por hora`:''; }
+const idCargo=(nombre,usados)=>{ let b=normTxt(nombre).replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,24); if(!/^[a-z]/.test(b)) b='c_'+b; let id=b,i=2; while(usados.has(id)) id=b+'_'+(i++); return id; };
+async function fijarCargos(L){
+  S.cargos=L; const c=getConfig(); c.tarifaOperador=costoDiaCargo('operador'); c.tarifaAG=costoDiaCargo('ag'); c.tarifaSupervisor=costoDiaCargo('supervisor'); S.config=c;
+  syncPuestos(); renderInsights(); renderAll(); await save();
+}
+async function guardarCargo(){
+  const nombre=document.getElementById('cgNombre').value.trim(), costoDia=Math.max(0,+document.getElementById('cgCosto').value||0);
+  if(!nombre){ showToast('Pon el nombre del cargo','error'); return; }
+  const L=JSON.parse(JSON.stringify(cargos()));
+  if(L.some(c=>c.id!==_cargoEdit&&normTxt(c.nombre)===normTxt(nombre))){ showToast('Ya existe el cargo «'+nombre+'»','error'); return; }
+  if(_cargoEdit) Object.assign(L.find(c=>c.id===_cargoEdit),{nombre,costoDia}); else L.push({id:idCargo(nombre,new Set(L.map(c=>c.id))),nombre,costoDia});
+  hideModal('modalCargo'); await fijarCargos(L); showToast('Cargo guardado');
+}
+async function eliminarCargo(id){
+  if(CARGOS_BASE.includes(id)) return;
+  const n=(_personal||[]).filter(p=>p.puesto_def===id&&p.activo!==false).length;
+  if(n){ showToast(n+' persona'+(n===1?' tiene':'s tienen')+' este cargo. Cámbiales el cargo en Personal antes de quitarlo.','error'); return; }
+  if(!confirm('¿Quitar este cargo? Los marcajes ya hechos con él se conservan.')) return;
+  await fijarCargos(cargos().filter(c=>c.id!==id)); showToast('Cargo quitado');
+}
+
 // ═══ CONFIG ═══
 const CFG_FIELDS=[['cfgHoraInicio','horaInicio','t'],['cfgHoraFin','horaFin','t'],['cfgAlmuerzo','horasAlmuerzo'],['cfgMultSobre','multSobretiempo'],
   ['cfgHorasSab','horasSabado'],['cfgMultSab','multSabado'],['cfgHorasDom','horasDomingo'],['cfgMultDom','multDomingo'],
-  ['cfgTarOp','tarifaOperador'],['cfgTarAG','tarifaAG'],['cfgFactor','factorCarga'],['cfgAlLibre','alertaLibreMin'],['cfgAlTarea','alertaTareaH'],['cfgAlParo','alertaParoMin'],['cfgTarSup','tarifaSupervisor'],['cfgTolera','toleranciaMin'],['cfgPedCorte','pedidoCorte','t']];
+  ['cfgFactor','factorCarga'],['cfgAlLibre','alertaLibreMin'],['cfgAlTarea','alertaTareaH'],['cfgAlParo','alertaParoMin'],['cfgTolera','toleranciaMin'],['cfgPedCorte','pedidoCorte','t']];
 function openConfig(){
   const cfg=getConfig();
   CFG_FIELDS.forEach(([id,k])=>{const el=document.getElementById(id);el.value=cfg[k];el.oninput=updateCfgResumen;});
@@ -6247,7 +6342,7 @@ function updateCfgResumen(){
   const c=leerCfgForm();
   const totalH=hmToH(c.horaFin)-hmToH(c.horaInicio), prodH=Math.max(0,totalH-c.horasAlmuerzo);
   const h=t=>prodH>0?t*c.factorCarga/prodH:0;
-  const op=h(c.tarifaOperador), ag=h(c.tarifaAG);
+  const op=h(costoDiaCargo('operador')), ag=h(costoDiaCargo('ag'));
   if(facturacionOn()){ document.getElementById('cfgResumen').innerHTML=`Turno <b>${c.horaInicio} → ${c.horaFin}</b> = ${totalH.toFixed(1)} h − ${c.horasAlmuerzo} h almuerzo = <b>${prodH.toFixed(1)} h productivas</b><br>Recargos: sobretiempo ×${c.multSobretiempo} · sábado ×${c.multSabado} · domingo ×${c.multDomingo}`; return; }
   document.getElementById('cfgResumen').innerHTML=
     `Turno <b>${c.horaInicio} → ${c.horaFin}</b> = ${totalH.toFixed(1)} h − ${c.horasAlmuerzo} h almuerzo = <b>${prodH.toFixed(1)} h productivas</b><br>
@@ -6383,6 +6478,8 @@ function renderInsights(){
       </div>
     </div></div>`;
   }
+  corte('cargos');
+  if(isAdmin&&!facturacionOn()) h+=buildCargosSection();
 
   corte('historico');
   // Solicitudes pendientes
@@ -7937,6 +8034,7 @@ function editarPlan(id){
 
 // ═══ RENDER ALL ═══
 function renderAll(){
+  syncPuestos();
   const has=!!S.turno;
   document.getElementById('noTurnoPanel').style.display=has?'none':'block';
   const tp=document.getElementById('turnoPanel');tp.classList.toggle('hidden',!has);

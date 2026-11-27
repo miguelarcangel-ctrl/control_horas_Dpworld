@@ -138,8 +138,23 @@ async function newPage(browser, opts = {}) {
 
   // 9) Configuración con tarifas
   await irA(page, 'Horario y recargos'); await page.evaluate(() => openConfig()); await page.waitForTimeout(200);
-  await page.fill('#cfgTarOp', '60'); await page.evaluate(() => guardarConfig()); await page.waitForTimeout(300);
-  ok(await page.evaluate(() => window.__SRV.rows.ctrl_horas_test.value.config.tarifaOperador === 60), 'tarifa operador editable y guardada');
+  ok(await page.evaluate(() => !document.getElementById('cfgTarOp') && /Ir a Cargos/.test(document.getElementById('modalConfig').innerHTML)), 'configuración: las tarifas se movieron a «Cargos»');
+  await page.evaluate(() => hideModal('modalConfig'));
+  await page.evaluate(() => { pintarMenu(); if (![...document.querySelectorAll('#dpwItems .dpw-item')].some(b => /^Cargos/.test(b.textContent.trim()))) throw new Error('Cargos no está en el menú'); irTab('ins:cargos'); }); await page.waitForTimeout(200);
+  const cg = await page.evaluate(async () => {
+    const r = {}, it = id => document.querySelector('.cg-item[data-id="' + id + '"]');
+    r.lista = ['operador', 'ag', 'supervisor', 'linea', 'responsable'].every(id => !!it(id)) && !it('operador').querySelector('.btn-red');
+    openModalCargo('operador'); document.getElementById('cgCosto').value = '60'; await guardarCargo();
+    openModalCargo(); document.getElementById('cgNombre').value = 'Verificador'; document.getElementById('cgCosto').value = '40'; await guardarCargo();
+    await new Promise(res => setTimeout(res, 200));
+    const v = window.__SRV.rows.ctrl_horas_test.value;
+    r.guarda = v.config.tarifaOperador === 60 && (v.cargos || []).some(c => c.id === 'verificador' && c.costoDia === 40 && c.nombre === 'Verificador') && !!it('verificador');
+    r.puesto = PUESTOS.verificador === 'Verificador' && Math.abs(costoCargo('verificador').dia - 42.8) < 0.01;
+    openModalPersona(); r.chip = /Verificador/.test(document.getElementById('pePuestos').innerHTML); hideModal('modalPersona');
+    const antes = S.cargos.length; openModalCargo(); document.getElementById('cgNombre').value = 'verificador'; await guardarCargo(); r.dup = S.cargos.length === antes; hideModal('modalCargo');
+    renderInsights(); return r; });
+  ok(cg.lista && cg.guarda, 'cargos: los cinco de siempre con su costo por día; se agrega uno nuevo («Verificador») y se guarda');
+  ok(cg.puesto && cg.chip && cg.dup, 'cargos: el cargo nuevo sale al dar de alta personal y en el costo (día × carga); no se repiten nombres');
   ok(await page.evaluate(() => Math.abs(costoCargo('operador').dia - 64.2) < 0.01), 'nueva tarifa aplica al cálculo ($60 × 1.07)');
 
   // 9b) Homologación con el Excel de ventas: solo actividades con costo por hora; tareas genéricas + nombre por cliente
@@ -574,11 +589,30 @@ async function newPage(browser, opts = {}) {
     S.lineas = [...guard.filter(l => l.fecha !== ay), mk(ay, 15, 14, 'Cli Uno'), mk(ay, 10, 2, 'Cli Dos'), { ...mk(ay, 9, 0, 'X'), estado: 'pendiente' }];
     _rep = { id: 'produccion', desde: ay, hasta: ay }; irTab('rep:produccion');
     const T = tablasReporte().produccion, f = T[1], tot = T[T.length - 1], c = n => T[0].indexOf(n);
-    const r = { fila: T[0].join() === 'Fecha,Realizado (pallets),Meta (pallets)' && f.join() === ay + ',16,25',
-      total: tot.join() === 'TOTAL,16,25',
+    const r = { fila: T[0].join() === 'Fecha,Realizado (pallets),Meta (pallets),Costo de líneas ($)' && f.slice(0, 3).join() === ay + ',16,25',
+      total: tot.slice(0, 3).join() === 'TOTAL,16,25',
       pantalla: /Producción diaria/.test(document.querySelector('.rep-tit').textContent) && !!document.querySelector('#repBox tr.rep-total') };
     S.lineas = guard; _rep = { id: 'asisGeneral', desde: '', hasta: '' }; setNav('supervisor'); return r; });
   ok(pd.fila && pd.total && pd.pantalla, 'reportes: «Producción diaria» muestra por fecha lo realizado (todas las líneas) y la meta, con el total');
+  const cli = await page.evaluate(async () => {
+    const H = 3600000, guard = S.lineas, gt = JSON.parse(JSON.stringify(S.lineasTipo)), ay = fechaMenos(hoyStr(), 2), t = Date.parse(ay + 'T09:00:00'), r = {};
+    openModalTipoLinea(S.lineasTipo[0].id); r.campos = !!document.getElementById('tlCosto') && !!document.getElementById('tlUdm');
+    document.getElementById('tlCosto').value = '0.25'; document.getElementById('tlUdm').value = 'caja'; pintarTlCosto(); document.getElementById('tlCajas').value = '';
+    await guardarTipoLinea(); r.pideCajas = document.getElementById('modalTipoLinea').classList.contains('show') || !S.lineasTipo[0].costo || S.lineasTipo[0].costo.udm !== 'caja';
+    document.getElementById('tlCajas').value = '40'; await guardarTipoLinea();
+    r.tipo = JSON.stringify(S.lineasTipo[0].costo) === JSON.stringify({ monto: 0.25, udm: 'caja', cajasPorPallet: 40 });
+    irTab('ins:lineasCfg'); const cat = document.getElementById('insightsContent').innerHTML; r.catalogo = /Catálogo de líneas de producción/.test(cat) && /\$0\.25/.test(cat) && /por caja · 40 por paleta/.test(cat) && /Prod\. objetivo/.test(cat);
+    const mk = (k, ps) => ({ ...nuevaLinea(S.lineasTipo[0], 10, 8, ay), estado: 'cerrada', inicio: t, fin: t + 8 * H, pallets: Array.from({ length: k }, (_, i) => t + i * 60000), personas: ps.map((x, i) => ({ id: 'q' + i, nombre: x, personaId: x, desde: t })) });
+    const a = mk(10, ['p1', 'p2', 'p3']); r.copia = a.costo && a.costo.udm === 'caja';
+    r.caja = costoLinea(a).total === 100;
+    a.costo = { monto: 5, udm: 'paleta' }; r.paleta = costoLinea(a).total === 50;
+    a.costo = { monto: 30, udm: 'persona' }; r.persona = costoLinea(a).total === 90;
+    S.lineas = [...guard, a]; _rep = { id: 'lineas', desde: ay, hasta: ay };
+    const T = tablasReporte(), L = T.lineas, P = T.produccion, c = n => L[0].indexOf(n);
+    r.reporte = L[1][c('UdM del costo')] === 'persona' && L[1][c('Cantidad (UdM)')] === 3 && L[1][c('Costo de la línea ($)')] === 90 && P[1][3] === 90;
+    S.lineas = guard; S.lineasTipo = gt; _rep = { id: 'asisGeneral', desde: '', hasta: '' }; return r; });
+  ok(cli.campos && cli.pideCajas && cli.tipo && cli.copia && cli.catalogo, 'catálogo de líneas (como el de tareas): costo y UdM (persona, paleta o caja; por caja pide cajas por paleta); la línea nueva lo copia');
+  ok(cli.caja && cli.paleta && cli.persona && cli.reporte, 'costo de la línea: por caja (paletas × cajas), por paleta o por persona; sale en «Líneas de producción» y «Producción diaria»');
   await page.setViewportSize({ width: 844, height: 390 });
   const laH = await page.evaluate(async () => {
     const t0 = Date.now() - 2 * 3600000; _la = { ..._la, paso: 'conteo', ses: { nombre: 'Prueba' }, est: { existe: true, letra: 'A', nombre: 'Prueba', estado: 'corriendo', inicio: t0, meta: 16, horas: 8, pallets: [t0], paros: [], almuerzos: [] } };
