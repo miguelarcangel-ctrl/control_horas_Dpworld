@@ -1465,7 +1465,7 @@ async function newPage(browser, opts = {}) {
       { id: 'tvl2', fecha: '2001-01-01', nombre: 'Vieja', estado: 'cerrada', meta: 1, horas: 8, personas: [] }];
     window.__SRV.rows.ctrl_horas_test.version++; await reload(); setTvMode('lineas');
     const html = document.getElementById('dashboardContent').innerHTML;
-    const r = { llega: lineasHoy().length === 1, total: /<b>5<\/b><span>\/ 40 pallets/.test(html), marca: /tvl-mark/.test(html), rank: /2 personas/.test(html) && !document.querySelector('.tvl-rank'), necesario: /Ritmo necesario/.test(html) };
+    const r = { llega: lineasHoy().length === 1, total: /<b>5<\/b><span>\/ 40 pallets/.test(html), marca: /tvl-mark/.test(html), rank: /2 personas/.test(html) && !document.querySelector('.tvl-rank'), necesario: /Necesario/.test(html) && /para la meta/.test(html) };
     // sin turno regular: la TV muestra las líneas sola
     v.turno = null; window.__SRV.rows.ctrl_horas_test.version++; await reload(); setTvMode('live'); r.solo = /tvl-big/.test(document.getElementById('dashboardContent').innerHTML);
     return r; });
