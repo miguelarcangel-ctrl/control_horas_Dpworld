@@ -111,6 +111,18 @@ async function newPage(browser, opts = {}) {
   await page.evaluate(() => exportExcel(null));
   const x = await page.evaluate(() => window.__xlsx.w.s.map(s => s[0] + ':' + s[1].length));
   ok(x.length === 9, 'Excel con 9 hojas: ' + x.join(', '));
+  const rp = await page.evaluate(() => {
+    _rep = { id: 0, desde: '', hasta: '' }; abrirSeccion('exportar');
+    const box = document.getElementById('repBox'), r = {};
+    r.pantalla = !!box && box.querySelectorAll('.rep-lista .chip').length === 9 && box.querySelectorAll('.rep-tabla tbody tr').length > 0 && /Detalle Tareas/.test(box.innerHTML);
+    box.querySelectorAll('.rep-lista .chip')[1].click();
+    r.cambia = /Resumen Turnos/.test(document.querySelector('.rep-acc').textContent);
+    descargarReporte(1); r.uno = window.__xlsx.w.s.length === 1 && window.__xlsx.w.s[0][0] === 'Resumen Turnos' && /^Resumen_Turnos_/.test(window.__xlsx.n);
+    descargarReporte(-1); r.todos = window.__xlsx.w.s.length === 9;
+    _rep.desde = '2000-01-01'; _rep.hasta = '2000-01-02'; pintarReportes(); r.rango = /Sin datos en estas fechas/.test(document.getElementById('repBox').innerHTML);
+    _rep = { id: 0, desde: '', hasta: '' }; setNav('supervisor'); return r; });
+  ok(rp.pantalla && rp.cambia, 'reportes: se ven en pantalla, uno por uno (9 reportes), con filtro de fechas');
+  ok(rp.uno && rp.todos && rp.rango, 'reportes: se descarga solo el que se ve o todos juntos; el rango de fechas filtra');
 
   // 9) Configuración con tarifas
   await irA(page, 'Horario y recargos'); await page.evaluate(() => openConfig()); await page.waitForTimeout(200);
@@ -445,16 +457,45 @@ async function newPage(browser, opts = {}) {
       personas: [{ id: 'a1', nombre: 'Ana Uno', personaId: 'tmp_q1', desde: t0 }, { id: 'a2', nombre: 'Beto Dos', personaId: 'tmp_q2', desde: t0 }, { id: 'a3', nombre: 'Caro Tres', personaId: 'tmp_q3', desde: Date.now() - 2 * 60000 }] };
     S.lineas.push(l); asignarLetras(); _lineaAbierta = l.id; renderLineaModal();
     r.boton = /quitarPersonaLinea\('a1'\)/.test(document.getElementById('lineaBody').innerHTML);
-    const n0 = window.__SRV.marcas.length; await quitarPersonaLinea('a1'); await quitarPersonaLinea('a3');
+    const l2 = { ...nuevaLinea(S.lineasTipo[0], 12, 8, hoyStr()), estado: 'corriendo', inicio: t0, pallets: [], personas: [] }; S.lineas.push(l2); asignarLetras();
+    const n0 = window.__SRV.marcas.length;
+    quitarPersonaLinea('a1'); r.panel = /Pasa a otra línea/.test(document.getElementById('lineaBody').innerHTML) && /Sale de las líneas/.test(document.getElementById('lineaBody').innerHTML);
+    _qp.modo = 'sale'; _qp.motivo = 'Pasa al turno u otra tarea'; await confirmarQuitar('sale');
+    quitarPersonaLinea('a3'); await confirmarQuitar('error');
+    quitarPersonaLinea('a2'); _qp.modo = 'linea'; renderLineaModal(); r.destinos = document.getElementById('lineaBody').innerHTML.includes("confirmarQuitar('linea','" + l2.id + "')");
+    await confirmarQuitar('linea', l2.id);
+    const a2 = l.personas.find(p => p.id === 'a2');
+    r.mueve = a2 && a2.hasta > 0 && a2.pasoA === lin(l2) && activosLinea(l2).some(p => p.personaId === 'tmp_q2') && !activosLinea(l).length;
     const a1 = l.personas.find(p => p.id === 'a1');
     r.ok = !!a1 && a1.hasta > 0 && !l.personas.some(p => p.id === 'a3') && window.__SRV.marcas.length === n0
-      && Math.abs(horasEnLinea(a1, l) - 2) < 0.05 && disponiblesLinea().some(p => p.id === 'tmp_q1') && !disponiblesLinea().some(p => p.id === 'tmp_q2')
-      && /salió de la línea/.test(document.getElementById('lineaBody').innerHTML);
+      && a1.motivoSalida === 'Pasa al turno u otra tarea' && Math.abs(horasEnLinea(a1, l) - 2) < 0.05 && disponiblesLinea().some(p => p.id === 'tmp_q1') && !disponiblesLinea().some(p => p.id === 'tmp_q2')
+      && /salió .*Pasa al turno/.test(document.getElementById('lineaBody').innerHTML);
+    // «Se fue a casa»: le registra la salida
+    _lineaAbierta = l2.id; const b2 = activosLinea(l2)[0]; quitarPersonaLinea(b2.id); _qp.modo = 'sale'; _qp.motivo = 'Se fue a casa'; await confirmarQuitar('sale');
+    r.casa = window.__SRV.marcas.slice(n0).some(m => m.persona_id === 'tmp_q2' && m.tipo === 'salida' && /Se fue a casa/.test(m.motivo)) && estadoMarca('tmp_q2').estado === 'salio';
+    _lineaAbierta = l.id;
     renderLineas(); const html = document.getElementById('lineasList').innerHTML;
-    r.tarjeta = /Beto/.test(html) && !/>Ana ·|· Ana</.test(html) && cuadrillaSinSalida(l).every(p => p.personaId === 'tmp_q2');
-    S.lineas = S.lineas.filter(x => x.id !== l.id); await limpiarTmp(); hideModal('modalLinea'); window.confirm = c0; return r; });
-  ok(qp.boton && qp.ok, 'línea en marcha: quitar a una persona guarda sus horas hasta ese momento, no le marca salida y queda disponible (si se agregó hace < 10 min, se borra)');
+    r.tarjeta = !/>Ana ·|· Ana</.test(html) && cuadrillaSinSalida(l).length === 0;
+    S.lineas = S.lineas.filter(x => x.id !== l.id && x.id !== l2.id); await limpiarTmp(); hideModal('modalLinea'); window.confirm = c0; return r; });
+  ok(qp.boton && qp.panel && qp.ok, 'línea en marcha: quitar a una persona pregunta qué pasa; «sale de las líneas» pide motivo, guarda sus horas y queda disponible; «por error» la borra');
+  ok(qp.destinos && qp.mueve, 'línea en marcha: «pasa a otra línea» la deja en la línea elegida desde ese momento');
+  ok(qp.casa, 'línea en marcha: «se fue a casa» le registra la salida');
   ok(qp.tarjeta, 'línea en marcha: quien salió de la línea ya no cuenta en la tarjeta ni recibe la salida al cerrar');
+  const dn = await page.evaluate(async () => {
+    const SRV = window.__SRV, ay = fechaMenos(hoyStr(), 1), r = {};
+    if (!SRV.personal.some(x => x.id === 'tmp_dn')) SRV.personal.push({ key: STATE_KEY, id: 'tmp_dn', nombre: 'Dia Nuevo', cedula: '5555', puesto_def: 'linea', activo: true });
+    const t = Math.max(Date.now() - 19 * 3600000, new Date(ay + 'T18:00:00').getTime());
+    SRV.marcas.push({ id: ++SRV.marcaSeq, key: STATE_KEY, persona_id: 'tmp_dn', nombre: 'Dia Nuevo', fecha: ay, tipo: 'entrada', puesto: 'linea', ts: new Date(t).toISOString(), por: 'admin', anulado: false });
+    await cargarPersonal(); await cargarMarcas();
+    const h = new Date().getHours(); r.aplica = h >= 5;
+    if (!r.aplica) { await limpiarTmp(); return r; }
+    r.fuera = estadoMarca('tmp_dn').estado === 'fuera';
+    r.servidor = (await rpc('ch_marcar', { p_token: SESSION.token, p_key: STATE_KEY, p_persona: 'tmp_dn', p_cedula: '5555', p_tipo: 'salida' }).catch(e => e.message)) === 'SECUENCIA';
+    const m = await rpc('ch_marcar', { p_token: SESSION.token, p_key: STATE_KEY, p_persona: 'tmp_dn', p_cedula: '5555', p_tipo: 'entrada', p_puesto: 'linea' });
+    const auto = SRV.marcas.find(x => x.persona_id === 'tmp_dn' && x.tipo === 'salida');
+    r.ok = m.fecha === hoyStr() && auto && auto.fecha === ay && /Salida automática/.test(auto.motivo) && Date.parse(auto.ts) < Date.parse(m.ts);
+    await limpiarTmp(); return r; });
+  ok(!dn.aplica || (dn.fuera && dn.servidor && dn.ok), 'marcaje: desde las 5:00 de un día nuevo se marca entrada; la entrada abierta de ayer se cierra sola (salida automática)');
   ok(pi.excel && pi.insights && pi.causas, 'paros/insumos: Excel (Paros e Insumos de línea), Insights y causas configurables');
 
   // 9g) Marcaje de asistencia: personal con cédula, tablet en modo quiosco, turno armado solo, horas pagadas, planilla
