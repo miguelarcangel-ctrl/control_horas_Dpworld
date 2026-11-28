@@ -17,3 +17,4 @@ Horario base: 8:00 a 17:00 (Configuración). Lo marcado antes de la hora de inic
 
 ## Planes pendientes
 - **Plan Adecuación Door** (`demo-door/PLAN_ADECUACION_DOOR.md`): unificar lo de DP World y Door sin duplicidades y agregar el comprobante de pago del empleado. **No se ejecuta hasta que el dueño diga «ejecutar Plan Adecuación Door»** (o una fase). Antes de la fase 2, preguntar cómo se reparten las paletas compartidas.
+- **Plan Mejoras Auditoría** (`PLAN_MEJORAS_AUDITORIA.md`): auditoría del 28-nov-2026 con las tareas T1–T17 y E1–E2 bajo el presupuesto de 4 MB. **No se ejecuta hasta que el dueño diga «ejecutar Plan Mejoras Auditoría»** (o una tarea, p. ej. «ejecutar T1»). Seguir el orden del plan (T1 → E1 → E2 → T2 → T3 → T5…T17) y detenerse a pedir confirmación donde el plan lo indica (E2 antes del primer movimiento, T3, T4 y el multiplicador de T16).
