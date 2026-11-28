@@ -671,6 +671,15 @@ async function newPage(browser, opts = {}) {
     S.lineas = guard; S.lineasTipo = gt; _rep = { id: 'asisGeneral', desde: '', hasta: '' }; return r; });
   ok(cli.campos && cli.pideCajas && cli.tipo && cli.copia && cli.catalogo, 'catálogo de líneas (como el de tareas): costo y UdM (persona, paleta o caja; por caja pide cajas por paleta); la línea nueva lo copia');
   ok(cli.caja && cli.paleta && cli.persona && cli.reporte && cli.porLinea && cli.resumen && cli.cuadrilla && cli.rango && cli.filtroUI && cli.filtro, 'costo de la línea: por caja (paletas × cajas), por paleta o por persona; sale en «Líneas de producción» y «Producción diaria»; «Producción diaria por línea» con total del día y del período; «Resumen de producción por línea» con el total de cada línea en el rango; «Producción por línea y cuadrilla» (línea A con su total y las personas debajo); filtro «Tipo de línea»');
+  const aj = await page.evaluate(() => {
+    const r = {}, dom = '2026-11-22', sab = '2026-11-21', ts = (f, h) => new Date(f + 'T' + h + ':00').toISOString();
+    const M = (f, e, sa) => [{ persona_id: 'zz', tipo: 'entrada', ts: ts(f, e) }, ...(e < '13:00' ? [{ persona_id: 'zz', tipo: 'salida_almuerzo', ts: ts(f, '13:00') }, { persona_id: 'zz', tipo: 'regreso_almuerzo', ts: ts(f, '14:00') }] : []), { persona_id: 'zz', tipo: 'salida', ts: ts(f, sa) }];
+    const sin = diaAsistencia(M(dom, '08:00', '17:00'), dom); r.antes = sin.descanso && sin.extra === 0;
+    S.ajustesAsis = { ['zz|' + dom]: { jornada: 8, extraAut: true }, ['zz|' + sab]: { jornada: 2, extraAut: true, motivo: 'De 8 a 5 regular' } };
+    const d = diaAsistencia(M(dom, '08:00', '17:00'), dom), s6 = diaAsistencia(M(sab, '15:00', '21:00'), sab);
+    r.domingo = !d.descanso && d.jornada === 8 && d.extra === 0; r.sabado = s6.jornada === 2 && Math.abs(s6.extra - 4) < 0.01 && autorizadoDia('zz', sab) >= 4 && !!s6.ajuste;
+    delete S.ajustesAsis; return r; });
+  ok(aj.antes && aj.domingo && aj.sabado, 'asistencia: ajuste del administrador por persona y día (jornada regular de ese día y sobretiempo autorizado)');
   await page.setViewportSize({ width: 844, height: 390 });
   const laH = await page.evaluate(async () => {
     const t0 = Date.now() - 2 * 3600000; _la = { ..._la, paso: 'conteo', ses: { nombre: 'Prueba' }, est: { existe: true, letra: 'A', nombre: 'Prueba', estado: 'corriendo', inicio: t0, meta: 16, horas: 8, pallets: [t0], paros: [], almuerzos: [] } };
