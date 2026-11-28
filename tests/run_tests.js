@@ -165,6 +165,42 @@ async function newPage(browser, opts = {}) {
   ok(uso.menu && uso.bloques && uso.sinCostos && uso.excel, 'T1 · Uso de la app: espacio frente a 4 MB (qué pesa más y crecimiento), adopción por usuario, calidad del registro y Excel, sin costos');
   ok(uso.supMenu && uso.supRpc, 'T1 · Uso de la app: solo el administrador la ve y puede pedir los datos');
 
+  // E2 · Archivo mensual
+  const e2 = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, H = 3600000, hoy = hoyStr(), mesAnt = fechaMenos(hoy.slice(0, 8) + '01', 1).slice(0, 7), d1 = mesAnt + '-10', d2 = mesAnt + '-11';
+    const gt = S.turnosHistorial, gl = S.lineas, t0 = Date.parse(d1 + 'T08:00:00');
+    const tv = (id, f) => ({ id, fecha: f, hora: '08:00', inicio: Date.parse(f + 'T08:00:00'), fin: Date.parse(f + 'T17:00:00'), estado: 'cerrado', equipo: [{ id: 'c1', nombre: 'Juan Pérez', cargo: 'operador' }],
+      historial: [{ id: id + 'h', tareaId: 't1', tarea: 'Descargue contenedor', clienteId: 'k1', cliente: 'CERNAC', colaboradores: [{ id: 'c1', nombre: 'Juan Pérez', cargo: 'operador' }], inicio: Date.parse(f + 'T09:00:00'), fin: Date.parse(f + 'T12:00:00'), durH: 3, cant: 40, prod: 20, unidad: 'pallet' }] });
+    S.turnosHistorial = [...gt, tv('arT1', d1), tv('arT2', d2)];
+    S.lineas = [...gl, { id: 'arL1', fecha: d1, tipoId: 'tx', nombre: 'Línea X', cliente: 'CERNAC', meta: 10, horas: 8, letra: 'A', estado: 'cerrada', inicio: t0, fin: t0 + 8 * H, pallets: Array.from({ length: 9 }, (_, i) => t0 + i * 60000), personas: [] }];
+    await save();
+    const tot = () => { const R = construirReportes(null, { desde: mesAnt + '-01', hasta: mesAnt + '-31' }); return JSON.stringify(R.filter(x => ['Resumen Turnos', 'Líneas de producción', 'Producción diaria'].includes(x.nombre)).map(x => [x.filas[0], ...x.filas.slice(1).map(f => JSON.stringify(f)).sort()])); };
+    const nPrev = gt.filter(t => (t.fecha || '').startsWith(mesAnt)).length;
+    const antes = tot(), bytesAntes = JSON.stringify(SRV.rows[STATE_KEY].value).length; await listarArchivos();
+    r.candidatos = Object.keys(candidatosArchivo()).join() === mesAnt;
+    const res = await archivarMeses(true);
+    const row = SRV.rows[STATE_KEY + '_arch_' + mesAnt], v = row && JSON.parse(row.value);
+    r.archiva = res.meses.length === 1 && v && v.fmt === 'gz' && v.turnos === nPrev + 2 && v.lineas === 1 + gl.filter(l => l.estado === 'cerrada' && (l.fecha || '').startsWith(mesAnt)).length;
+    r.respaldo = (SRV.respaldos || []).length === 1;
+    const val = SRV.rows[STATE_KEY].value; r.liviana = !val.turnosHistorial.some(t => t.fecha.startsWith(mesAnt)) && !val.lineas.some(l => l.id === 'arL1') && JSON.stringify(val).length < bytesAntes;
+    r.mismos = tot() === antes;   // en memoria sigue viéndose igual
+    // un equipo que entra después: lo archivado no está hasta que un reporte pide esas fechas
+    delete S._arch; applyRemote(SRV.rows[STATE_KEY].value); r.noEsta = !S.turnosHistorial.some(t => t.id === 'arT1');
+    _rep = { id: 'turnos', desde: mesAnt + '-01', hasta: mesAnt + '-28' }; await listarArchivos(); irTab('rep:turnos');
+    r.cargando = /Cargando meses archivados/.test(document.getElementById('repBox').innerHTML);
+    await new Promise(res => setTimeout(res, 400)); r.cargado = S.turnosHistorial.some(t => t.id === 'arT1' && t._arch === mesAnt) && !/Cargando meses archivados/.test(document.getElementById('repBox').innerHTML);
+    r.mismosDespues = tot() === antes;
+    // al guardar, lo archivado no vuelve a la llave principal
+    await save(); r.noVuelve = !SRV.rows[STATE_KEY].value.turnosHistorial.some(t => t.id === 'arT1');
+    // segundo archivo del mismo mes: se integra sin repetir y no hace otro respaldo
+    S.turnosHistorial.push(tv('arT3', d2)); await archivarMeses(true); const v2 = JSON.parse(SRV.rows[STATE_KEY + '_arch_' + mesAnt].value);
+    r.integra = v2.turnos === nPrev + 3 && (SRV.respaldos || []).length === 1;
+    // limpieza
+    Object.keys(SRV.rows).filter(k => k.includes('_arch_')).forEach(k => delete SRV.rows[k]); SRV.respaldos = []; delete S._arch; _archLista = [];
+    S.turnosHistorial = gt; S.lineas = gl; await save(); _rep = { id: 'asisGeneral', desde: '', hasta: '' }; setNav('supervisor'); return r; });
+  ok(e2.candidatos && e2.archiva && e2.respaldo && e2.liviana, 'E2 · archivo mensual: los meses anteriores se mueven comprimidos a su llave, con respaldo previo, y la llave principal queda más liviana');
+  ok(e2.mismos && e2.noEsta && e2.cargando && e2.cargado && e2.mismosDespues && e2.noVuelve && e2.integra, 'E2 · archivo mensual: los reportes cargan el mes al pedir esas fechas con los mismos totales; lo archivado no vuelve a la llave principal');
+
   // 9) Configuración con tarifas
   await irA(page, 'Horario y recargos'); await page.evaluate(() => openConfig()); await page.waitForTimeout(200);
   ok(await page.evaluate(() => !document.getElementById('cfgTarOp') && /Ir a Cargos/.test(document.getElementById('modalConfig').innerHTML)), 'configuración: las tarifas se movieron a «Cargos»');
