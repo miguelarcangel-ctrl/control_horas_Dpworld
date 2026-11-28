@@ -701,6 +701,10 @@ body.en-kiosco .toast,body.en-kiosco .dpw-hdr,body.en-kiosco .dpw-drawer,body.en
 .pc.st-tarea{border-left-color:var(--green)}
 .pc.st-pausa{border-left-color:var(--amber);background:rgba(245,162,11,.06)}
 .pc.st-libre{border-left-color:var(--red);background:rgba(227,6,19,.05)}
+.pc.st-plan{cursor:default;border-style:dashed;border-left-color:var(--b2);background:rgba(var(--fg),.02);color:var(--t3);filter:grayscale(1)}
+.pc.st-plan .pc-av{background:var(--t3)!important;opacity:.6}
+.pc.st-plan .pc-name{color:var(--t3)}
+.pc-plan-acc{display:flex;gap:6px;flex-wrap:wrap}
 .pc.sel{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary) inset;background:rgba(47,95,196,.14)}
 [data-theme="light"] .pc.sel{background:rgba(27,63,149,.07)}
 .pc.sel::after{content:'';position:absolute;top:6px;right:8px;width:18px;height:18px;border-radius:50%;background:var(--primary);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
@@ -1391,8 +1395,12 @@ body.en-kiosco .door-demo-tag{display:none}
     <button class="btn btn-ghost btn-full" onclick="addDimTarea()">+ Agregar Tarea</button>
     <div class="info-box" id="dimResumen">Agrega tareas para ver el dimensionamiento</div>
     <hr>
-    <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid)">Colaboradores Sugeridos</div>
-    <div class="chip-wrap" id="dimColabChips"></div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid)">Personal planificado</div>
+    <div class="li-sub">Elige a cada persona por su nombre. Cuando marque entrada en la tablet entra sola al turno (el turno se abre con la primera). Si le pones una tarea, queda lista para que la inicies.</div>
+    <div class="chip-wrap" id="dimCargoChips"></div>
+    <input type="text" id="dimBuscar" placeholder="Buscar por nombre" oninput="pintarDimPersonal()">
+    <div class="chip-wrap" id="dimPersonal"></div>
+    <div id="dimPlanificados" style="display:flex;flex-direction:column;gap:6px"></div>
     <div class="warn-box hidden" id="dimColabWarn"></div>
     <button class="btn btn-green btn-full" onclick="guardarPlan()">Guardar Plan</button>
   </div>
@@ -1614,6 +1622,15 @@ body.en-kiosco .door-demo-tag{display:none}
     <div class="field"><label>Costo por día ($, antes del factor de carga)</label><input type="number" id="cgCosto" min="0" step="0.5" oninput="pintarCgHora()"></div>
     <div class="li-sub" id="cgHora"></div>
     <button class="btn btn-green btn-full" onclick="guardarCargo()">Guardar</button>
+  </div>
+</div>
+<div class="overlay hidden" id="modalReemplazo">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title" id="rzTitulo">Reemplazar</span><span class="modal-close" onclick="hideModal('modalReemplazo')">×</span></div>
+    <div class="li-sub">Quien no vino sale del turno y el reemplazo toma su lugar y su tarea. Entra al tablero cuando marque entrada.</div>
+    <div class="chip-wrap" id="rzCargo"></div>
+    <input type="text" id="rzBuscar" placeholder="Buscar por nombre" oninput="pintarReemplazo()">
+    <div class="chip-wrap" id="rzLista"></div>
   </div>
 </div>
 <div class="overlay hidden" id="modalTipoLinea">
@@ -2804,10 +2821,11 @@ async function showModal(id){
 }
 function initDimensionador(){
   const now=new Date();
-  document.getElementById('dimFecha').value=now.toISOString().split('T')[0];
+  document.getElementById('dimFecha').value=fechaManana();
   document.getElementById('dimHora').value='08:00';
   document.getElementById('dimTareasList').innerHTML='';
-  document.getElementById('dimColabChips').innerHTML='';
+  _dimPers=new Map(); _dimCargo='operador'; document.getElementById('dimBuscar').value='';
+  cargarPersonal().then(pintarDimPersonal); pintarDimPersonal();
   document.getElementById('dimResumen').textContent='Agrega tareas para ver el dimensionamiento';
   document.getElementById('dimColabWarn').classList.add('hidden');
   // Reset jornada
@@ -3941,6 +3959,7 @@ async function cargarMarcas(){
   const nuevas=_marcasCargadas?m.filter(x=>!_marcas.some(y=>y.id===x.id)):[];
   _marcas=m; _marcasCargadas=true;
   avisarMarcas(nuevas);
+  if(abrirPlanPorMarcaje()){ save(); renderAll(); }
   setTimeout(revisarSinTurno,0);
   if(aplicarMarcasAlTurno()) save();
   if(!document.getElementById('viewMarcaje').classList.contains('hidden')) renderKiosco();
@@ -4420,12 +4439,12 @@ function renderEquipo(){
   [..._sel].forEach(id=>{ if(!S.turno.equipo.some(c=>c.id===id)) _sel.delete(id); });
   const bf=document.getElementById('bodegaFiltro'); if(bf) bf.innerHTML=htmlFiltroBodega()+htmlFiltroCliente();
   const visibles=S.turno.equipo.filter(c=>enFiltro(bodegaActual(c))&&enFiltroCli(c.cliente));
-  if(!visibles.length&&S.turno.equipo.length){ el.innerHTML=`<div class="empty-text">Nadie en ${esc([_bodegaFiltro,_clienteFiltro].filter(Boolean).join(' · '))} ahora mismo.</div>`; pintarSel(); return; }
+  if(!visibles.length&&S.turno.equipo.length&&!pendientesPlan().length){ el.innerHTML=`<div class="empty-text">Nadie en ${esc([_bodegaFiltro,_clienteFiltro].filter(Boolean).join(' · '))} ahora mismo.</div>`; pintarSel(); return; }
   el.innerHTML=S.turno.equipo.map((c,i)=>{ if(!enFiltro(bodegaActual(c))||!enFiltroCli(c.cliente)) return '';
     const a=actDe(c.id), fuera=salioDelTurno(c), est=fuera?'fuera':!a?'libre':a.isEspecial?'pausa':'tarea';
     let info;
     if(est==='fuera') info=`<span class="muted">Salió a las ${horaHM(fuera.ts)}</span>`;
-    else if(est==='libre') info=`<span style="color:var(--red-t);font-weight:700">Sin tarea</span> <span class="muted">desde ${new Date(libreDesde(c.id)).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit',hour12:false})}</span>`;
+    else if(est==='libre') info=`<span style="color:var(--red-t);font-weight:700">Sin tarea</span> <span class="muted">desde ${new Date(libreDesde(c.id)).toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit',hour12:false})}</span>${(td=>td?` · <b>le toca: ${esc(td.tarea)}</b> <span class="muted">(iníciala en Tareas del día)</span>`:'')(tareaPlanDe(c.id))}`;
     else if(est==='pausa') info=`${(PAUSAS[a.causa]||{}).i||''} <b>${esc(a.tarea)}</b>`;
     else info=`<b>${esc(a.tarea)}</b> · ${esc(a.cliente)}${a.colaboradores.length>1?` · ${a.colaboradores.length} pers.`:''}${a.lineaId&&lineaDe(a.lineaId)?` · línea ${esc(lin(lineaDe(a.lineaId)))}`:''}${a.bodega&&hayBodegas()&&a.bodega!==c.bodega?` · <b>en ${esc(a.bodega)}</b>`:''}`;
     const cnt=est==='tarea'&&pideCantidad(a)?`<div class="pc-cnt" onclick="event.stopPropagation()">
@@ -4437,7 +4456,7 @@ function renderEquipo(){
         <div style="min-width:0;flex:1"><div class="pc-name">${esc(c.nombre)}</div><div class="pc-role">${{operador:'Operador',ag:'Ayudante General',supervisor:'Supervisor'}[c.cargo]||'Operador'}${c.marcas&&c.marcas.length?' · entró '+horaHM((c.marcas.find(m=>m.tipo==='entrada'&&!m.anulado)||{}).ts):''}${c.bodega&&hayBodegas()?' · '+esc(c.bodega):''}${c.cliente&&marcajeClienteOn()?' · '+esc(c.cliente):''}${(sobreActivo()||{personas:[]}).personas.includes(c.id)&&!fuera?'<span class="pc-st">Sobretiempo</span>':''}</div></div></div>
       <div class="pc-est">${info}</div>
       <div class="pc-timer" id="pt_${c.id}">${fuera?'':msHMS(Date.now()-(a?a.inicio:libreDesde(c.id)))}</div>${cnt}</div>`;
-  }).join('');
+  }).join('')+htmlPendientesPlan();
   pintarSel();
 }
 function renderTareasActivas(){ renderEquipo(); }
@@ -7586,6 +7605,7 @@ function renderTareasDia(){
         '<div style="flex:1">'+
           '<div style="font-weight:700;font-size:.82rem;display:flex;align-items:center;gap:5px">'+t.tarea+'</div>'+
           '<div style="font-size:.7rem;color:var(--mid);margin-top:1px">'+(t.cliente||'—')+(t.cantEsperada?' · '+t.cantEsperada+' '+t.unidad+'s esperados':'')+'</div>'+
+          ((t.personasPlan||[]).length?'<div style="font-size:.72rem;margin-top:3px">'+t.personasPlan.map(pid=>{ const c=S.turno.equipo.find(x=>x.id===pid), x=(S.turno.planPersonas||[]).find(y=>y.pid===pid); return '<span style="'+(c?'font-weight:700':'color:var(--mid)')+'">'+esc((c||x||{nombre:'?'}).nombre)+(c?'':x&&x.estado==='tarde'?' (tarde)':' (no ha marcado)')+'</span>'; }).join(' · ')+'</div>':'')+
         '</div>'+
         '<div style="text-align:right;flex-shrink:0;margin-left:8px">'+rightCol+'</div>'+
       '</div>'+
@@ -7599,6 +7619,8 @@ async function iniciarTareaDia(tdId){
   if(!S.turno) return;
   const td=S.turno.tareasDia.find(t=>t.id===tdId);
   if(!td) return;
+  const plan=(td.personasPlan||[]).filter(pid=>{ const c=S.turno.equipo.find(x=>x.id===pid); return c&&!actDe(pid)&&!salioDelTurno(c); });
+  if(plan.length){ _sel=new Set(plan); pintarSel(); abrirAsignar(tdId); return; }
   if(!_sel.size) selLibres();
   if(_sel.size){ abrirAsignar(tdId); return; }
   // NO setear en_curso hasta que el usuario confirme la tarea (evita bug de estado colgado)
@@ -7888,13 +7910,13 @@ function getDimTareas(){
     const tareaId=sels[0].value;
     const clienteId=sels[1]?.value||'';
     const cant=parseFloat(inp.value)||0;
-    if(!tareaId||!cant) return;
+    if(!tareaId) return;
     const tc=S.tareasCat.find(t=>t.id===tareaId);
     if(!tc) return;
     const efic=(tc.efic||85)/100;
     const prodEfect=tc.prod*efic;
     const horas=prodEfect>0?cant/prodEfect:0;
-    result.push({tareaId,tarea:tc.nombre,clienteId,unidad:tc.unidad,prod:tc.prod,efic:tc.efic||85,prodEfect,cant,horas});
+    result.push({tareaId,tarea:tc.nombre,clienteId,unidad:tc.unidad,prod:tc.prod,efic:tc.efic||85,prodEfect,cant,horas,rowId:row.id});
   });
   return result;
 }
@@ -7928,58 +7950,44 @@ function updateDimResumen(){
   updateDimColabs(personasNec);
 }
 
-function updateDimColabs(personasNec){
-  const wrap=document.getElementById('dimColabChips');
-  const warn=document.getElementById('dimColabWarn');
-  if(!wrap) return;
-  // Auto-select top N collaborators if not already selected
-  const chips=wrap.querySelectorAll('.chip');
-  if(!chips.length){
-    // Build chips
-    wrap.innerHTML='';
-    S.colaboradores.forEach(c=>{
-      const chip=document.createElement('div');
-      chip.className='chip'; chip.dataset.id=c.id;
-      chip.textContent=c.nombre+' ('+cargoCorto(c.cargo)+')';
-      chip.onclick=()=>{chip.classList.toggle('selected');checkDimColabs(personasNec);};
-      wrap.appendChild(chip);
-    });
-    // Auto-select first N
-    const allChips=wrap.querySelectorAll('.chip');
-    for(let i=0;i<Math.min(personasNec,allChips.length);i++) allChips[i].classList.add('selected');
-  }
-  checkDimColabs(personasNec);
+function updateDimColabs(personasNec){ _dimNec=personasNec; pintarDimPersonal(); }
+// Personal planificado por nombre: del Personal activo (el que marca en la tablet), filtrado por cargo
+let _dimPers=new Map(), _dimCargo='operador', _dimNec=0;
+const CARGO_FILTROS=[['operador','Operadores'],['ag','Ayudantes'],['supervisor','Supervisores'],['','Todos']];
+const personalTurno=()=>(_personal||[]).filter(p=>p.activo!==false&&!['linea','responsable'].includes(p.puesto_def));
+function pintarDimPersonal(){
+  const cc=document.getElementById('dimCargoChips'); if(!cc) return;
+  cc.innerHTML=CARGO_FILTROS.map(([k,t])=>`<div class="chip${_dimCargo===k?' selected':''}" onclick="_dimCargo='${k}';pintarDimPersonal()">${t}</div>`).join('');
+  const q=normTxt(document.getElementById('dimBuscar').value||'');
+  const L=personalTurno().filter(p=>(!_dimCargo||p.puesto_def===_dimCargo)&&!_dimPers.has(p.id)&&(!q||normTxt(p.nombre).includes(q))).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  document.getElementById('dimPersonal').innerHTML=L.map(p=>`<div class="chip" data-id="${p.id}" onclick="agregarDimPersona('${p.id}')">${esc(p.nombre)}${_dimCargo?'':' ('+cargoCorto(CARGO_DE[p.puesto_def]||'operador')+')'}${p.tiene_cedula?'':' · sin cédula'}</div>`).join('')||'<span class="li-sub">No hay más personas con ese cargo.</span>';
+  const T=getDimTareas();
+  document.getElementById('dimPlanificados').innerHTML=[..._dimPers.values()].map(x=>`<div class="edit-row" data-id="${x.pid}"><span style="flex:1;font-weight:700">${esc(x.nombre)} <span class="li-sub">${cargoCorto(x.cargo)}</span></span>
+    <select onchange="_dimPers.get('${x.pid}').tareaRow=this.value"><option value="">Sin tarea fija</option>${T.map(t=>`<option value="${t.rowId}"${x.tareaRow===t.rowId?' selected':''}>${esc(t.tarea)}</option>`).join('')}</select>
+    <button class="btn btn-red btn-sm" onclick="_dimPers.delete('${x.pid}');pintarDimPersonal()" aria-label="Quitar">×</button></div>`).join('');
+  const w=document.getElementById('dimColabWarn'), n=_dimPers.size;
+  if(_dimNec&&n<_dimNec){ w.textContent=`Planificaste ${n} persona(s) y las tareas necesitan ${_dimNec}.`; w.classList.remove('hidden'); } else w.classList.add('hidden');
 }
-
-function checkDimColabs(personasNec){
-  const sel=document.querySelectorAll('#dimColabChips .chip.selected').length;
-  const warn=document.getElementById('dimColabWarn');
-  if(!warn) return;
-  if(sel<personasNec){
-    warn.classList.remove('hidden');
-    warn.textContent=`Tienes ${sel} colaborador(es) seleccionado(s) pero necesitas ${personasNec}. Agrega más personas o ajusta las tareas.`;
-  } else {
-    warn.classList.add('hidden');
-  }
-}
+function agregarDimPersona(pid){ const p=(_personal||[]).find(x=>x.id===pid); if(!p) return;
+  _dimPers.set(pid,{pid,nombre:p.nombre,cargo:CARGO_DE[p.puesto_def]||'operador',tareaRow:''}); pintarDimPersonal(); }
 
 async function guardarPlan(){
   const fecha=document.getElementById('dimFecha').value;
   const hora=document.getElementById('dimHora').value;
   const jornada=getDimJornada();
   const tareas=getDimTareas();
-  const colabIds=[...document.querySelectorAll('#dimColabChips .chip.selected')].map(c=>c.dataset.id);
   if(!fecha){alert('Selecciona una fecha');return;}
-  if(!tareas.length){alert('Agrega al menos una tarea');return;}
-  const colabs=S.colaboradores.filter(c=>colabIds.includes(c.id));
+  if(!tareas.length&&!_dimPers.size){alert('Agrega al menos una tarea o una persona');return;}
+  const personas=[..._dimPers.values()].map(x=>({pid:x.pid,nombre:x.nombre,cargo:x.cargo,tareaRow:x.tareaRow||'',estado:'planificado'}));
+  const colabs=personas.map(x=>({id:x.pid,nombre:x.nombre,cargo:x.cargo}));
   const cfg=getConfig();
   const hpPP=horasJornada(jornada,fecha);
   const totalH=tareas.reduce((s,t)=>s+t.horas,0);
   const plan={
-    id:uid(), fecha, hora, jornada, tareas, colabs,
+    id:uid(), fecha, hora, jornada, tareas, colabs, personas,
     horasProd:colabs.length*hpPP, hpPorPersona:hpPP,
     totalHNecesarias:totalH,
-    personasNecesarias:Math.ceil(totalH/hpPP),
+    personasNecesarias:hpPP>0?Math.ceil(totalH/hpPP):0,
     estado:'programado', creadoEn:Date.now(),
   };
   if(!S.turnosProgramados) S.turnosProgramados=[];
@@ -8038,29 +8046,61 @@ async function iniciarTurnoPlan(){
   if(!ids.length){alert('Selecciona al menos una persona que haya marcado entrada');return;}
   const eq=equipoMarcado(ids);
   if(!eq.length){ alert(MSG_SIN_MARCAS); pintarPlanColabs(plan); return; }
-  // Import plan tareas as tareasDia
-  const tareasDiaFromPlan=(plan.tareas||[]).map(t=>({
-    id:uid(), tareaId:t.tareaId, tarea:t.tarea,
-    clienteId:t.clienteId, cantEsperada:t.cant,
-    horasEsperadas:t.horas, unidad:t.unidad,
-    estado:'pendiente', tareaActivaId:null
-  }));
-  S.turno={
-    id:uid(), fecha:plan.fecha, hora:plan.hora,
-    inicio:Date.now(), equipo:eq,
-    jornada:plan.jornada, hpPorPersona:plan.hpPorPersona,
-    horasProd:eq.length*plan.hpPorPersona,
-    planId:plan.id, tareasPlan:plan.tareas,
-    toolboxDone:false, toolboxInicio:null, toolboxFin:null,
-    tareasDia:tareasDiaFromPlan,
-  };
-  S.tareasActivas=[]; S.historial=[];
-  aplicarMarcasAlTurno();
-  // Mark plan as iniciado
-  plan.estado='iniciado';
+  turnoDesdePlan(plan, eq);
   await save();
   hideModal('modalIniciarPlan');
   renderAll();
+}
+
+// Arma el turno a partir de un plan: sus tareas quedan en «Tareas del día» y el personal planificado, con su tarea
+function turnoDesdePlan(plan, eq){
+  const porRow={}, tareasDia=(plan.tareas||[]).map(t=>{ const td={id:uid(), tareaId:t.tareaId, tarea:t.tarea, clienteId:t.clienteId, cantEsperada:t.cant,
+    horasEsperadas:t.horas, unidad:t.unidad, estado:'pendiente', tareaActivaId:null, personasPlan:[]}; if(t.rowId) porRow[t.rowId]=td; return td; });
+  const planPersonas=(plan.personas||[]).map(x=>{ const td=x.tareaRow&&porRow[x.tareaRow]; if(td) td.personasPlan.push(x.pid);
+    return {pid:x.pid,nombre:x.nombre,cargo:x.cargo,tdId:td?td.id:null,estado:'planificado'}; });
+  const hp=plan.hpPorPersona||horasProductivas(plan.fecha)||8;
+  S.turno={ id:uid(), fecha:plan.fecha, hora:plan.hora, inicio:Date.now(), equipo:eq, jornada:plan.jornada, hpPorPersona:hp, horasProd:eq.length*hp,
+    planId:plan.id, tareasPlan:plan.tareas, toolboxDone:false, toolboxInicio:null, toolboxFin:null, tareasDia, planPersonas };
+  S.tareasActivas=[]; S.historial=[];
+  aplicarMarcasAlTurno(); plan.estado='iniciado'; plan.iniciadoEn=Date.now();
+}
+// El turno planificado se abre solo cuando marca entrada la primera persona planificada (en cualquier equipo con la app abierta)
+function abrirPlanPorMarcaje(){
+  if(S.turno||!_marcasCargadas||!currentUser||!['admin','supervisor'].includes(currentUser.rol)) return false;
+  const plan=(S.turnosProgramados||[]).find(p=>p.estado==='programado'&&p.fecha===hoyStr()&&(p.personas||[]).length); if(!plan) return false;
+  const M=personasMarcadas(); if(!M.some(c=>plan.personas.some(x=>x.pid===c.id))) return false;
+  turnoDesdePlan(plan, equipoMarcado(M.map(c=>c.id)));
+  showToast('Se abrió el turno planificado: el personal entra a medida que marca','info'); return true;
+}
+// Planificados que aún no marcan: en gris en el tablero, con «Llegará tarde» o «Reemplazar»
+const pendientesPlan=()=>S.turno?(S.turno.planPersonas||[]).filter(x=>!S.turno.equipo.some(c=>c.id===x.pid)):[];
+const tareaPlanDe=pid=>{ const x=S.turno&&(S.turno.planPersonas||[]).find(y=>y.pid===pid); const td=x&&x.tdId&&(S.turno.tareasDia||[]).find(t=>t.id===x.tdId); return td&&td.estado==='pendiente'?td:null; };
+async function marcarTarde(pid){ const x=(S.turno.planPersonas||[]).find(y=>y.pid===pid); if(!x) return; x.estado=x.estado==='tarde'?'planificado':'tarde'; x.tardeEn=Date.now(); x.tardePor=quien(); renderEquipo(); await save(); }
+let _reemplazo={pid:null,cargo:'',q:''};
+function abrirReemplazo(pid){ const x=(S.turno.planPersonas||[]).find(y=>y.pid===pid); if(!x) return; _reemplazo={pid,cargo:x.cargo,q:''};
+  document.getElementById('rzTitulo').textContent='Reemplazar a '+x.nombre; document.getElementById('rzBuscar').value=''; pintarReemplazo(); showModal('modalReemplazo'); cargarPersonal().then(pintarReemplazo); }
+function pintarReemplazo(){
+  const x=(S.turno.planPersonas||[]).find(y=>y.pid===_reemplazo.pid); if(!x) return; const q=normTxt(document.getElementById('rzBuscar').value||'');
+  document.getElementById('rzCargo').innerHTML=CARGO_FILTROS.map(([k,t])=>`<div class="chip${(_reemplazo.cargo===k||(!_reemplazo.cargo&&!k))?' selected':''}" onclick="_reemplazo.cargo='${k}';pintarReemplazo()">${t}</div>`).join('');
+  const ya=new Set((S.turno.planPersonas||[]).map(y=>y.pid));
+  const L=personalTurno().filter(p=>(!_reemplazo.cargo||CARGO_DE[p.puesto_def]===_reemplazo.cargo)&&!ya.has(p.id)&&(!q||normTxt(p.nombre).includes(q))).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  document.getElementById('rzLista').innerHTML=L.map(p=>{ const e=estadoMarca(p.id); return `<div class="chip" onclick="reemplazar('${p.id}')">${esc(p.nombre)}${e.estado==='presente'?' · ya marcó':''}</div>`; }).join('')||'<span class="li-sub">No hay a quién poner con ese cargo.</span>';
+}
+async function reemplazar(nuevo){
+  const T=S.turno, i=(T.planPersonas||[]).findIndex(y=>y.pid===_reemplazo.pid), p=(_personal||[]).find(z=>z.id===nuevo); if(i<0||!p) return;
+  const viejo=T.planPersonas[i], td=viejo.tdId&&(T.tareasDia||[]).find(t=>t.id===viejo.tdId);
+  if(td) td.personasPlan=(td.personasPlan||[]).map(z=>z===viejo.pid?nuevo:z);
+  T.planPersonas[i]={pid:nuevo,nombre:p.nombre,cargo:CARGO_DE[p.puesto_def]||viejo.cargo,tdId:viejo.tdId,estado:'planificado',reemplazaA:viejo.nombre,reemplazoPor:quien(),reemplazoEn:Date.now()};
+  (T.reemplazos=T.reemplazos||[]).push({sale:viejo.nombre,salePid:viejo.pid,entra:p.nombre,entraPid:nuevo,por:quien(),en:Date.now()});
+  hideModal('modalReemplazo'); renderEquipo(); renderTareasDia(); await save(); showToast(viejo.nombre+' sale del turno; entra '+p.nombre);
+}
+function htmlPendientesPlan(){
+  const P=pendientesPlan(); if(!P.length) return '';
+  return P.map(x=>{ const td=x.tdId&&(S.turno.tareasDia||[]).find(t=>t.id===x.tdId);
+    return `<div class="pc st-plan" data-pid="${x.pid}"><div class="pc-top"><div class="pc-av">${iniciales(x.nombre)}</div>
+      <div style="min-width:0;flex:1"><div class="pc-name">${esc(x.nombre)}</div><div class="pc-role">${{operador:'Operador',ag:'Ayudante General',supervisor:'Supervisor'}[x.cargo]||'Operador'} · planificado${x.reemplazaA?' (reemplaza a '+esc(x.reemplazaA)+')':''}</div></div></div>
+      <div class="pc-est">${x.estado==='tarde'?'<b>Llegará tarde</b>':'No ha marcado'}${td?' · le toca: <b>'+esc(td.tarea)+'</b>':''}</div>
+      <div class="pc-plan-acc" onclick="event.stopPropagation()"><button class="btn btn-ghost btn-sm" onclick="marcarTarde('${x.pid}')">${x.estado==='tarde'?'Ya no viene tarde':'Llegará tarde'}</button><button class="btn btn-ghost btn-sm" onclick="abrirReemplazo('${x.pid}')">Reemplazar</button></div></div>`; }).join('');
 }
 
 function renderTurnosProgramados(){
