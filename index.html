@@ -1385,6 +1385,13 @@ body.con-sel .toast{bottom:96px}
     <div class="chip-wrap" id="dimPersonal"></div>
     <div id="dimPlanificados" style="display:flex;flex-direction:column;gap:6px"></div>
     <div class="warn-box hidden" id="dimColabWarn"></div>
+    <hr>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid)">Sobretiempo planificado</div>
+    <div class="field-row">
+      <div class="field"><label>Sobretiempo hasta (vacío = sin sobretiempo)</label><input type="time" id="dimSobreHasta" oninput="pintarDimPersonal()"></div>
+      <div class="field"><label>Motivo</label><input type="text" id="dimSobreMotivo" placeholder="Ej. Despacho urgente"></div>
+    </div>
+    <div class="li-sub">Marca en cada persona si se queda al sobretiempo. Al abrirse el turno queda autorizado para ellas desde el fin de la jornada hasta esa hora.</div>
     <button class="btn btn-green btn-full" onclick="guardarPlan()">Guardar Plan</button>
   </div>
 </div>
@@ -2820,6 +2827,7 @@ function initDimensionador(){
   document.getElementById('dimHora').value='08:00';
   document.getElementById('dimTareasList').innerHTML='';
   _dimPers=new Map(); _dimCargo='operador'; document.getElementById('dimBuscar').value=''; document.getElementById('dimRef').classList.add('hidden');
+  document.getElementById('dimSobreHasta').value=''; document.getElementById('dimSobreMotivo').value='';
   pintarDimPersonal(); cargarPersonal().then(()=>{ copiarTurnoAnterior(); pintarDimPersonal(); });
   document.getElementById('dimResumen').textContent='Agrega tareas para ver el dimensionamiento';
   document.getElementById('dimColabWarn').classList.add('hidden');
@@ -7999,6 +8007,7 @@ function pintarDimPersonal(){
   const T=getDimTareas();
   document.getElementById('dimPlanificados').innerHTML=[..._dimPers.values()].map(x=>`<div class="edit-row" data-id="${x.pid}"><span style="flex:1;font-weight:700">${esc(x.nombre)} <span class="li-sub">${cargoCorto(x.cargo)}</span></span>
     <select onchange="_dimPers.get('${x.pid}').tareaRow=this.value"><option value="">Sin tarea fija</option>${T.map(t=>`<option value="${t.rowId}"${x.tareaRow===t.rowId?' selected':''}>${esc(t.tarea)}</option>`).join('')}</select>
+    ${document.getElementById('dimSobreHasta').value?`<div class="chip${x.sobre!==false?' selected':''}" title="Se queda al sobretiempo" onclick="_dimPers.get('${x.pid}').sobre=${x.sobre!==false?'false':'true'};pintarDimPersonal()">${x.sobre!==false?'Sobretiempo':'Hasta fin de jornada'}</div>`:''}
     <button class="btn btn-red btn-sm" onclick="_dimPers.delete('${x.pid}');pintarDimPersonal()" aria-label="Quitar">×</button></div>`).join('');
   const w=document.getElementById('dimColabWarn'), n=_dimPers.size;
   if(_dimNec&&n<_dimNec){ w.textContent=`Planificaste ${n} persona(s) y las tareas necesitan ${_dimNec}.`; w.classList.remove('hidden'); } else w.classList.add('hidden');
@@ -8035,15 +8044,19 @@ async function guardarPlan(){
   if(!fecha){alert('Selecciona una fecha');return;}
   if(!tareas.length&&!_dimPers.size){alert('Agrega al menos una tarea o una persona');return;}
   const personas=[..._dimPers.values()].map(x=>({pid:x.pid,nombre:x.nombre,cargo:x.cargo,tareaRow:x.tareaRow||'',estado:'planificado'}));
+  const sh=document.getElementById('dimSobreHasta').value, finJ=getConfig().horaFin||'17:00';
+  if(sh&&sh<=finJ){ alert('El sobretiempo debe terminar después de las '+finJ+' (fin de la jornada)'); return; }
+  const sobre=sh?{hasta:sh,motivo:document.getElementById('dimSobreMotivo').value.trim()||'Sobretiempo planificado',personas:[..._dimPers.values()].filter(x=>x.sobre!==false).map(x=>x.pid)}:null;
+  if(sobre&&!sobre.personas.length){ alert('Marca quién se queda al sobretiempo'); return; }
   const colabs=personas.map(x=>({id:x.pid,nombre:x.nombre,cargo:x.cargo}));
   const cfg=getConfig();
   const hpPP=horasJornada(jornada,fecha);
   const totalH=tareas.reduce((s,t)=>s+t.horas,0);
   const plan={
-    id:uid(), fecha, hora, jornada, tareas, colabs, personas,
+    id:uid(), fecha, hora, jornada, tareas, colabs, personas, sobre,
     horasProd:colabs.length*hpPP, hpPorPersona:hpPP,
     totalHNecesarias:totalH,
-    personasNecesarias:hpPP>0?Math.ceil(totalH/hpPP):0,
+    personasNecesarias:hpPP>0?Math.ceil(totalH/hpPP):0, creadoPor:quien(),
     estado:'programado', creadoEn:Date.now(),
   };
   if(!S.turnosProgramados) S.turnosProgramados=[];
@@ -8118,6 +8131,8 @@ function turnoDesdePlan(plan, eq){
   S.turno={ id:uid(), fecha:plan.fecha, hora:plan.hora, inicio:Date.now(), equipo:eq, jornada:plan.jornada, hpPorPersona:hp, horasProd:eq.length*hp,
     planId:plan.id, tareasPlan:plan.tareas, toolboxDone:false, toolboxInicio:null, toolboxFin:null, tareasDia, planPersonas };
   S.tareasActivas=[]; S.historial=[];
+  if(plan.sobre&&plan.sobre.hasta&&(plan.sobre.personas||[]).length){ const ini=finJornada(S.turno), fin=new Date(plan.fecha+'T'+plan.sobre.hasta+':00').getTime();
+    if(fin>ini) S.turno.sobre=[{id:uid(),inicio:ini,hasta:fin,horas:Math.round((fin-ini)/H_MS*100)/100,motivo:plan.sobre.motivo||'Sobretiempo planificado',personas:[...plan.sobre.personas],por:plan.creadoPor||'plan',porNombre:'Planificado',creado:Date.now(),amp:[],planificado:true}]; }
   aplicarMarcasAlTurno(); plan.estado='iniciado'; plan.iniciadoEn=Date.now();
 }
 // El turno planificado se abre solo cuando marca entrada la primera persona planificada (en cualquier equipo con la app abierta)
@@ -8146,6 +8161,7 @@ async function reemplazar(nuevo){
   const T=S.turno, i=(T.planPersonas||[]).findIndex(y=>y.pid===_reemplazo.pid), p=(_personal||[]).find(z=>z.id===nuevo); if(i<0||!p) return;
   const viejo=T.planPersonas[i], td=viejo.tdId&&(T.tareasDia||[]).find(t=>t.id===viejo.tdId);
   if(td) td.personasPlan=(td.personasPlan||[]).map(z=>z===viejo.pid?nuevo:z);
+  (T.sobre||[]).forEach(so=>{ if((so.personas||[]).includes(viejo.pid)) so.personas=so.personas.map(z=>z===viejo.pid?nuevo:z); });
   T.planPersonas[i]={pid:nuevo,nombre:p.nombre,cargo:CARGO_DE[p.puesto_def]||viejo.cargo,tdId:viejo.tdId,estado:'planificado',reemplazaA:viejo.nombre,reemplazoPor:quien(),reemplazoEn:Date.now()};
   (T.reemplazos=T.reemplazos||[]).push({sale:viejo.nombre,salePid:viejo.pid,entra:p.nombre,entraPid:nuevo,por:quien(),en:Date.now()});
   hideModal('modalReemplazo'); renderEquipo(); renderTareasDia(); await save(); showToast(viejo.nombre+' sale del turno; entra '+p.nombre);
@@ -8183,10 +8199,10 @@ function renderTurnosProgramados(){
           <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.9rem;text-transform:uppercase;letter-spacing:.06em;color:#fff">
             ${esHoy?'HOY — ':''}${p.fecha} · ${p.hora}
           </div>
-          <div style="font-size:.7rem;color:rgba(255,255,255,.75);margin-top:2px">${p.jornada==='media'?'Media Jornada':'Jornada Completa'} · ${p.tareas.length} tarea(s)</div>
+          <div style="font-size:.7rem;color:rgba(255,255,255,.75);margin-top:2px">${p.jornada==='media'?'Media Jornada':'Jornada Completa'} · ${p.tareas.length} tarea(s)${p.sobre?' · sobretiempo hasta las '+p.sobre.hasta:''}</div>
         </div>
         <div style="text-align:right">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.1rem;color:#fff">${p.personasNecesarias} pers.</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.1rem;color:#fff">${(p.personas||[]).length||p.personasNecesarias} pers.</div>
           <div style="font-size:.68rem;color:rgba(255,255,255,.7)">${p.totalHNecesarias.toFixed(1)}h necesarias</div>
         </div>
       </div>
@@ -8199,7 +8215,7 @@ function renderTurnosProgramados(){
           </div>`;
         }).join('')}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px">
-          <div style="font-size:.72rem;color:var(--mid)">${p.colabs.map(c=>c.nombre.split(' ')[0]).join(', ')}</div>
+          <div style="font-size:.72rem;color:var(--mid)">${(p.personas&&p.personas.length?p.personas.map(x=>esc(x.nombre)+' ('+cargoCorto(x.cargo)+(p.sobre&&!(p.sobre.personas||[]).includes(x.pid)?', hasta '+(getConfig().horaFin||'17:00'):'')+')'):p.colabs.map(c=>c.nombre.split(' ')[0])).join(', ')}</div>
           <div style="display:flex;gap:6px">
             <button class="btn btn-ghost btn-sm" onclick="editarPlan('${p.id}')">Editar</button>
             <button class="btn btn-red btn-sm" onclick="eliminarPlan('${p.id}')">Eliminar</button>
