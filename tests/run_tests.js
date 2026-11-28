@@ -632,9 +632,19 @@ async function newPage(browser, opts = {}) {
       && CQ.slice(hA + 1, hB).find(x => x[1] === 'p1')[5] === 2 && CQ[hB][2] === 4 && CQ[CQ.length - 1][0] === 'TOTAL' && CQ[CQ.length - 1][2] === 20
       && document.querySelectorAll('#repBox .cq-linea').length === 2 && /16 pallets/.test(document.querySelector('#repBox .cq-linea .cq-hdr').textContent) && document.querySelectorAll('#repBox .cq-linea')[0].querySelectorAll('.cq-per').length === 4;
     _rep = { id: 'cuadLinea', desde: ay, hasta: ay }; r.rango = tablasReporte().cuadLinea.find(x => /^Línea A · /.test(x[0]))[2] === 10;
+    // filtro «Tipo de línea»: con otro tipo, la línea de prueba no aparece; con el suyo, sí
+    const otro = { ...JSON.parse(JSON.stringify(S.lineasTipo[0])), id: 'tipoOtro', nombre: 'Otro tipo' }; S.lineasTipo = [...S.lineasTipo, otro];
+    const o1 = { ...mk(7, ['p5']), id: 'o1', tipoId: 'tipoOtro', nombre: 'Otro tipo', costo: null, meta: 9 }; S.lineas = [...guard, a, b2, a2, o1];
+    _rep = { id: 'produccion', desde: fechaMenos(hoyStr(), 3), hasta: ay, tipo: '' }; irTab('rep:produccion');
+    const sel = document.getElementById('repTipo'); r.filtroUI = !!sel && [...sel.options].some(o => o.value === 'tipoOtro');
+    const totP = () => { const P = tablasReporte().produccion; return P[P.length - 1][1]; };
+    const todos = totP(); _rep.tipo = 'tipoOtro'; const soloOtro = totP(); _rep.tipo = S.lineasTipo[0].id; const soloA = totP();
+    r.filtro = todos === 27 && soloOtro === 7 && soloA === 20 && !tablasReporte().cuadLinea.some(x => /Otro tipo/.test(x[0]));
+    pintarReportes(); r.etiqueta = /Producción diaria/.test(document.querySelector('.rep-tit').textContent) && /· Empaque|· [^·]+$/.test(document.querySelector('.rep-acc span').textContent);
+    _rep.tipo = '';
     S.lineas = guard; S.lineasTipo = gt; _rep = { id: 'asisGeneral', desde: '', hasta: '' }; return r; });
   ok(cli.campos && cli.pideCajas && cli.tipo && cli.copia && cli.catalogo, 'catálogo de líneas (como el de tareas): costo y UdM (persona, paleta o caja; por caja pide cajas por paleta); la línea nueva lo copia');
-  ok(cli.caja && cli.paleta && cli.persona && cli.reporte && cli.porLinea && cli.resumen && cli.cuadrilla && cli.rango, 'costo de la línea: por caja (paletas × cajas), por paleta o por persona; sale en «Líneas de producción» y «Producción diaria»; «Producción diaria por línea» con total del día y del período; «Resumen de producción por línea» con el total de cada línea en el rango; «Producción por línea y cuadrilla» (línea A con su total y las personas debajo)');
+  ok(cli.caja && cli.paleta && cli.persona && cli.reporte && cli.porLinea && cli.resumen && cli.cuadrilla && cli.rango && cli.filtroUI && cli.filtro, 'costo de la línea: por caja (paletas × cajas), por paleta o por persona; sale en «Líneas de producción» y «Producción diaria»; «Producción diaria por línea» con total del día y del período; «Resumen de producción por línea» con el total de cada línea en el rango; «Producción por línea y cuadrilla» (línea A con su total y las personas debajo); filtro «Tipo de línea»');
   await page.setViewportSize({ width: 844, height: 390 });
   const laH = await page.evaluate(async () => {
     const t0 = Date.now() - 2 * 3600000; _la = { ..._la, paso: 'conteo', ses: { nombre: 'Prueba' }, est: { existe: true, letra: 'A', nombre: 'Prueba', estado: 'corriendo', inicio: t0, meta: 16, horas: 8, pallets: [t0], paros: [], almuerzos: [] } };
