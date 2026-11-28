@@ -3109,7 +3109,7 @@ const tsReg=e=>Array.isArray(e)?e[0]:e, cantReg=e=>Array.isArray(e)?(+e[1]||0):1
 const sumaRegs=P=>(P||[]).reduce((a,e)=>a+cantReg(e),0);
 const esUnidades=l=>!!l&&((l.unidad||((typeof tipoLinea==='function'&&tipoLinea(l.tipoId))||{}).unidad)==='unidad');
 const udL=(l,n)=>esUnidades(l)?(n===1?'unidad':'unidades'):(n===1?'pallet':'pallets');
-const PASOS_UNID=[10,50,100];
+const PASOS_UNID=[50,100,500];
 const totalPallets=l=>sumaRegs(l.pallets);
 // Cuadrilla activa: quienes siguen en la línea (al quitar a alguien de una línea en marcha queda con «hasta»)
 const activosLinea=l=>(l.personas||[]).filter(p=>!p.hasta);
