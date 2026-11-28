@@ -1921,7 +1921,7 @@ function normalizeS(){
   ['clientes','tareasCat','colaboradores','solicitudes','pedidosPersonal','servicios','proformas','cotizaciones','solicitudesCot','turnosProgramados','turnosHistorial','tareasActivas','historial','rutinas','plantillas','temaHSE','maestro','lineasTipo','lineasPlan','nombresLinea','lineas','causasParo','cargos']
     .forEach(k=>{ if(!Array.isArray(S[k])) S[k]=[]; });
   (S.proformas||[]).forEach(p=>{ if(p.estado==='confirmada') p.estado='aprobada'; });   // versión anterior: «confirmada» = aprobada por el cliente
-  ['usuariosCliente','tarifasCliente','fichas','clientesAvanzado','solicitudesAvanzado','tarifasOrigen'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object'||Array.isArray(S[k])) S[k]={}; });
+  ['usuariosCliente','tarifasCliente','fichas','clientesAvanzado','solicitudesAvanzado','tarifasOrigen','ajustesAsis'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object'||Array.isArray(S[k])) S[k]={}; });
   S.config=getConfig();
   migrarLineas();
   S.tareasCat.forEach(t=>{if(!t.efic)t.efic=85; if(esSupervision(t.nombre)){ t.sinProd=true; t.prod=0; t.clase='apoyo'; } if(!t.clase) t.clase=/supervis|limpiez|capacitac|toolbox|reuni|acomodo|gestion de almacen/i.test(normTxt(t.nombre))?'apoyo':'productiva';});
@@ -3946,16 +3946,19 @@ function horasMarcas(M, hasta, desdeMin){
   return {h:h/3600000,abierta};
 }
 // Resumen de un día de una persona (planilla)
+// Ajuste de asistencia por persona y día (lo pone el administrador): jornada regular de ese día (p. ej. «de 8 a 5 es regular,
+// lo demás sobretiempo» en un sábado o un domingo trabajado) y sobretiempo autorizado. Clave: persona|fecha.
+const ajusteAsis=(pid,f)=>((S.ajustesAsis||{})[pid+'|'+f])||null;
 function diaAsistencia(M, fecha){
-  const cfg=getConfig(), get=t=>M.filter(m=>m.tipo===t&&!m.anulado);
+  const cfg=getConfig(), get=t=>M.filter(m=>m.tipo===t&&!m.anulado), aj=ajusteAsis((M[0]||{}).persona_id,fecha);
   const ent=get('entrada')[0], sal=get('salida').slice(-1)[0];
   const r=horasMarcas(M, fecha===hoyStr()?Date.now():null, inicioJornadaTs(fecha));
   // Día sin jornada (domingo con 0 h): es día de descanso y sus horas se pagan con el recargo del día, no como extra.
   // Un día ya pasado sin salida está incompleto: no suma extra hasta que se corrija.
-  const jornada=horasProductivas(fecha)||0, descanso=jornada<=0, incompleto=!sal&&fecha!==hoyStr();
+  const fija=aj&&aj.jornada!=null, jornada=fija?+aj.jornada:(horasProductivas(fecha)||0), descanso=!fija&&jornada<=0, incompleto=!sal&&fecha!==hoyStr();
   const extra=descanso||incompleto?0:Math.max(0,r.h-jornada);
   let tarde=0; if(ent&&!descanso){ const lim=new Date(fecha+'T'+(cfg.horaInicio||'08:00')+':00').getTime()+(cfg.toleranciaMin||5)*60000; tarde=Math.max(0,Math.round((msTs(ent.ts)-lim)/60000)); }
-  return {bodega:(ent&&ent.bodega)||'',cliente:(ent&&ent.cliente)||'',salidaCierre:!!(sal&&/cierre/i.test(sal.motivo||'')),ent,sal,salAlm:get('salida_almuerzo')[0],regAlm:get('regreso_almuerzo').slice(-1)[0],horas:r.h,abierta:r.abierta,extra,jornada,descanso,incompleto,tarde,puesto:ent&&ent.puesto,corregido:M.some(m=>m.corregido_por)};
+  return {bodega:(ent&&ent.bodega)||'',cliente:(ent&&ent.cliente)||'',salidaCierre:!!(sal&&/cierre/i.test(sal.motivo||'')),ent,sal,salAlm:get('salida_almuerzo')[0],regAlm:get('regreso_almuerzo').slice(-1)[0],horas:r.h,abierta:r.abierta,extra,jornada,descanso,incompleto,tarde,puesto:ent&&ent.puesto,corregido:M.some(m=>m.corregido_por),ajuste:aj};
 }
 
 // ── Turno: el equipo se arma con quienes marcan (operador, ayudante, supervisor); la línea va aparte
@@ -4183,7 +4186,8 @@ function resumenAsistencia(){
     return {...o,D,horas:D.reduce((a,d)=>a+d.horas,0),extra:D.reduce((a,d)=>a+d.extra,0),extraSin:D.reduce((a,d)=>a+d.extraSin,0),tardes:D.filter(d=>d.tarde).length,cierres:D.filter(d=>d.salidaCierre).length,minTarde:D.reduce((a,d)=>a+d.tarde,0),incompletos:D.filter(d=>!d.sal&&d.fecha!==hoyStr()).length}; })
     .sort((a,b)=>a.nombre.localeCompare(b.nombre));
 }
-function autorizadoDia(pid, fecha){ return [S.turno,...(S.turnosHistorial||[])].filter(t=>t&&t.fecha===fecha).reduce((a,t)=>a+horasAutorizadas(t,pid),0); }
+function autorizadoDia(pid, fecha){ const aj=ajusteAsis(pid,fecha); if(aj&&aj.extraAut) return aj.extraAut===true?Infinity:+aj.extraAut||0;
+  return [S.turno,...(S.turnosHistorial||[])].filter(t=>t&&t.fecha===fecha).reduce((a,t)=>a+horasAutorizadas(t,pid),0); }
 const totalAsistencia=R=>({horas:R.reduce((a,o)=>a+o.horas,0),extra:R.reduce((a,o)=>a+o.extra,0),extraSin:R.reduce((a,o)=>a+o.extraSin,0),dias:R.reduce((a,o)=>a+o.D.length,0),tardes:R.reduce((a,o)=>a+o.tardes,0),minTarde:R.reduce((a,o)=>a+o.minTarde,0),incompletos:R.reduce((a,o)=>a+o.incompletos,0),cierres:R.reduce((a,o)=>a+(o.cierres||0),0)});
 function buildPersonalSection(){
   const sinCed=S.colaboradores.filter(c=>!_personal.some(p=>p.id===c.id&&p.tiene_cedula));
@@ -4260,7 +4264,7 @@ function tablasAsistencia(){
   const R=resumenAsistencia(), r2=n=>Math.round((n||0)*100)/100, hh=m=>m?horaHM(msTs(m.ts)):'';
   const conC=marcajeClienteOn(), cC=(a,v)=>{ if(conC) a.splice(4,0,v); return a; }, cR=(a,v)=>{ if(conC) a.splice(6,0,v); return a; };
   const dia=[cC(['Fecha','Persona','Posición','Bodega','Entrada','Salida a almuerzo','Regreso de almuerzo','Salida','Horas trabajadas','Jornada (h)','Horas extra','Extra autorizado','Extra sin autorizar','Tardanza (min)','Observaciones'],'Cliente')];
-  R.forEach(o=>o.D.sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(d=>dia.push(cC([d.fecha,o.nombre,PUESTOS[d.puesto]||'',d.bodega||'',hh(d.ent),hh(d.salAlm),hh(d.regAlm),hh(d.sal),r2(d.horas),d.jornada,r2(d.extra),r2(d.extraAut),r2(d.extraSin),d.tarde||'',[!d.sal&&d.fecha!==hoyStr()?'Sin salida (no suma extra)':'',d.salidaCierre?(d.sal.motivo||'Salida por cierre sin marcaje'):'',d.descanso?'Día de descanso (recargo del día)':'',d.corregido&&!d.salidaCierre?'Con corrección':''].filter(Boolean).join(' · ')],d.cliente||''))));
+  R.forEach(o=>o.D.sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(d=>dia.push(cC([d.fecha,o.nombre,PUESTOS[d.puesto]||'',d.bodega||'',hh(d.ent),hh(d.salAlm),hh(d.regAlm),hh(d.sal),r2(d.horas),d.jornada,r2(d.extra),r2(d.extraAut),r2(d.extraSin),d.tarde||'',[!d.sal&&d.fecha!==hoyStr()?'Sin salida (no suma extra)':'',d.salidaCierre?(d.sal.motivo||'Salida por cierre sin marcaje'):'',d.descanso?'Día de descanso (recargo del día)':'',d.corregido&&!d.salidaCierre?'Con corrección':'',d.ajuste?'Ajuste del administrador'+(d.ajuste.motivo?': '+d.ajuste.motivo:''):''].filter(Boolean).join(' · ')],d.cliente||''))));
   const res=[['Persona','Días trabajados','Horas trabajadas','Horas extra','Extra sin autorizar','Tardanzas','Minutos de tardanza','Días sin salida','Salidas por cierre sin marcaje']];
   R.forEach(o=>res.push([o.nombre,o.D.length,r2(o.horas),r2(o.extra),r2(o.extraSin),o.tardes,o.minTarde,o.incompletos,o.cierres||0]));
   const T=totalAsistencia(R); res.push(['TOTAL',T.dias,r2(T.horas),r2(T.extra),r2(T.extraSin),T.tardes,T.minTarde,T.incompletos,T.cierres]);
