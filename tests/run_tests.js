@@ -670,8 +670,14 @@ async function newPage(browser, opts = {}) {
     const tv = tvLineasBody(), r = { lista: c.join() === 'verde,amarillo,rojo' && /Vamos bien/.test(div.innerHTML) && /Muy abajo/.test(div.innerHTML),
       tv: /tvl tvl-corriendo sem sem-verde/.test(tv) && /sem sem-amarillo/.test(tv) && /sem sem-rojo/.test(tv) };
     abrirLinea(rj.id); r.detalle = !!document.querySelector('#modalLinea .lm-sem.sem-rojo'); hideModal('modalLinea');
+    // TV · filtros de fecha y tipo de línea
+    const ay = fechaMenos(hoyStr(), 1), vieja = { ...mk(12, 'SemAyer'), fecha: ay, estado: 'cerrada', fin: t0 + 8 * H, letra: 'A' }; S.lineas = [...S.lineas, vieja];
+    r.tvFiltros = /class="tvl-filtros"/.test(tvLineasBody()) && /En vivo/.test(tvLineasBody());
+    _tvTipo = 'noExiste'; r.tvTipo = /Sin líneas de producción hoy de|Sin líneas de producción hoy/.test(tvLineasBody()) && !/SemV/.test(tvLineasBody()); _tvTipo = S.lineasTipo[0].id; r.tvTipo = r.tvTipo && /SemV/.test(tvLineasBody());
+    _tvTipo = ''; _tvFecha = ay; const tvA = tvLineasBody(); r.tvFecha = /SemAyer/.test(tvA) && !/SemV/.test(tvA) && /Cierre del/.test(tvA); _tvFecha = '';
     S.lineas = guard; asignarLetras(); return r; });
   ok(semT.lista && semT.tv && semT.detalle, 'líneas: las tarjetas que ven supervisor, administrador y la TV se pintan verde/naranja/rojo según el ritmo (mismo semáforo que la tarjeta de la línea)');
+  ok(semT.tvFiltros && semT.tvTipo && semT.tvFecha, 'TV · Líneas: filtro de fecha (ve el cierre de otro día) y de tipo de línea');
   const pd = await page.evaluate(async () => {
     const H = 3600000, guard = S.lineas, ay = fechaMenos(hoyStr(), 1), t = Date.parse(ay + 'T09:00:00'), P = k => Array.from({ length: k }, (_, i) => t + i * 60000);
     const mk = (fecha, meta, k, cliente) => ({ ...nuevaLinea(S.lineasTipo[0], meta, 8, fecha), cliente, estado: 'cerrada', inicio: t, fin: t + 8 * H, pallets: P(k), personas: [] });
