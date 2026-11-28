@@ -611,6 +611,8 @@ async function newPage(browser, opts = {}) {
     addDimTarea(); const row = document.querySelector('#dimTareasList > div'); row.querySelectorAll('select')[0].value = S.tareasCat[0].id;
     agregarDimPersona('tmp_po1'); agregarDimPersona('tmp_po2'); agregarDimPersona('tmp_pa1'); _dimPers.get('tmp_po1').tareaRow = row.id;
     r.noRepite = !lista().includes('tmp_pa1');
+    document.getElementById('dimSobreHasta').value = '21:00'; document.getElementById('dimSobreMotivo').value = 'Despacho'; _dimPers.get('tmp_pa1').sobre = false; pintarDimPersonal();
+    r.chipSobre = /Hasta fin de jornada/.test(document.getElementById('dimPlanificados').innerHTML);
     document.getElementById('dimFecha').value = hoyStr(); await guardarPlan();
     const plan = S.turnosProgramados[S.turnosProgramados.length - 1];
     r.plan = plan.estado === 'programado' && plan.personas.length === 3 && plan.personas.find(x => x.pid === 'tmp_po1').tareaRow === row.id;
@@ -618,6 +620,7 @@ async function newPage(browser, opts = {}) {
     S.turno = null; S.tareasActivas = []; S.historial = [];
     mkTmp('tmp_po1', 'Pla Uno', 'operador', 'entrada', 60000); await cargarMarcas();
     r.abre = !!S.turno && S.turno.planId === plan.id && plan.estado === 'iniciado' && S.turno.equipo.some(c => c.id === 'tmp_po1');
+    const so = (S.turno.sobre || [])[0]; r.sobre = plan.sobre && plan.sobre.hasta === '21:00' && so && so.personas.join() === 'tmp_po1,tmp_po2' && so.inicio === finJornada(S.turno) && horaHM(so.hasta) === '21:00' && so.motivo === 'Despacho';
     renderEquipo(); const grises = () => [...document.querySelectorAll('#equipoList .pc.st-plan')].map(c => c.dataset.pid);
     r.grises = grises().join() === 'tmp_po2,tmp_pa1';
     r.leToca = /<b>le toca: /.test(document.querySelector('#equipoList .pc[data-pid="tmp_po1"]').innerHTML);
@@ -656,6 +659,7 @@ async function newPage(browser, opts = {}) {
     vaciarPlan(); r.vacio = !_dimPers.size && !document.querySelectorAll('#dimTareasList > div').length;
     hideModal('modalDimensionador'); S.turnosHistorial = gh; S.turno = gt; S.tareasActivas = ga; S.historial = gH; await limpiarTmp(); renderAll(); return r; });
   ok(tp.filtroOp && tp.filtroAg && tp.noRepite && tp.plan, 'planificar turno: por nombre del Personal, filtrado por cargo, con tarea opcional por persona');
+  ok(tp.chipSobre && tp.sobre, 'turno planificado: el sobretiempo se planifica (hasta qué hora, motivo y quién se queda) y queda autorizado al abrirse el turno');
   ok(tp.abre && tp.grises && tp.leToca, 'turno planificado: se abre solo con el primer marcaje; quienes no han marcado salen en gris; al que llegó le aparece su tarea');
   ok(tp.tarde && tp.rzFiltro && tp.reemplazo && tp.entra, 'turno planificado: «Llegará tarde» lo deja en gris; «Reemplazar» (mismo cargo) saca al planificado y pone al reemplazo; al marcar entra solo');
   ok(tp.pendiente && tp.inicia, 'turno planificado: la tarea planificada no arranca sola; al iniciarla vienen seleccionados quienes la tenían');
