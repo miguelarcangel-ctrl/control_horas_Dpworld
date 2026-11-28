@@ -595,7 +595,7 @@ async function newPage(browser, opts = {}) {
     _rep = { id: 'produccion', desde: hoyStr(), hasta: hoyStr(), tipo: '' }; const P = tablasReporte().produccion, c = n => P[0].indexOf(n);
     r.reporte = c('Realizado (unidades)') > 0 && P[1][c('Realizado (unidades)')] === 150;
     S.lineas = guard; S.lineasTipo = gt; _rep = { id: 'asisGeneral', desde: '', hasta: '' }; await save(); await limpiarTmp(); return r; });
-  ok(lu.copia && lu.botones && lu.cuenta, 'línea por unidades: el tipo se cuenta en unidades (+10/+50/+100, «−» deshace el último registro) y se guarda compacto');
+  ok(lu.copia && lu.botones && lu.cuenta, 'línea por unidades: el tipo se cuenta en unidades (+50/+100/+500, «−» deshace el último registro) y se guarda compacto');
   ok(lu.tarjeta && lu.la && lu.sync, 'línea por unidades: la tarjeta de «Ingresar como línea» cuenta en unidades y el supervisor lo ve');
   ok(lu.resumen && lu.reporte, 'línea por unidades: no se mezcla con los pallets (total del día y Producción diaria con columnas de unidades)');
   ok(la.verde && la.amarillo && la.rojo && la.sinParos && la.arranque && la.meta && la.pinta, 'ingresar como línea: semáforo verde/amarillo/rojo según los pallets esperados a esta hora (sin paros ni almuerzo), con toda la pantalla del color');
