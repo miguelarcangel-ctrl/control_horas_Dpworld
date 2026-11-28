@@ -862,6 +862,7 @@ body.en-kiosco .door-demo-tag{display:none}
     <div class="dpw-lg-fg"><label class="dpw-lg-lbl" for="loginPass">Contraseña</label><input type="password" class="dpw-lg-in" id="loginPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <button class="dpw-lg-btn" id="loginBtn" onclick="doLogin()">Iniciar sesión</button>
     <button type="button" class="dpw-lg-btn la-entrar" id="btnIngresarLinea" onclick="lineaInicio()">Ingresar como línea</button>
+    <button type="button" class="dpw-lg-btn la-entrar" id="btnIngresarOperador" onclick="opInicio()">Ingresar como operador</button>
         <div class="door-cred"><b>USUARIOS DE PRUEBA</b> · contraseña <code>demo123</code><br>
       <code>admin</code> administrador · <code>supervisor</code> supervisor · <code>linea</code> encargada de línea<br>
       <code>cliente</code> (versión avanzada) o <code>atlantico</code> (básica): clientes de Door<br>
@@ -872,6 +873,8 @@ body.en-kiosco .door-demo-tag{display:none}
 
 <!-- INGRESAR COMO LÍNEA: pantalla completa que solo cuenta los pallets de una línea -->
 <div id="lineaApp" class="la-full hidden" aria-live="polite"></div>
+<!-- INGRESAR COMO OPERADOR: pantalla completa con la tarea en curso del operador y su conteo -->
+<div id="opApp" class="la-full hidden" aria-live="polite"></div>
 
 <div class="toast" id="toast"></div>
 <div class="avisos-app" id="avisosApp" aria-live="polite"></div>
@@ -2221,7 +2224,9 @@ async function init(){
   pintarMenu();
   // Este equipo quedó como pantalla de una línea: vuelve directo al conteo
   if(!IS_TV){ let ls=null; try{ ls=JSON.parse(localStorage.getItem(LA_KEY)||'null'); }catch(e){}
-    if(ls&&ls.token){ _la.ses=ls; _la.paso='conteo'; mostrarLA(true); renderLA(); await cargarEstadoLA(); iniciarRelojLA(); return; } }
+    if(ls&&ls.token){ _la.ses=ls; _la.paso='conteo'; mostrarLA(true); renderLA(); await cargarEstadoLA(); iniciarRelojLA(); return; }
+    let os=null; try{ os=JSON.parse(localStorage.getItem(OP_KEY)||'null'); }catch(e){}
+    if(os&&os.token){ _op.ses=os; _op.paso='conteo'; mostrarOP(true); renderOP(); await cargarEstadoOP(); iniciarRelojOP(); return; } }
   const saved=localStorage.getItem(SESS_KEY);
   if(!saved) return;
   try{
@@ -2345,6 +2350,105 @@ async function sumarLA(d){
   catch(x){ const m=x.message||''; _la.err=/ALMUERZO/.test(m)?'La línea está en almuerzo':/LINEA_NO_CORRE/.test(m)?'La línea no está en marcha':/SESION/.test(m)?'':'No se guardó: '+m;
     if(/SESION/.test(m)){ _la.ocupado=false; salirLA(true); return; } await cargarEstadoLA(); }
   _la.ocupado=false; renderLA();
+}
+// ═══ INGRESAR COMO OPERADOR ═══
+// El operador o ayudante del turno entra con su cédula y lleva el conteo de SU tarea en curso (la que le asignó el supervisor).
+// Semáforo: lo que lleva contra lo esperado (productividad de la tarea × horas en ella × personas en la tarea).
+const OP_KEY='ch_operador_sesion_'+STATE_KEY;
+let _op={paso:'nombre',L:[],persona:null,ses:null,est:null,err:'',ocupado:false,tic:null,poll:null,n10:0};
+const PASOS_OP=[1,5,10];
+function mostrarOP(v){ document.getElementById('opApp').classList.toggle('hidden',!v); if(!v){ clearInterval(_op.tic); clearInterval(_op.poll); } }
+async function opInicio(){
+  _op={..._op,paso:'nombre',L:[],persona:null,err:''}; mostrarOP(true); renderOP();
+  try{ _op.L=await rpc('ch_operador_publica',{p_key:STATE_KEY})||[]; }catch(e){ _op.err='No se pudo leer el turno: '+e.message; }
+  renderOP();
+}
+function semaforoOP(t, now){
+  now=now||Date.now(); if(!t||t.especial||t.sinProd||!(+t.prod>0)||!t.inicio) return {c:'neutro',t:''};
+  const h=(now-t.inicio)/3600000, esperado=(+t.prod)*((+t.efic||100)/100)*h*Math.max(1,+t.personas||1), ritmo=h>0?t.cant/h:0;
+  if(h<0.25) return {c:'neutro',t:'Arrancando',ritmo};
+  const r=esperado>0?t.cant/esperado:1;
+  return r>=0.95?{c:'verde',t:'Vamos bien',ritmo}:r>=0.8?{c:'amarillo',t:'Un poco abajo',ritmo}:{c:'rojo',t:'Muy abajo',ritmo};
+}
+function renderOP(){
+  const el=document.getElementById('opApp'), volver=paso=>`<button class="btn btn-ghost" onclick="${paso?`_op.paso='${paso}';_op.err='';renderOP()`:'mostrarOP(false)'}">Volver</button>`;
+  const t=_op.paso==='conteo'&&_op.est&&_op.est.tarea, c=t?semaforoOP(t).c:'';
+  el.className='la-full'+(c?' fondo-'+c:'')+(c&&c!=='neutro'?' pintada':'');
+  if(_op.paso==='conteo'){ el.innerHTML=htmlConteoOP(); return; }
+  let h='<div class="la-paso">';
+  if(_op.paso==='nombre'){
+    h+=`<div class="la-h">¿Quién eres?</div><div class="li-sub">Aparecen los operadores y ayudantes que están en el turno de hoy.</div>`;
+    h+=_op.L.length?`<div class="la-opc">${_op.L.map((p,i)=>`<button onclick="_op.persona=_op.L[${i}];_op.paso='cedula';_op.err='';renderOP()">${esc(p.nombre)}<small>${p.cargo==='ag'?'Ayudante general':'Operador'}</small></button>`).join('')}</div>`
+      :`<div class="empty-text">${_op.err?esc(_op.err):'No hay turno abierto o nadie del turno ha marcado entrada. Marca primero en la tablet.'}</div>`;
+    h+=volver(null);
+  } else if(_op.paso==='cedula'){
+    h+=`<div class="la-h">Hola, ${esc(_op.persona.nombre.split(' ')[0])}</div><div class="li-sub">Escribe tu cédula (la misma con que marcas en la tablet).</div>
+      <input class="la-in" id="opCed" autocomplete="off" inputmode="text" placeholder="Cédula" onkeydown="if(event.key==='Enter')opEntrar()">
+      ${_op.err?`<div class="la-err">${esc(_op.err)}</div>`:''}
+      <button class="btn btn-green btn-full" style="height:56px;font-size:1.1rem" onclick="opEntrar()" ${_op.ocupado?'disabled':''}>Entrar</button>${volver('nombre')}`;
+  }
+  el.innerHTML=h+'</div>';
+  if(_op.paso==='cedula') setTimeout(()=>{ const i=document.getElementById('opCed'); if(i) i.focus(); },60);
+}
+async function opEntrar(){
+  const ced=(document.getElementById('opCed')||{}).value||''; if(!ced.trim()){ _op.err='Escribe tu cédula'; renderOP(); return; }
+  _op.ocupado=true; _op.err='';
+  try{ const r=await rpc('ch_operador_login',{p_key:STATE_KEY,p_persona:_op.persona.id,p_cedula:ced});
+    _op.ses={token:r.token,nombre:r.nombre,persona:r.persona}; try{ localStorage.setItem(OP_KEY,JSON.stringify(_op.ses)); }catch(e){}
+    _op.paso='conteo'; await cargarEstadoOP(); iniciarRelojOP();
+  }catch(e){ _op.err=/CEDULA/.test(e.message)?'Cédula incorrecta, o ya no estás en el turno.':'No se pudo entrar: '+e.message; }
+  _op.ocupado=false; renderOP();
+}
+async function cargarEstadoOP(){
+  if(!_op.ses) return;
+  try{ _op.est=await rpc('ch_operador_estado',{p_token:_op.ses.token}); _op.err=''; }
+  catch(e){ if(/SESION/.test(e.message)){ salirOP(true); return; } _op.err='Sin conexión: el conteo se actualiza al volver'; }
+  if(_op.paso==='conteo') renderOP();
+}
+function iniciarRelojOP(){
+  clearInterval(_op.tic); clearInterval(_op.poll);
+  _op.tic=setInterval(()=>{ const t=_op.est&&_op.est.tarea, a=document.getElementById('opT1'), b=document.getElementById('opT2');
+    if(a&&t) a.textContent=fmtReloj(Date.now()-t.inicio); if(b&&t&&t.cantTs) b.textContent=fmtReloj(Date.now()-t.cantTs).replace(/^00:/,'');
+    if(++_op.n10%10===0&&!_op.ocupado&&_op.paso==='conteo') renderOP(); },1000);
+  _op.poll=setInterval(()=>{ if(!_op.ocupado) cargarEstadoOP(); },15000);
+}
+function htmlConteoOP(){
+  const e=_op.est||{}, t=e.tarea, quien=esc((_op.ses&&_op.ses.nombre)||'');
+  const top=(tit,sub)=>`<div class="la-top"><div><div class="la-tit">${tit}</div><div class="la-sub">${sub}</div></div><button class="btn btn-ghost btn-sm" onclick="salirOP()">Salir</button></div>`;
+  if(e.turno===false||e.enTurno===false) return `<div class="la-card">${top('Sin turno',quien)}<div class="la-estado alm">${e.turno===false?'El turno de hoy está cerrado.':'Ya no estás en el turno de hoy.'} Sal y vuelve a entrar cuando estés en un turno.</div></div>`;
+  if(!t) return `<div class="la-card">${top('Sin tarea asignada',quien)}<div class="la-estado alm">Avísale al supervisor para que te asigne una tarea. Esta pantalla se actualiza sola cuando te la asigne.</div>${_op.err?`<div class="la-err" style="text-align:center">${esc(_op.err)}</div>`:''}</div>`;
+  if(t.especial) return `<div class="la-card">${top(esc(t.tarea||'En pausa'),quien)}<div class="la-estado alm">Estás en ${esc((t.tarea||'pausa').toLowerCase())}. El conteo sigue cuando vuelvas a tu tarea.</div>
+    <div class="la-timer"><span class="la-lbl">Tiempo en pausa</span><b id="opT1">${fmtReloj(Date.now()-t.inicio)}</b></div></div>`;
+  const sm=semaforoOP(t), u=(t.unidad||'unidad')+'s', bloq=_op.ocupado;
+  return `<div class="la-card">
+    ${top(esc(t.tarea),`${esc(t.cliente||'')}${t.personas>1?' · '+t.personas+' personas en la tarea':''} · ${quien}`)}
+    <div class="la-cuerpo">
+      <div class="la-izq">
+        ${sm.t?`<div class="la-sem s-${sm.c}">${sm.t}</div>`:''}
+        <div class="la-big"><b id="opN">${fmtN(t.cant)}</b><span>${esc(u)}${t.personas>1?' entre todos':''}</span></div>
+      </div>
+      <div class="la-der">
+        <div class="la-timer"><span class="la-lbl">Tiempo en la tarea</span><b id="opT1">${fmtReloj(Date.now()-t.inicio)}</b>
+          <span class="la-ult">${t.cantTs?`Último movimiento ${horaHM(t.cantTs)} · hace <span id="opT2">${fmtReloj(Date.now()-t.cantTs).replace(/^00:/,'')}</span>`:'Sin movimientos aún'}</span></div>
+        ${sm.ritmo!=null&&!t.sinProd&&+t.prod>0?`<div class="la-ritmo">Ritmo <b>${fmtN(sm.ritmo)}</b> ${esc(u)}/h · objetivo <b>${fmtN((+t.prod)*((+t.efic||100)/100)*Math.max(1,t.personas||1))}</b>/h</div>`:''}
+        ${_op.err?`<div class="la-err" style="text-align:center">${esc(_op.err)}</div>`:''}
+        <div class="la-btns la-btns-4"><button class="btn btn-ghost" ${bloq||!t.cant?'disabled':''} onclick="sumarOP(-1)" aria-label="Restar uno">−</button>
+          ${PASOS_OP.map(k=>`<button class="btn btn-green" ${bloq?'disabled':''} onclick="sumarOP(${k})">+${k}</button>`).join('')}</div>
+      </div>
+    </div></div>`;
+}
+async function sumarOP(d){
+  const t=_op.est&&_op.est.tarea; if(!_op.ses||_op.ocupado||!t) return; _op.ocupado=true;
+  t.cant=Math.max(0,(+t.cant||0)+d); t.cantTs=Date.now(); renderOP();
+  try{ _op.est=await rpc('ch_operador_cant',{p_token:_op.ses.token,p_delta:d}); _op.err=''; }
+  catch(x){ const m=x.message||''; _op.err=/SIN_TAREA/.test(m)?'Ya no tienes tarea en curso':/PAUSA/.test(m)?'Estás en pausa':/SESION/.test(m)?'':'No se guardó: '+m;
+    if(/SESION/.test(m)){ _op.ocupado=false; salirOP(true); return; } await cargarEstadoOP(); }
+  _op.ocupado=false; renderOP();
+}
+async function salirOP(silencio){
+  const t=_op.ses&&_op.ses.token; _op.ses=null; _op.est=null; try{ localStorage.removeItem(OP_KEY); }catch(e){}
+  if(t&&!silencio){ try{ await rpc('ch_operador_salir',{p_token:t}); }catch(e){} }
+  mostrarOP(false); if(silencio) showToast('La sesión terminó: vuelve a entrar','info');
 }
 async function salirLA(silencio){
   const t=_la.ses&&_la.ses.token; _la.ses=null; _la.est=null; try{ localStorage.removeItem(LA_KEY); }catch(e){}

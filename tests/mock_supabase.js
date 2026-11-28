@@ -85,6 +85,16 @@
         mk('salida_almuerzo',at('12:00'),'Almuerzo');mk('regreso_almuerzo',at('13:00'),'Almuerzo');mk('salida',tf,'Salida 17:00: día sin turno abierto (jornada automática)');n++;});
       return{data:n};},
     // Ingresar como línea (misma semántica que 20261127_ingresar_como_linea.sql)
+    ch_operador_publica:a=>{const v=(SRV.rows[a.p_key]||{}).value||{};return{data:((v.turno&&v.turno.equipo)||[]).filter(c=>['operador','ag'].includes(c.cargo)).map(c=>({id:c.id,nombre:c.nombre,cargo:c.cargo})).sort((x,y)=>x.nombre.localeCompare(y.nombre))};},
+    ch_operador_login:a=>{const v=(SRV.rows[a.p_key]||{}).value||{},per=SRV.personal.find(x=>x.id===a.p_persona&&x.activo);
+      if(!(v.turno&&(v.turno.equipo||[]).some(c=>c.id===a.p_persona))||!per||normCed(per.cedula)!==normCed(a.p_cedula))return err('CEDULA','28000');
+      const t='ot'+Math.random();SRV.sesOp=SRV.sesOp||{};SRV.sesOp[t]={key:a.p_key,pid:a.p_persona,nombre:per.nombre};return{data:{token:t,nombre:per.nombre,persona:a.p_persona}};},
+    ch_operador_estado:a=>{const se=(SRV.sesOp||{})[a.p_token];if(!se)return err('SESION','28000');const v=SRV.rows[se.key].value;if(!v.turno)return{data:{turno:false,quien:se.nombre}};
+      const t=(v.tareasActivas||[]).find(x=>(x.colaboradores||[]).some(c=>c.id===se.pid)),tc=t&&(v.tareasCat||[]).find(x=>x.id===t.tareaId);
+      return{data:{turno:true,quien:se.nombre,enTurno:(v.turno.equipo||[]).some(c=>c.id===se.pid),tarea:t?{id:t.id,tarea:t.tarea,cliente:t.cliente,unidad:t.unidad,inicio:t.inicio,cant:t.cantAcum||0,cantTs:t.cantTs||null,especial:!!t.isEspecial,causa:t.causa||null,sinProd:!!t.sinProd,personas:(t.colaboradores||[]).length,prod:tc?tc.prod:t.prod,efic:tc?tc.efic:null}:null}};},
+    ch_operador_cant:a=>{const se=(SRV.sesOp||{})[a.p_token];if(!se)return err('SESION','28000');if(!a.p_delta||Math.abs(a.p_delta)>50)return err('DATOS');const r=SRV.rows[se.key],t=(r.value.tareasActivas||[]).find(x=>(x.colaboradores||[]).some(c=>c.id===se.pid));
+      if(!t)return err('SIN_TAREA');if(t.isEspecial)return err('PAUSA');t.cantAcum=Math.max(0,(t.cantAcum||0)+a.p_delta);t.cantTs=Date.now();r.version++;return fns.ch_operador_estado({p_token:a.p_token});},
+    ch_operador_salir:a=>{if(SRV.sesOp)delete SRV.sesOp[a.p_token];return{data:null};},
     ch_linea_publica:a=>{const v=(SRV.rows[a.p_key]||{}).value||{},hoy=fechaPA(Date.now());return{data:(v.lineas||[]).filter(l=>l.estado!=='cerrada'&&(l.fecha===hoy||l.estado==='corriendo')).map(l=>({id:l.id,letra:l.letra,nombre:l.nombre,estado:l.estado,personas:(l.personas||[]).filter(p=>!p.hasta&&p.personaId).map(p=>({id:p.personaId,nombre:p.nombre}))}))};},
     ch_linea_login:a=>{const v=(SRV.rows[a.p_key]||{}).value||{},l=(v.lineas||[]).find(x=>x.id===a.p_linea&&x.estado!=='cerrada'),per=SRV.personal.find(x=>x.id===a.p_persona&&x.activo);
       if(!l||!(l.personas||[]).some(p=>p.personaId===a.p_persona&&!p.hasta)||!per||normCed(per.cedula)!==normCed(a.p_cedula))return err('CEDULA','28000');
