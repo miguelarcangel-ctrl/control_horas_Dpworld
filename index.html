@@ -395,7 +395,14 @@ hr{border:none;border-top:1px solid var(--b0);margin:2px 0}
   .tvl{padding:12px 14px;height:clamp(300px,82vw,460px)}
   .tvl-grid{grid-template-columns:1fr!important;grid-template-rows:none!important;height:auto!important;min-height:0}
 }
-.tvl-grid{display:grid;gap:12px;grid-template-columns:repeat(var(--c,1),minmax(0,1fr));grid-template-rows:repeat(var(--r,1),minmax(0,1fr));height:calc(100vh - 142px);min-height:300px}
+.tvl-grid{display:grid;gap:12px;grid-template-columns:repeat(var(--c,1),minmax(0,1fr));grid-template-rows:repeat(var(--r,1),minmax(0,1fr));height:calc(100vh - 186px);min-height:300px}
+.tvl-filtros{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-family:'Barlow Condensed',sans-serif}
+.tvl-filtros>*{width:auto!important;flex:0 0 auto;margin:0!important;display:inline-block}
+.tvl-filtros{height:36px;overflow:hidden}
+.tvl-filtros label{font-weight:700;font-size:.8rem;letter-spacing:.8px;text-transform:uppercase;color:var(--t3)}
+.tvl-filtros input,.tvl-filtros select,.tvl-filtros button{background:var(--card);color:var(--t);border:1px solid var(--b1);border-radius:8px;padding:5px 9px;font:inherit;font-size:.95rem}
+.tvl-filtros button{cursor:pointer;font-weight:700}
+.tvl-filtros span{margin-left:auto!important;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--t3);font-size:.85rem}
 /* Cada tarjeta es un contenedor: el texto crece o se achica con el tamaño de la tarjeta (cq = % de la tarjeta) */
 .tvl{container-type:size;overflow:hidden;background:var(--card);border:1px solid var(--b1);border-radius:16px;padding:12px 16px;display:flex;flex-direction:column;gap:2.2cqh;justify-content:space-between}
 .tvl .tv-badge{font-size:min(4.2cqh,3.4cqw);padding:.35em .8em;white-space:nowrap}
@@ -6907,9 +6914,20 @@ function setTvFiltroDesde(v){_tvFilters.desde=v;renderDashboardAnalytics();}
 function setTvFiltroHasta(v){_tvFilters.hasta=v;renderDashboardAnalytics();}
 function setTvFiltroCol(v){_tvFilters.colId=v;renderDashboardAnalytics();}
 // TV · Líneas de producción: total contra la meta, dónde debería ir a esta hora, ritmo actual y necesario
+// Filtros de la vista Líneas de la TV: fecha (hoy por defecto) y tipo de línea. También por enlace: ?vista=lineas&fecha=AAAA-MM-DD&tipo=<id>
+var _tvFecha=QS.get('fecha')||'', _tvTipo=QS.get('tipo')||'';
+function htmlTvFiltros(){
+  const f=_tvFecha||hoyStr(), T=S.lineasTipo||[];
+  return `<div class="tvl-filtros"><label>Fecha</label><input type="date" value="${f}" max="${hoyStr()}" onchange="_tvFecha=this.value===hoyStr()?'':this.value;renderDashboard()">
+    ${f!==hoyStr()?`<button onclick="_tvFecha='';renderDashboard()">Hoy</button>`:''}
+    <label>Tipo de línea</label><select onchange="_tvTipo=this.value;renderDashboard()"><option value="">Todas</option>${T.map(t=>`<option value="${t.id}"${_tvTipo===t.id?' selected':''}>${esc(t.nombre)}</option>`).join('')}</select>
+    <span>${f===hoyStr()?'En vivo':'Cierre del '+etiquetaDia(f).toLowerCase()}</span></div>`;
+}
 function tvLineasBody(){
-  const L=lineasHoy(), now=Date.now();
-  if(!L.length) return `<div class="tv-body"><div class="tv-no-turno"><div class="tv-no-title">Sin líneas de producción hoy</div><div style="font-size:.9rem">Actualización automática cada 15 segundos</div></div></div>`;
+  const f=_tvFecha||hoyStr(), hoy=f===hoyStr(), ord={corriendo:0,pendiente:1,cerrada:2};
+  const L=(hoy?lineasHoy():(S.lineas||[]).filter(l=>l.fecha===f&&l.estado!=='pendiente').sort((a,b)=>(a.letra||'').length-(b.letra||'').length||(a.letra||'').localeCompare(b.letra||'')))
+    .filter(l=>!_tvTipo||l.tipoId===_tvTipo), now=Date.now();
+  if(!L.length) return `<div class="tv-body">${htmlTvFiltros()}<div class="tv-no-turno"><div class="tv-no-title">Sin líneas de producción ${hoy?'hoy':'el '+etiquetaDia(f).toLowerCase()}${_tvTipo&&tipoLinea(_tvTipo)?' de '+esc(tipoLinea(_tvTipo).nombre):''}</div><div style="font-size:.9rem">Actualización automática cada 15 segundos</div></div></div>`;
   const tarjetas=L.map(l=>{
     const r=ritmoLinea(l,now), pct=l.meta?Math.min(100,r.tot/l.meta*100):0, nP=cuadrillaVista(l).length;
     const esperado=l.estado==='corriendo'&&l.horas?Math.min(100,r.h/l.horas*100):null;
@@ -6939,9 +6957,9 @@ function tvLineasBody(){
     </div>`;
   }).join('');
   // Reparte las líneas para que todas quepan en la pantalla con tarjetas de forma parecida (≈ 1.3 de ancho por 1 de alto)
-  const n=L.length, W=Math.max(320,innerWidth-40), H=Math.max(300,innerHeight-142); let C=1, mejor=1e9;
+  const n=L.length, W=Math.max(320,innerWidth-40), H=Math.max(300,innerHeight-186); let C=1, mejor=1e9;
   for(let c=1;c<=Math.min(n,6);c++){ const r=Math.ceil(n/c), pt=Math.abs(Math.log((W/c)/(H/r)/1.3))+(r*c-n)*0.35; if(pt<mejor){ mejor=pt; C=c; } }
-  return `<div class="tv-body"><div class="tvl-grid" style="--c:${C};--r:${Math.ceil(n/C)}">${tarjetas}</div>
+  return `<div class="tv-body">${htmlTvFiltros()}<div class="tvl-grid" style="--c:${C};--r:${Math.ceil(n/C)}">${tarjetas}</div>
     <div class="tv-bar-legend" style="justify-content:center;gap:18px"><span>Verde: va bien · naranja: un poco abajo · rojo: muy abajo, según lo que debería llevar a esta hora. La marca en la barra indica dónde debería ir la línea a esta hora</span><span>Actualización automática cada 15 segundos</span></div></div>`;
 }
 function renderDashboardAnalytics(){
