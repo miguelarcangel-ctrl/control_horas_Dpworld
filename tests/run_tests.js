@@ -105,9 +105,20 @@ async function newPage(browser, opts = {}) {
 
   // 7) Sin conexión → respaldo local → se sincroniza al volver
   await page.evaluate(async () => { window.__SRV.offline = true; S.clientes.push({ id: 'kOff', nombre: 'Offline' }); await save(); });
-  ok(await page.evaluate(() => !!localStorage.getItem(BK_KEY)), 'sin conexión: guarda respaldo en el equipo');
+  ok(await page.evaluate(async () => hayBk() && localStorage.getItem(BK_FLAG) === 'idb' && !localStorage.getItem(BK_KEY) && (await bkGet()).local.clientes.some(c => c.id === 'kOff')), 'sin conexión: guarda respaldo en el equipo (IndexedDB)');
   await page.evaluate(async () => { window.__SRV.offline = false; await reload(); });
-  ok(await page.evaluate(() => window.__SRV.rows.ctrl_horas_test.value.clientes.some(c => c.id === 'kOff') && !localStorage.getItem(BK_KEY)), 'al volver la conexión sube los cambios pendientes');
+  ok(await page.evaluate(async () => window.__SRV.rows.ctrl_horas_test.value.clientes.some(c => c.id === 'kOff') && !hayBk() && !(await bkGet())), 'al volver la conexión sube los cambios pendientes');
+  // E1 · respaldo sin el tope de localStorage: 20 MB se guardan y se recuperan; la base se rearma exacta con una sola copia
+  const e1 = await page.evaluate(async () => {
+    const r = {}, grande = { relleno: 'x'.repeat(20 * 1048576), clientes: [{ id: 'a' }] }, base = { relleno: 'y', clientes: [{ id: 'a' }], quitado: 1 };
+    r.guarda = await bkSet(7, base, grande); const b = await bkGet();
+    r.recupera = !!b && b.ver === 7 && b.local.relleno.length === 20 * 1048576 && eqJ(b.base, base);
+    const pk = bkEmpacar(7, base, grande); r.unaCopia = !('base' in pk) && Object.keys(pk.cambios).join() === 'relleno,quitado';
+    await bkDel(); r.borra = !hayBk() && !(await bkGet());
+    // un respaldo viejo (formato anterior en localStorage) se sigue leyendo
+    localStorage.setItem(BK_KEY, JSON.stringify({ ver: 3, base: { a: 1 }, local: { a: 2 } })); const v = await bkGet(); r.viejo = v && v.ver === 3 && v.local.a === 2 && v.base.a === 1; await bkDel();
+    return r; });
+  ok(e1.guarda && e1.recupera && e1.unaCopia && e1.borra && e1.viejo, 'E1 · respaldo sin conexión en IndexedDB: 20 MB se guardan y recuperan, una sola copia completa, y se lee el formato viejo');
 
   // 8) Excel
   await page.evaluate(() => exportExcel(null));
