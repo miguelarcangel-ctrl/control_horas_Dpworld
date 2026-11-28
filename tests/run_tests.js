@@ -598,6 +598,44 @@ async function newPage(browser, opts = {}) {
   ok(lu.copia && lu.botones && lu.cuenta, 'línea por unidades: el tipo se cuenta en unidades (+50/+100/+500, «−» deshace el último registro) y se guarda compacto');
   ok(lu.tarjeta && lu.la && lu.sync, 'línea por unidades: la tarjeta de «Ingresar como línea» cuenta en unidades y el supervisor lo ve');
   ok(lu.resumen && lu.reporte, 'línea por unidades: no se mezcla con los pallets (total del día y Producción diaria con columnas de unidades)');
+  const tp = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, orig = { turno: S.turno, act: S.tareasActivas, hist: S.historial, prog: [...(S.turnosProgramados || [])] };
+    [['tmp_po1', 'Pla Uno', 'operador'], ['tmp_po2', 'Pla Dos', 'operador'], ['tmp_pa1', 'Pla Ayu', 'ag'], ['tmp_pa2', 'Rem Ayu', 'ag'], ['tmp_po3', 'Otro Op', 'operador']]
+      .forEach(([id, nombre, puesto]) => { if (!SRV.personal.some(x => x.id === id)) SRV.personal.push({ key: STATE_KEY, id, nombre, cedula: 'X' + id, puesto_def: puesto, activo: true }); });
+    await cargarPersonal(); await cargarMarcas();
+    // planificar por nombre, con filtro por cargo
+    await showModal('modalDimensionador'); await new Promise(res => setTimeout(res, 50));
+    const lista = () => [...document.querySelectorAll('#dimPersonal .chip')].map(c => c.dataset.id).filter(Boolean);
+    r.filtroOp = lista().includes('tmp_po1') && !lista().includes('tmp_pa1');
+    _dimCargo = 'ag'; pintarDimPersonal(); r.filtroAg = lista().includes('tmp_pa1') && !lista().includes('tmp_po1');
+    addDimTarea(); const row = document.querySelector('#dimTareasList > div'); row.querySelectorAll('select')[0].value = S.tareasCat[0].id;
+    agregarDimPersona('tmp_po1'); agregarDimPersona('tmp_po2'); agregarDimPersona('tmp_pa1'); _dimPers.get('tmp_po1').tareaRow = row.id;
+    r.noRepite = !lista().includes('tmp_pa1');
+    document.getElementById('dimFecha').value = hoyStr(); await guardarPlan();
+    const plan = S.turnosProgramados[S.turnosProgramados.length - 1];
+    r.plan = plan.estado === 'programado' && plan.personas.length === 3 && plan.personas.find(x => x.pid === 'tmp_po1').tareaRow === row.id;
+    // sin turno: al marcar el primer planificado se abre solo y entra al tablero
+    S.turno = null; S.tareasActivas = []; S.historial = [];
+    mkTmp('tmp_po1', 'Pla Uno', 'operador', 'entrada', 60000); await cargarMarcas();
+    r.abre = !!S.turno && S.turno.planId === plan.id && plan.estado === 'iniciado' && S.turno.equipo.some(c => c.id === 'tmp_po1');
+    renderEquipo(); const grises = () => [...document.querySelectorAll('#equipoList .pc.st-plan')].map(c => c.dataset.pid);
+    r.grises = grises().join() === 'tmp_po2,tmp_pa1';
+    r.leToca = /<b>le toca: /.test(document.querySelector('#equipoList .pc[data-pid="tmp_po1"]').innerHTML);
+    await marcarTarde('tmp_po2'); r.tarde = /Llegará tarde<\/b>/.test(document.querySelector('#equipoList .pc[data-pid="tmp_po2"]').innerHTML);
+    // reemplazo: solo salen de su cargo; el reemplazado sale del turno
+    abrirReemplazo('tmp_pa1'); const rz = document.getElementById('rzLista').innerHTML; r.rzFiltro = /Rem Ayu/.test(rz) && !/Otro Op/.test(rz);
+    await reemplazar('tmp_pa2'); r.reemplazo = !S.turno.planPersonas.some(x => x.pid === 'tmp_pa1') && S.turno.planPersonas.some(x => x.pid === 'tmp_pa2' && x.reemplazaA === 'Pla Ayu') && grises().join() === 'tmp_po2,tmp_pa2';
+    // al marcar el que viene tarde, entra solo y sale de los grises
+    mkTmp('tmp_po2', 'Pla Dos', 'operador', 'entrada', 0); await cargarMarcas(); renderEquipo(); r.entra = S.turno.equipo.some(c => c.id === 'tmp_po2') && grises().join() === 'tmp_pa2';
+    // la tarea planificada no arranca sola: el supervisor la inicia y vienen seleccionados quienes la tenían
+    const td = S.turno.tareasDia[0]; r.pendiente = td.estado === 'pendiente' && !S.tareasActivas.length && td.personasPlan.join() === 'tmp_po1';
+    _sel = new Set(); await iniciarTareaDia(td.id); r.inicia = [..._sel].join() === 'tmp_po1';
+    document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
+    S.turno = orig.turno; S.tareasActivas = orig.act; S.historial = orig.hist; S.turnosProgramados = orig.prog; await save(); await limpiarTmp(); renderAll(); return r; });
+  ok(tp.filtroOp && tp.filtroAg && tp.noRepite && tp.plan, 'planificar turno: por nombre del Personal, filtrado por cargo, con tarea opcional por persona');
+  ok(tp.abre && tp.grises && tp.leToca, 'turno planificado: se abre solo con el primer marcaje; quienes no han marcado salen en gris; al que llegó le aparece su tarea');
+  ok(tp.tarde && tp.rzFiltro && tp.reemplazo && tp.entra, 'turno planificado: «Llegará tarde» lo deja en gris; «Reemplazar» (mismo cargo) saca al planificado y pone al reemplazo; al marcar entra solo');
+  ok(tp.pendiente && tp.inicia, 'turno planificado: la tarea planificada no arranca sola; al iniciarla vienen seleccionados quienes la tenían');
   ok(la.verde && la.amarillo && la.rojo && la.sinParos && la.arranque && la.meta && la.pinta, 'ingresar como línea: semáforo verde/amarillo/rojo según los pallets esperados a esta hora (sin paros ni almuerzo), con toda la pantalla del color');
   const semT = await page.evaluate(async () => {
     const H = 3600000, guard = S.lineas, t0 = Date.now() - 4 * H, mk = (k, nombre) => ({ ...nuevaLinea(S.lineasTipo[0], 16, 8, hoyStr()), nombre, estado: 'corriendo', inicio: t0, pallets: Array.from({ length: k }, (_, i) => t0 + i * 60000) });
