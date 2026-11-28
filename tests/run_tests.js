@@ -165,6 +165,34 @@ async function newPage(browser, opts = {}) {
   ok(uso.menu && uso.bloques && uso.sinCostos && uso.excel, 'T1 · Uso de la app: espacio frente a 4 MB (qué pesa más y crecimiento), adopción por usuario, calidad del registro y Excel, sin costos');
   ok(uso.supMenu && uso.supRpc, 'T1 · Uso de la app: solo el administrador la ve y puede pedir los datos');
 
+  // T2 · Compactar al cerrar: turno de referencia (15 personas, 40 tareas) con el formato de hoy contra el compacto
+  const t2 = await page.evaluate(async () => {
+    const r = {}, H = 3600000, f = fechaMenos(hoyStr(), 2), t0 = Date.parse(f + 'T08:00:00');
+    const eq = Array.from({ length: 15 }, (_, i) => ({ id: 'rf' + i, nombre: 'Persona Referencia ' + i, cargo: i === 0 ? 'supervisor' : i % 4 ? 'operador' : 'ag', bodega: 'Bodega 1 CLP', cliente: '', marcaje: true,
+      marcas: [{ id: 1000 + i, tipo: 'entrada', ts: t0, anulado: false }, { id: 2000 + i, tipo: 'salida_almuerzo', ts: t0 + 4 * H, anulado: false }, { id: 3000 + i, tipo: 'regreso_almuerzo', ts: t0 + 5 * H, anulado: false }, { id: 4000 + i, tipo: 'salida', ts: t0 + 9 * H, anulado: false }] }));
+    const tc = S.tareasCat[0], hist = Array.from({ length: 40 }, (_, j) => { const ini = t0 + (j % 8) * H, fin = ini + 0.75 * H, cols = [eq[1 + j % 14], eq[1 + (j + 5) % 14]].map(c => JSON.parse(JSON.stringify(c))), cant = 10 + j;
+      const rp = cant / 0.75; return { id: 'rh' + j, tareaId: tc.id, tarea: tc.nombre, clienteId: 'k1', cliente: 'CERNAC', bodega: 'Bodega 1 CLP', colaboradores: cols, inicio: ini, fin, cant, nota: '', durH: 0.75, realProd: rp, efic: tc.prod ? rp / tc.prod * 100 : null,
+        sinProd: false, pctCumplimiento: null, isRutina: undefined, rutinaPasos: undefined, excel: actividadExcel(tc.id, 'k1'), prod: tc.prod, unidad: tc.unidad, lineaId: null, tdId: null, cantPend: false, cantPor: 'super', por: 'super', porFin: 'super' }; });
+    const ref = { id: 'tRef', fecha: f, hora: '08:00', inicio: t0, fin: t0 + 9 * H, jornada: 'completa', hpPorPersona: 8, horasProd: 120, equipo: eq, historial: hist, estado: 'cerrado', justCausa: '', justNota: '',
+      marcasAplicadas: Object.fromEntries(eq.flatMap(c => c.marcas.map(m => [m.id, 1]))), costoPagado: 1000, costoProductivo: 800, costoPerdido: 200 };
+    const viejo = JSON.parse(JSON.stringify(ref)), nuevo = { ...JSON.parse(JSON.stringify(ref)), cmp: 1 }, b = o => new Blob([JSON.stringify(o)]).size;
+    const comp = compactarTurno(nuevo); r.bytesViejo = b(viejo); r.bytesNuevo = b(comp); r.ahorro = Math.round((1 - r.bytesNuevo / r.bytesViejo) * 100);
+    r.presupuesto = r.bytesNuevo <= r.bytesViejo * 0.5;
+    r.sinCopias = comp.historial.every(h => h.colaboradores.every(c => typeof c === 'string') && !('realProd' in h) && !('efic' in h) && !('excel' in h) && !('lineaId' in h) && !('nota' in h)) && !('marcasAplicadas' in comp) && comp.equipo.every(c => c.marcas.every(m => Object.keys(m).join() === 'tipo,ts'));
+    // en memoria se ve igual: mismos montos y reportes que con el formato viejo
+    const gt = S.turnosHistorial, rep = () => { const R = construirReportes(null, { desde: f, hasta: f }); return JSON.stringify(R.filter(x => ['Detalle Tareas', 'Resumen Turnos', 'Costos por Colaborador', 'Eficiencia por Tarea'].includes(x.nombre)).map(x => x.filas)); };
+    S.turnosHistorial = [...gt, viejo]; const rv = rep(), kv = engTurnoCerrado(viejo);
+    const exp = expandirTurno(JSON.parse(JSON.stringify(comp))); S.turnosHistorial = [...gt, exp]; const rn = rep(), kn = engTurnoCerrado(exp);
+    r.mismos = rv === rn && Math.abs(kv.pagado - kn.pagado) < 0.005 && Math.abs(kv.productivo - kn.productivo) < 0.005 && kv.usadas === kn.usadas;
+    // estable: guardar → leer → guardar da lo mismo (no genera guardados de más)
+    S.turnosHistorial = [...gt, nuevo]; const p1 = persistable(); applyRemote(p1); r.estable = eqJ(persistable(), p1) && p1.turnosHistorial.find(t => t.id === 'tRef').historial[0].colaboradores[0] === 'rf1';
+    // lo cerrado antes de esta versión (sin marca) no se toca (eso es T3)
+    S.turnosHistorial = [...gt, viejo]; r.viejoIntacto = eqJ(persistable().turnosHistorial.find(t => t.id === 'tRef'), viejo);
+    S.turnosHistorial = gt; return r; });
+  console.log('   T2 · turno de referencia:', t2.bytesViejo, 'bytes →', t2.bytesNuevo, 'bytes (−' + t2.ahorro + '%)');
+  ok(t2.presupuesto && t2.sinCopias, 'T2 · compactar al cerrar: el turno de referencia (15 personas, 40 tareas) pesa la mitad o menos (ids, sin recalculables ni vacíos, marcas solo tipo y hora)');
+  ok(t2.mismos && t2.estable && t2.viejoIntacto, 'T2 · compactar al cerrar: mismos montos y reportes; guardar y leer es estable; lo cerrado antes no se toca');
+
   // E2 · Archivo mensual
   const e2 = await page.evaluate(async () => {
     const r = {}, SRV = window.__SRV, H = 3600000, hoy = hoyStr(), mesAnt = fechaMenos(hoy.slice(0, 8) + '01', 1).slice(0, 7), d1 = mesAnt + '-10', d2 = mesAnt + '-11';
