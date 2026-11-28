@@ -118,6 +118,10 @@
       Object.assign(m,{motivo:a.p_motivo,corregido_por:u.username,corregido_en:new Date().toISOString()});return{data:m.id};},
     ch_cambiar_puesto:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(!['admin','supervisor'].includes(u.rol))return err('PERMISO','42501');if(!/^[a-z][a-z0-9_]{0,29}$/.test(a.p_puesto||''))return err('PUESTO');
       let n=0;SRV.marcas.filter(m=>m.key===a.p_key&&m.persona_id===a.p_persona&&m.fecha===a.p_fecha&&!m.anulado&&m.puesto!==a.p_puesto).forEach(m=>{m.puesto=a.p_puesto;m.corregido_por=u.username;m.corregido_en=new Date().toISOString();m.motivo=(m.motivo?m.motivo+' · ':'')+(a.p_motivo||('Posición cambiada a '+a.p_puesto+' por '+u.username));n++;});return{data:n};},
+    ch_uso:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(u.rol!=='admin')return err('PERMISO','42501');const r=SRV.rows[a.p_key]||{},hoy=fechaPA(Date.now());
+      return{data:{dias:a.p_dias||30,bytes:JSON.stringify(r.value||{}).length,version:r.version||0,serie:[{dia:fechaPA(Date.now()-86400000),bytes:Math.round(JSON.stringify(r.value||{}).length*0.97),guardados:12},{dia:hoy,bytes:JSON.stringify(r.value||{}).length,guardados:7}],
+        usuarios:SRV.users.filter(x=>x.activo!==false).map((x,i)=>({usuario:x.username,nombre:x.nombre,rol:x.rol,ultimoIngreso:new Date().toISOString(),ultimoGuardado:new Date().toISOString(),dias:3-i>0?3-i:1,g7:10+i,g:20+i,celular:i,tablet:1,pc:9})),
+        marcajes:[...new Set(SRV.marcas.filter(m=>m.key===a.p_key&&!m.anulado).map(m=>m.fecha))].sort().map(f=>({dia:f,n:SRV.marcas.filter(m=>m.key===a.p_key&&!m.anulado&&m.fecha===f).length,auto:SRV.marcas.filter(m=>m.key===a.p_key&&m.fecha===f&&/Salida automática/.test(m.motivo||'')).length}))}};},
     ch_check_pass:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');return{data:['admin','supervisor'].includes(u.rol)&&u.pass===a.p_pass};},
     ch_disable_user:a=>{const u=user(a.p_token);if(a.p_id===u.id)return err('ULTIMO_ADMIN');SRV.users.find(x=>x.id===a.p_id).activo=false;return{data:null};},
   };

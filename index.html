@@ -537,6 +537,8 @@ body.con-sel .avisos-app{bottom:90px}
 .rep-tabla tr.rep-total td{font-weight:700;border-top:2px solid var(--b2)}
 .rep-tabla tr.rep-sub td{font-weight:700;background:rgba(var(--fg),.04)}
 .cq-lista{display:flex;flex-direction:column;gap:10px}
+.uso-esp{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.uso-num b{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.6rem}
 .cq-linea{border:1.5px solid var(--b1);border-left:4px solid var(--green);border-radius:12px;padding:10px 14px;background:var(--card)}
 .cq-hdr{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
 .cq-hdr span{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.1rem;text-transform:uppercase;letter-spacing:.4px;color:var(--t)}
@@ -2816,7 +2818,7 @@ var SECCIONES_INS={   // var: el menú se pinta antes de esta línea
   historico:['Histórico de turnos'], exportar:['Reportes'],
   personal:['Personal'], asistencia:['Asistencia y horas'],
   clientes:['Clientes'],
-  tareas:['Catálogo de tareas'], lineasCfg:['Catálogo de líneas'], plantillas:['Plantillas y planes'], config:['Horario y recargos'], cargos:['Cargos'], usuarios:['Usuarios y accesos'],
+  tareas:['Catálogo de tareas'], lineasCfg:['Catálogo de líneas'], plantillas:['Plantillas y planes'], config:['Horario y recargos'], cargos:['Cargos'], uso:['Uso de la app'], usuarios:['Usuarios y accesos'],
 };
 // Categorías del menú y sus pestañas: [clave, nombre, visible(), insignia(), acción en lugar de pantalla]
 // clave: una vista (setNav) o 'ins:<sección>'. Las acciones (Vista TV, alta de contingente, marcaje en tablet) abren algo aparte.
@@ -2853,7 +2855,8 @@ var CATS=[
     ['ins:plantillas','Plantillas y planes',()=>currentUser.rol==='admin'],
     ['ins:config','Horario y recargos',()=>currentUser.rol==='admin'],
     ['ins:cargos','Cargos',()=>currentUser.rol==='admin'&&!facturacionOn()],
-    ['ins:usuarios','Usuarios y accesos',()=>currentUser.rol==='admin']]},
+    ['ins:usuarios','Usuarios y accesos',()=>currentUser.rol==='admin'],
+    ['ins:uso','Uso de la app',()=>currentUser.rol==='admin']]},
 ];
 function tabsDe(c){ if(!currentUser||esCliente()||IS_TV) return []; return c.tabs().filter(x=>{ try{ return !!x[2](); }catch(e){ return false; } }); }
 const navKey=()=>_nav==='insights'?(_insSec==='exportar'?'rep:'+_rep.id:'ins:'+_insSec):_nav;
@@ -6732,6 +6735,10 @@ function renderInsights(){
   }
   corte('cargos');
   if(isAdmin&&!facturacionOn()) h+=buildCargosSection();
+  corte('uso');
+  if(isAdmin) h+=`<div class="sec"><div class="sec-hdr"><div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Uso de la app</span></div>
+    <div class="sec-hdr-actions">${[7,30].map(d=>`<div class="chip${_uso.dias===d?' selected':''}" onclick="_uso.dias=${d};_uso.data=null;renderInsights()">${d} días</div>`).join('')}<button class="btn btn-ghost btn-sm" onclick="descargarUso()">Excel</button></div></div>
+    <div class="sec-body" id="usoBox">${htmlUso()}</div></div>`;
 
   corte('historico');
   // Solicitudes pendientes
@@ -6960,6 +6967,7 @@ function renderInsights(){
   corte(null);
   const sec=SECCIONES_INS[_insSec]?_insSec:'resumen';
   el.innerHTML=`<div class="ins-grid">${PZ[sec]||'<div class="empty"><div class="empty-text">Todavía no hay nada en esta sección.</div></div>'}</div>`;
+  if(sec==='uso') cargarUso();
   } catch(err) {
     console.error('renderInsights error:', err);
     el.innerHTML=`<div style="padding:20px;background:rgba(232,0,61,.1);border-radius:10px;color:var(--red-t);font-size:.85rem">
@@ -8859,11 +8867,72 @@ function renderResumenPostTurno() {
     '</div></div>');
 }
 // Monitor de tamaño del estado (Ronda 9.1)
+// ═══ USO DE LA APP (T1) ═══
+// Solo administrador: espacio del estado frente al umbral de 4 MB, adopción por usuario y calidad del registro. Sin costos.
+// No agrega nada al estado: lo que viene del servidor (ch_uso) vive solo en memoria.
+const UMBRAL_BYTES=4*1048576;
+var _uso={dias:30,data:null,ts:0,err:'',cargando:false};
+const kb=b=>b>=1048576?(b/1048576).toFixed(2)+' MB':Math.round(b/1024)+' KB';
+const bytesDe=o=>new Blob([JSON.stringify(o===undefined?null:o)]).size;
+async function cargarUso(forzar){
+  if(_uso.cargando||(!forzar&&_uso.data&&Date.now()-_uso.ts<60000)) return;
+  _uso.cargando=true;
+  try{ _uso.data=await rpc('ch_uso',{p_token:SESSION.token,p_key:STATE_KEY,p_dias:_uso.dias}); _uso.ts=Date.now(); _uso.err=''; }
+  catch(e){ _uso.err='No se pudo leer el uso: '+e.message; }
+  _uso.cargando=false; const b=document.getElementById('usoBox'); if(b) b.innerHTML=htmlUso();
+}
+function datosUso(){
+  const P=persistable(), total=bytesDe(P), bloques=Object.keys(P).map(k=>({k,b:bytesDe(P[k])})).sort((a,b)=>b.b-a.b);
+  const turnos=(S.turnosHistorial||[]).map(t=>({fecha:t.fecha,b:bytesDe(t),n:(t.equipo||[]).length,tareas:(t.historial||[]).length})).sort((a,b)=>b.b-a.b);
+  const d=_uso.data||{}, serie=(d.serie||[]).filter(x=>x.bytes>0);
+  let porDia=null, semanas=null;
+  if(serie.length>=2){ const a=serie[0], z=serie[serie.length-1], dd=Math.max(1,(Date.parse(z.dia)-Date.parse(a.dia))/86400000); porDia=(z.bytes-a.bytes)/dd; if(porDia>0) semanas=Math.max(0,(UMBRAL_BYTES-total)/porDia/7); }
+  const desde=fechaMenos(hoyStr(),_uso.dias-1), cal=(S.turnosHistorial||[]).filter(t=>t.fecha>=desde).map(t=>{ const k=engTurnoCerrado(t);
+    const pag=(k.baseH||0)+(k.extra||0);
+    return {fecha:t.fecha,sup:(t.equipo||[]).filter(c=>c.cargo==='supervisor').map(c=>c.nombre).join(', ')||'Sin supervisor',pct:pag?Math.floor(Math.max(0,pag-k.libres)/pag*100):0,libres:k.libres,base:pag,
+      pend:(t.historial||[]).filter(h=>h.cantPend).length}; }).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const porSup={}; cal.forEach(c=>c.sup.split(', ').forEach(n=>{ const o=porSup[n]||(porSup[n]={n,turnos:0,base:0,libres:0}); o.turnos++; o.base+=c.base; o.libres+=c.libres; }));
+  return {total,bloques,turnos,porDia,semanas,cal,porSup:Object.values(porSup).map(o=>({...o,pct:o.base?Math.round((o.base-o.libres)/o.base*100):0})).sort((a,b)=>a.pct-b.pct)};
+}
+const NOMBRES_BLOQUE={turnosHistorial:'Turnos cerrados',lineas:'Líneas de producción',historial:'Tareas del turno en curso',tareasActivas:'Tareas en curso',turno:'Turno en curso',tareasCat:'Catálogo de tareas',
+  clientes:'Clientes',maestro:'Maestro del Excel de ventas',lineasTipo:'Catálogo de líneas',colaboradores:'Colaboradores (maestro)',plantillas:'Plantillas',turnosProgramados:'Turnos planificados',
+  config:'Configuración',cotizaciones:'Cotizaciones',solicitudesCot:'Solicitudes de cotización',ajustesAsis:'Ajustes de asistencia',cargos:'Cargos',solicitudes:'Solicitudes',fichas:'Fichas',proformas:'Proformas',pedidosPersonal:'Pedidos de personal'};
+function htmlUso(){
+  const U=datosUso(), d=_uso.data, pct=U.total/UMBRAL_BYTES*100, col=pct>=90?'var(--red)':pct>=70?'var(--amber)':'var(--green)';
+  const dev=x=>{ const m=Math.max(x.celular,x.tablet,x.pc); return !m?'—':m===x.celular?'Celular':m===x.tablet?'Tablet':'PC'; };
+  const fh=ts=>ts?new Date(ts).toLocaleString('es-PA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:false}):'—';
+  let h=`<div class="asig-ttl">Espacio</div>
+    <div class="uso-esp"><div class="uso-num"><b>${kb(U.total)}</b> de 4 MB · ${pct<1?pct.toFixed(1):Math.round(pct)}%</div>
+    <div class="pbar-wrap"><div class="pbar-fill" style="width:${Math.min(100,Math.max(1,pct))}%;background:${col}"></div></div>
+    <div class="li-sub">${U.porDia==null?'Crecimiento: se calcula con los guardados de los próximos días.':U.porDia<=0?'Sin crecimiento en el período.':`Crece ${kb(U.porDia)} por día${U.semanas!=null?` · al ritmo actual llega al umbral en <b>${U.semanas>520?'más de 10 años':Math.round(U.semanas)+' semanas'}</b>`:''}.`}
+      El respaldo sin conexión del equipo guarda una copia del estado; por eso conviene mantenerlo liviano.</div></div>
+    <table class="rt-table"><tr><th>Qué pesa más</th><th>Tamaño</th><th>%</th></tr>${U.bloques.slice(0,8).map(x=>`<tr><td>${esc(NOMBRES_BLOQUE[x.k]||x.k)}</td><td>${kb(x.b)}</td><td>${Math.round(x.b/U.total*100)}%</td></tr>`).join('')}</table>
+    ${U.turnos.length?`<table class="rt-table"><tr><th>Turnos más pesados</th><th>Personas</th><th>Tareas</th><th>Tamaño</th></tr>${U.turnos.slice(0,5).map(t=>`<tr><td>${etiquetaDia(t.fecha)}</td><td>${t.n}</td><td>${t.tareas}</td><td>${kb(t.b)}</td></tr>`).join('')}</table>`:''}`;
+  h+=`<div class="asig-ttl">Adopción · últimos ${_uso.dias} días</div>`;
+  h+=_uso.err?`<div class="warn-box">${esc(_uso.err)}</div>`:!d?'<div class="li-sub">Cargando…</div>':`<table class="rt-table"><tr><th>Usuario</th><th>Último ingreso</th><th>Días activos</th><th>Guardados 7 d</th><th>Guardados ${_uso.dias} d</th><th>Equipo</th></tr>
+    ${(d.usuarios||[]).map(x=>`<tr><td>${esc(x.nombre||x.usuario)} <span class="li-sub">${esc({admin:'Admin',supervisor:'Supervisor',responsable:'Responsable'}[x.rol]||x.rol||'')}</span></td><td>${fh(x.ultimoIngreso)}</td><td>${x.dias}</td><td>${x.g7}</td><td>${x.g}</td><td>${dev(x)}</td></tr>`).join('')}</table>
+    <table class="rt-table"><tr><th>Día</th><th>Marcajes en tablet</th><th>Salidas automáticas</th></tr>${(d.marcajes||[]).slice().reverse().slice(0,14).map(m=>`<tr><td>${etiquetaDia(m.dia)}</td><td>${m.n}</td><td>${m.auto||''}</td></tr>`).join('')||'<tr><td colspan="3">Sin marcajes</td></tr>'}</table>`;
+  h+=`<div class="asig-ttl">Calidad del registro · últimos ${_uso.dias} días</div>`;
+  h+=U.cal.length?`<table class="rt-table"><tr><th>Turno</th><th>Supervisor</th><th>Horas registradas</th><th>Sin registrar</th><th>Cantidades pendientes</th></tr>
+    ${U.cal.map(c=>`<tr><td>${etiquetaDia(c.fecha)}</td><td>${esc(c.sup)}</td><td><b style="color:${c.pct>=85?'var(--green)':c.pct>=70?'var(--amber)':'var(--red-t)'}">${c.pct}%</b></td><td>${fmtH(c.libres)}</td><td>${c.pend||''}</td></tr>`).join('')}</table>
+    <table class="rt-table"><tr><th>Por supervisor</th><th>Turnos</th><th>Horas registradas</th></tr>${U.porSup.map(o=>`<tr><td>${esc(o.n)}</td><td>${o.turnos}</td><td><b>${o.pct}%</b></td></tr>`).join('')}</table>`
+    :'<div class="li-sub">Sin turnos cerrados en el período.</div>';
+  return h;
+}
+async function descargarUso(){
+  await cargarUso(true); const U=datosUso(), d=_uso.data||{}, wb=XLSX.utils.book_new(), add=(n,r)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(r),n);
+  add('Espacio',[['Bloque','Bytes','%'],...U.bloques.map(x=>[NOMBRES_BLOQUE[x.k]||x.k,x.b,Math.round(x.b/U.total*100)]),['TOTAL',U.total,100]]);
+  add('Crecimiento',[['Día','Bytes (máx.)','Guardados'],...(d.serie||[]).map(x=>[x.dia,x.bytes||'',x.guardados])]);
+  add('Adopción',[['Usuario','Rol','Último ingreso','Último guardado','Días activos','Guardados 7 d','Guardados período','Celular','Tablet','PC'],...(d.usuarios||[]).map(x=>[x.nombre||x.usuario,x.rol,x.ultimoIngreso||'',x.ultimoGuardado||'',x.dias,x.g7,x.g,x.celular,x.tablet,x.pc])]);
+  add('Marcajes',[['Día','Marcajes','Salidas automáticas'],...(d.marcajes||[]).map(m=>[m.dia,m.n,m.auto||0])]);
+  add('Calidad',[['Fecha','Supervisor','% horas registradas','Horas sin registrar','Cantidades pendientes'],...U.cal.map(c=>[c.fecha,c.sup,c.pct,r2(c.libres),c.pend])]);
+  XLSX.writeFile(wb,`Uso_de_la_app_${_uso.dias}_dias_${hoyStr()}.xlsx`);
+}
 function checkTamañoS() {
   const bytes = new Blob([JSON.stringify(S)]).size;
   const mb = bytes / 1048576;
-  if (mb > 4) {
-    showToast('Datos cerca del límite ('+mb.toFixed(1)+'MB). Exporta y limpia el histórico.', 'error');
+  if (mb > 2.8 && currentUser && currentUser.rol==='admin') {
+    showToast('Los datos ocupan '+mb.toFixed(1)+' MB de 4 MB. Revisa Configuración → Uso de la app.', mb>3.6?'error':'info');
   }
   return mb;
 }
