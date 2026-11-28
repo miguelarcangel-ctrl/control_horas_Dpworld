@@ -2016,6 +2016,9 @@ function merge3(b,l,r){
 function persistable(){
   const o={}; Object.keys(S).forEach(k=>{ if(k[0]!=='_'&&!RUNTIME_KEYS.includes(k)) o[k]=S[k]; });
   ['turnosHistorial','lineas'].forEach(k=>{ if(Array.isArray(o[k])&&o[k].some(x=>x&&x._arch)) o[k]=o[k].filter(x=>!(x&&x._arch)); });   // E2: lo de meses archivados vive en su llave
+  // T2: turnos y tareas cerrados desde esta versión (marca cmp) se guardan compactos; en memoria se ven completos
+  if(Array.isArray(o.turnosHistorial)&&o.turnosHistorial.some(t=>t&&t.cmp)) o.turnosHistorial=o.turnosHistorial.map(t=>t&&t.cmp?compactarTurno(t):t);
+  if(Array.isArray(o.historial)&&o.historial.some(h=>h&&h.cmp)){ const m=eqMapDe(o.turno&&o.turno.equipo); o.historial=o.historial.map(h=>h&&h.cmp?compactarTarea(h,m):h); }
   return JSON.parse(JSON.stringify(o));
 }
 function normalizeS(){
@@ -2024,6 +2027,8 @@ function normalizeS(){
   (S.proformas||[]).forEach(p=>{ if(p.estado==='confirmada') p.estado='aprobada'; });   // versión anterior: «confirmada» = aprobada por el cliente
   ['usuariosCliente','tarifasCliente','fichas','clientesAvanzado','solicitudesAvanzado','tarifasOrigen','ajustesAsis'].forEach(k=>{ if(!S[k]||typeof S[k]!=='object'||Array.isArray(S[k])) S[k]={}; });
   S.config=getConfig();
+  (S.turnosHistorial||[]).forEach(expandirTurno);
+  if((S.historial||[]).some(h=>h&&h.cmp)){ const m=eqMapDe(S.turno&&S.turno.equipo); S.historial.forEach(h=>expandirTarea(h,m)); }
   migrarLineas();
   S.tareasCat.forEach(t=>{if(!t.efic)t.efic=85; if(esSupervision(t.nombre)){ t.sinProd=true; t.prod=0; t.clase='apoyo'; } if(!t.clase) t.clase=/supervis|limpiez|capacitac|toolbox|reuni|acomodo|gestion de almacen/i.test(normTxt(t.nombre))?'apoyo':'productiva';});
   if(S.turno&&!S.turno.tareasDia) S.turno.tareasDia=[];
@@ -2033,6 +2038,39 @@ function applyRemote(value){
   Object.assign(S,{turno:null},JSON.parse(JSON.stringify(value||{})),keep); // copia: S nunca comparte memoria con _base
   normalizeS(); inyectarArchivos();
 }
+// ═══ COMPACTAR AL CERRAR (T2) ═══
+// Reglas: ids y no copias (colaboradores = id, o {id,nombre,cargo} si no está en el equipo o cambia el cargo), no guardar lo que se
+// recalcula (realProd, efic, excel, durH si es fin−inicio), sin vacíos (null, false, "", [], {}), marcas del equipo solo tipo y hora,
+// y sin las marcas aplicadas del turno abierto. Se guardan los montos congelados del cierre y el estándar (prod).
+const esVacio=v=>v===null||v===undefined||v===false||v===''||(Array.isArray(v)&&!v.length)||(v&&typeof v==='object'&&!Array.isArray(v)&&!Object.keys(v).length);
+const sinVacios=o=>{ const r={}; Object.keys(o).forEach(k=>{ if(!esVacio(o[k])) r[k]=o[k]; }); return r; };
+const eqMapDe=eq=>{ const m={}; (eq||[]).forEach(c=>{ if(c&&c.id) m[c.id]=c; }); return m; };
+function compactarTarea(h, eqMap){
+  const o={...h}; delete o.realProd; delete o.efic; delete o.excel;
+  if(o.durH!=null&&o.fin&&o.inicio&&Math.abs(o.durH-(o.fin-o.inicio)/3600000)<1e-9) delete o.durH;
+  o.colaboradores=(h.colaboradores||[]).map(c=>{ if(typeof c==='string') return c; const e=eqMap[c.id];
+    if(e&&(c.cargo||'operador')===(e.cargo||'operador')&&(!c.nombre||c.nombre===e.nombre)) return c.id;
+    const x={id:c.id,nombre:c.nombre}; if(c.cargo&&c.cargo!=='operador') x.cargo=c.cargo; return x; });
+  return sinVacios(o);
+}
+function expandirTarea(h, eqMap){
+  if(!h||!h.cmp) return h;
+  h.colaboradores=(h.colaboradores||[]).map(c=>{ const id=typeof c==='string'?c:c.id, e=eqMap[id]||{}, b={};
+    ['nombre','cargo','bodega','cliente','marcaje'].forEach(k=>{ if(e[k]!==undefined) b[k]=e[k]; });
+    return {...b,...(typeof c==='string'?{}:c),id,nombre:(typeof c==='object'&&c.nombre)||e.nombre||'',cargo:(typeof c==='object'&&c.cargo)||e.cargo||'operador'}; });
+  if(h.durH==null&&h.fin&&h.inicio) h.durH=(h.fin-h.inicio)/3600000;
+  if(h.realProd==null){ const cant=+h.cant||0; h.realProd=h.durH>0&&cant>0?cant/h.durH:0; }
+  if(h.efic===undefined) h.efic=h.sinProd?null:(h.prod>0?(h.realProd/h.prod)*100:null);
+  if(h.excel===undefined) h.excel=h.tareaId&&typeof actividadExcel==='function'?actividadExcel(h.tareaId,h.clienteId):null;
+  return h;
+}
+function compactarTurno(t){
+  const m=eqMapDe(t.equipo), o={...t}; delete o.marcasAplicadas; delete o.tareasPlan;
+  o.equipo=(t.equipo||[]).map(c=>sinVacios({...c,marcas:(c.marcas||[]).filter(x=>!x.anulado).map(x=>({tipo:x.tipo,ts:x.ts}))}));
+  o.historial=(t.historial||[]).map(h=>compactarTarea({...h,cmp:1},m));
+  return sinVacios(o);
+}
+function expandirTurno(t){ if(!t||!t.cmp) return t; const m=eqMapDe(t.equipo); (t.historial||[]).forEach(h=>{ if(!h.cmp) h.cmp=1; expandirTarea(h,m); }); return t; }
 // ═══ ARCHIVO MENSUAL (E2) ═══
 // Turnos y líneas cerrados de meses anteriores viven en kv_store como <llave>_arch_AAAA-MM, comprimidos (gzip + base64).
 // Se cargan solo cuando un reporte o indicador pide esas fechas; en memoria llevan la marca _arch y nunca se guardan en la llave principal.
@@ -2054,7 +2092,7 @@ function inyectarArchivos(){
   if(Object.keys(A).length) S.turnosHistorial.sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')||(a.inicio||0)-(b.inicio||0));
 }
 async function listarArchivos(){ try{ _archLista=await rpc('ch_list_archivos',{p_token:SESSION.token,p_key:STATE_KEY})||[]; }catch(e){ _archLista=_archLista||[]; } return _archLista; }
-async function leerArchivo(mes){ const r=await rpc('ch_get_archivo',{p_token:SESSION.token,p_key:STATE_KEY,p_mes:mes}); return r?await gzDesempacar(r):null; }
+async function leerArchivo(mes){ const r=await rpc('ch_get_archivo',{p_token:SESSION.token,p_key:STATE_KEY,p_mes:mes}); const d=r?await gzDesempacar(r):null; if(d) (d.turnosHistorial||[]).forEach(expandirTurno); return d; }
 // Meses archivados que hacen falta para un rango y aún no están en memoria
 function archivosFaltan(desde, hasta){
   if(!_archLista||!desde) return []; const ya=S._arch||{};
@@ -2079,7 +2117,7 @@ async function archivarMeses(silencio){
   for(const m of meses){
     const prev=await leerArchivo(m).catch(()=>null)||{turnosHistorial:[],lineas:[]}, une=(a,b)=>{ const ids=new Set(a.map(x=>x.id)); return [...a,...b.filter(x=>!ids.has(x.id)).map(x=>{ const y={...x}; delete y._arch; return y; })]; };
     const datos={turnosHistorial:une(prev.turnosHistorial||[],G[m].turnosHistorial),lineas:une(prev.lineas||[],G[m].lineas)};
-    const pk=await gzEmpacar(datos);
+    const pk=await gzEmpacar({...datos,turnosHistorial:datos.turnosHistorial.map(t=>t.cmp?compactarTurno(t):t)});
     await rpc('ch_save_archivo',{p_token:SESSION.token,p_key:STATE_KEY,p_mes:m,p_value:JSON.stringify({...pk,v:1,turnos:datos.turnosHistorial.length,lineas:datos.lineas.length})});
     // Verificación: se lee de vuelta antes de quitarlo de la llave principal
     const vuelta=await leerArchivo(m), ok=vuelta&&G[m].turnosHistorial.every(t=>vuelta.turnosHistorial.some(x=>x.id===t.id))&&G[m].lineas.every(l=>vuelta.lineas.some(x=>x.id===l.id));
@@ -4928,12 +4966,12 @@ async function confirmarCierre(){
   if (t.isRutina && validados === 0) showToast('Advertencia: ningún paso fue validado', 'error');
   const cerrandoTodos=!personaId||personaId==='todos'||(t.colaboradores||[]).length<=1;
   if(cerrandoTodos){
-    S.historial.push({...t,fin,cant,nota,durH:dH,realProd:rp,efic,sinProd:tc?.sinProd||false,pctCumplimiento,isRutina:t.isRutina,rutinaPasos:t.rutinaPasos,excel:actividadExcel(t.tareaId,t.clienteId)});
+    S.historial.push({...t,fin,cant,nota,durH:dH,realProd:rp,efic,sinProd:tc?.sinProd||false,pctCumplimiento,isRutina:t.isRutina,rutinaPasos:t.rutinaPasos,excel:actividadExcel(t.tareaId,t.clienteId),cmp:1});
     S.tareasActivas=S.tareasActivas.filter(x=>x.id!==S.cerrandoId);
   } else {
     const persona=(t.colaboradores||[]).find(c=>c.id===personaId);
     if(persona){
-      S.historial.push({...t,id:uid(),colaboradores:[persona],fin,cant,nota,durH:dH,realProd:rp,efic,sinProd:tc?.sinProd||false,pctCumplimiento,isRutina:t.isRutina,rutinaPasos:t.rutinaPasos,excel:actividadExcel(t.tareaId,t.clienteId)});
+      S.historial.push({...t,id:uid(),colaboradores:[persona],fin,cant,nota,durH:dH,realProd:rp,efic,sinProd:tc?.sinProd||false,pctCumplimiento,isRutina:t.isRutina,rutinaPasos:t.rutinaPasos,excel:actividadExcel(t.tareaId,t.clienteId),cmp:1});
       const remaining=(t.colaboradores||[]).filter(c=>c.id!==personaId);
       if(!remaining.length) S.tareasActivas=S.tareasActivas.filter(x=>x.id!==S.cerrandoId);
       else t.colaboradores=remaining;
@@ -5066,7 +5104,7 @@ async function confirmarCierreTurno(){
   S.turnosHistorial.push({...S.turno,fin:finTs,historial:[...S.historial],
     justCausa:document.getElementById('justCausa').value,
     justNota:document.getElementById('justNota').value,
-    estado:'cerrado',
+    estado:'cerrado',cmp:1,
     costoPagado:k.pagado,costoProductivo:k.productivo,costoPerdido:k.perdido});
   S.turno=null;S.tareasActivas=[];S.historial=[];
   await save();hideModal('modalCerrarTurno');renderAll();showToast('Turno cerrado');
