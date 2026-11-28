@@ -631,11 +631,36 @@ async function newPage(browser, opts = {}) {
     const td = S.turno.tareasDia[0]; r.pendiente = td.estado === 'pendiente' && !S.tareasActivas.length && td.personasPlan.join() === 'tmp_po1';
     _sel = new Set(); await iniciarTareaDia(td.id); r.inicia = [..._sel].join() === 'tmp_po1';
     document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
-    S.turno = orig.turno; S.tareasActivas = orig.act; S.historial = orig.hist; S.turnosProgramados = orig.prog; await save(); await limpiarTmp(); renderAll(); return r; });
+    // cambiar la posición de hoy: marcó como operador y va a la línea (sale del tablero); y de vuelta al turno (entra)
+    const lin0 = { ...nuevaLinea(S.lineasTipo[0], 10, 8, hoyStr()), id: 'tmpLinPos', estado: 'corriendo', inicio: Date.now() - 3600000, pallets: [], personas: [] }; const gl = S.lineas; S.lineas = [...gl, lin0];
+    abrirLinea(lin0.id); r.ofrece = /Marcaron como operador o ayudante/.test(document.getElementById('modalLinea').innerHTML) && /Pla Dos/.test(document.getElementById('modalLinea').innerHTML);
+    await pasarALinea('tmp_po2'); hideModal('modalLinea');
+    r.aLinea = !S.turno.equipo.some(c => c.id === 'tmp_po2') && SRV.marcas.filter(m => m.persona_id === 'tmp_po2').every(m => m.puesto === 'linea' && m.corregido_por) && lineaDe(lin0.id).personas.some(p => p.personaId === 'tmp_po2');
+    abrirPosicion(['tmp_po2']); r.modalPos = /Pla Dos · Línea de producción/.test(document.getElementById('psPersonas').innerHTML);
+    _pos.puesto = 'operador'; await guardarPosicion();
+    r.alTurno = S.turno.equipo.some(c => c.id === 'tmp_po2') && SRV.marcas.filter(m => m.persona_id === 'tmp_po2').every(m => m.puesto === 'operador') && lineaDe(lin0.id).personas.find(p => p.personaId === 'tmp_po2').hasta > 0;
+    S.lineas = gl;
+    S.turno = orig.turno; S.tareasActivas = orig.act; S.historial = orig.hist; S.turnosProgramados = orig.prog; await save(); await limpiarTmp(); renderAll();
+    // el planificador toma de referencia el turno anterior: su gente (con la tarea en que más estuvo) y sus tareas con lo que se hizo
+    const gh = S.turnosHistorial, gt = S.turno, ga = S.tareasActivas, gH = S.historial, ayer = fechaMenos(hoyStr(), 1), t0 = Date.now() - 86400000;
+    ['tmp_r1', 'tmp_r2'].forEach((id, i) => SRV.personal.push({ key: STATE_KEY, id, nombre: ['Ref Uno', 'Ref Dos'][i], cedula: 'X' + id, puesto_def: 'operador', activo: true })); await cargarPersonal();
+    const c1 = { id: 'tmp_r1', nombre: 'Ref Uno', cargo: 'operador' }, c2 = { id: 'tmp_r2', nombre: 'Ref Dos', cargo: 'operador' }, tc = S.tareasCat[0], tc2 = S.tareasCat[1] || S.tareasCat[0];
+    S.turnosHistorial = [{ id: 'tref', fecha: ayer, hora: '08:00', inicio: t0, fin: t0 + 9 * 3600000, equipo: [c1, c2], estado: 'cerrado',
+      historial: [{ id: 'h1', tareaId: tc.id, tarea: tc.nombre, clienteId: '', colaboradores: [c1, c2], inicio: t0, fin: t0 + 2 * 3600000, cant: 30 }, { id: 'h2', tareaId: tc2.id, tarea: tc2.nombre, clienteId: '', colaboradores: [c2], inicio: t0 + 2 * 3600000, fin: t0 + 7 * 3600000, cant: 12 }] }];
+    S.turno = null;
+    await showModal('modalDimensionador'); await new Promise(res => setTimeout(res, 80));
+    const ref = document.getElementById('dimRef'), filas = [...document.querySelectorAll('#dimTareasList > div')];
+    r.refTexto = !ref.classList.contains('hidden') && /Tomé de referencia el turno/.test(ref.innerHTML);
+    r.refTareas = filas.length === (tc2.id === tc.id ? 1 : 2) && filas[0].querySelector('input[type=number]').value === (tc2.id === tc.id ? '42' : '30');
+    r.refGente = _dimPers.has('tmp_r1') && _dimPers.has('tmp_r2') && (tc2.id === tc.id || _dimPers.get('tmp_r2').tareaRow === filas[1].id);
+    vaciarPlan(); r.vacio = !_dimPers.size && !document.querySelectorAll('#dimTareasList > div').length;
+    hideModal('modalDimensionador'); S.turnosHistorial = gh; S.turno = gt; S.tareasActivas = ga; S.historial = gH; await limpiarTmp(); renderAll(); return r; });
   ok(tp.filtroOp && tp.filtroAg && tp.noRepite && tp.plan, 'planificar turno: por nombre del Personal, filtrado por cargo, con tarea opcional por persona');
   ok(tp.abre && tp.grises && tp.leToca, 'turno planificado: se abre solo con el primer marcaje; quienes no han marcado salen en gris; al que llegó le aparece su tarea');
   ok(tp.tarde && tp.rzFiltro && tp.reemplazo && tp.entra, 'turno planificado: «Llegará tarde» lo deja en gris; «Reemplazar» (mismo cargo) saca al planificado y pone al reemplazo; al marcar entra solo');
   ok(tp.pendiente && tp.inicia, 'turno planificado: la tarea planificada no arranca sola; al iniciarla vienen seleccionados quienes la tenían');
+  ok(tp.ofrece && tp.aLinea && tp.modalPos && tp.alTurno, 'posición del día: el supervisor pasa a la línea a quien marcó como operador (sale del tablero) y lo devuelve al turno; queda registrado');
+  ok(tp.refTexto && tp.refTareas && tp.refGente && tp.vacio, 'planificar turno: toma de referencia el turno anterior (gente con su tarea principal y tareas con lo hecho); «Empezar vacío» lo limpia');
   ok(la.verde && la.amarillo && la.rojo && la.sinParos && la.arranque && la.meta && la.pinta, 'ingresar como línea: semáforo verde/amarillo/rojo según los pallets esperados a esta hora (sin paros ni almuerzo), con toda la pantalla del color');
   const semT = await page.evaluate(async () => {
     const H = 3600000, guard = S.lineas, t0 = Date.now() - 4 * H, mk = (k, nombre) => ({ ...nuevaLinea(S.lineasTipo[0], 16, 8, hoyStr()), nombre, estado: 'corriendo', inicio: t0, pallets: Array.from({ length: k }, (_, i) => t0 + i * 60000) });
