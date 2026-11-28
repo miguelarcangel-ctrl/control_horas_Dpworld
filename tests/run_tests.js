@@ -678,17 +678,21 @@ async function newPage(browser, opts = {}) {
     _op.persona = _op.L.find(x => x.id === 'tmp_op1'); _op.paso = 'cedula'; renderOP();
     document.getElementById('opCed').value = 'mala'; await opEntrar(); r.cedMal = /Cédula incorrecta/.test(ap().innerHTML) && !_op.ses;
     document.getElementById('opCed').value = 'Xtmp_op1'; await opEntrar();
-    r.tarjeta = _op.paso === 'conteo' && new RegExp(tc.nombre).test(ap().innerHTML) && /Tiempo en la tarea/.test(ap().innerHTML) && /onclick="sumarOP\(10\)"/.test(ap().innerHTML);
-    await sumarOP(5); await sumarOP(10); await sumarOP(-1);
+    r.tarjeta = _op.paso === 'conteo' && new RegExp(tc.nombre).test(ap().innerHTML) && /Tiempo en la tarea/.test(ap().innerHTML) && /onclick="sumarOP\(5\)"/.test(ap().innerHTML) && !/sumarOP\(10\)/.test(ap().innerHTML);
+    await sumarOP(5); await sumarOP(5); await sumarOP(5); await sumarOP(-1);
     r.cuenta = SRV.rows[STATE_KEY].value.tareasActivas[0].cantAcum === 14 && _op.est.tarea.cant === 14;
     await reload(); r.sync = S.tareasActivas[0].cantAcum === 14;
+    // el supervisor le asigna otra tarea: la pantalla muestra la nueva y arranca en 0
+    const tc2 = S.tareasCat.find(t => t.id !== tc.id) || tc; S.tareasActivas = [{ id: 'taOp2', tareaId: tc2.id, tarea: tc2.nombre + ' (2)', clienteId: '', cliente: 'Otro', colaboradores: [c], inicio: Date.now(), unidad: tc2.unidad || 'pallet' }]; await save();
+    await cargarEstadoOP(); r.nueva = _op.est.tarea.id === 'taOp2' && _op.est.tarea.cant === 0 && /\(2\)/.test(ap().innerHTML) && /Nueva tarea asignada/.test(ap().innerHTML) && /<b id="opN">0<\/b>/.test(ap().innerHTML);
     r.guarda = !!localStorage.getItem(OP_KEY);
     // sin tarea: lo dice y espera
     S.tareasActivas = []; await save(); await cargarEstadoOP(); r.sinTarea = /Sin tarea asignada/.test(ap().innerHTML);
     await salirOP(); r.sale = ap().classList.contains('hidden') && !localStorage.getItem(OP_KEY);
     S.turno = orig.turno; S.tareasActivas = orig.act; S.historial = orig.hist; await save(); SRV.personal = SRV.personal.filter(x => x.id !== 'tmp_op1'); return r; });
   ok(op.boton && op.lista && op.cedMal && op.tarjeta, 'ingresar como operador: elige su nombre (solo operadores y ayudantes del turno), confirma con cédula y ve su tarea en curso');
-  ok(op.cuenta && op.sync && op.guarda && op.sinTarea && op.sale, 'ingresar como operador: +1/+5/+10 y − se guardan en su tarea (el supervisor lo ve); sin tarea lo indica; «Salir» cierra la sesión');
+  ok(op.cuenta && op.sync && op.guarda && op.sinTarea && op.sale, 'ingresar como operador: +1/+5 y − se guardan en su tarea (el supervisor lo ve); sin tarea lo indica; «Salir» cierra la sesión');
+  ok(op.nueva, 'ingresar como operador: al asignarle otra tarea le sale la nueva con el conteo en 0 y el aviso');
   ok(la.verde && la.amarillo && la.rojo && la.sinParos && la.arranque && la.meta && la.pinta, 'ingresar como línea: semáforo verde/amarillo/rojo según los pallets esperados a esta hora (sin paros ni almuerzo), con toda la pantalla del color');
   const semT = await page.evaluate(async () => {
     const H = 3600000, guard = S.lineas, t0 = Date.now() - 4 * H, mk = (k, nombre) => ({ ...nuevaLinea(S.lineasTipo[0], 16, 8, hoyStr()), nombre, estado: 'corriendo', inicio: t0, pallets: Array.from({ length: k }, (_, i) => t0 + i * 60000) });
