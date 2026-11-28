@@ -122,6 +122,12 @@
       return{data:{dias:a.p_dias||30,bytes:JSON.stringify(r.value||{}).length,version:r.version||0,serie:[{dia:fechaPA(Date.now()-86400000),bytes:Math.round(JSON.stringify(r.value||{}).length*0.97),guardados:12},{dia:hoy,bytes:JSON.stringify(r.value||{}).length,guardados:7}],
         usuarios:SRV.users.filter(x=>x.activo!==false).map((x,i)=>({usuario:x.username,nombre:x.nombre,rol:x.rol,ultimoIngreso:new Date().toISOString(),ultimoGuardado:new Date().toISOString(),dias:3-i>0?3-i:1,g7:10+i,g:20+i,celular:i,tablet:1,pc:9})),
         marcajes:[...new Set(SRV.marcas.filter(m=>m.key===a.p_key&&!m.anulado).map(m=>m.fecha))].sort().map(f=>({dia:f,n:SRV.marcas.filter(m=>m.key===a.p_key&&!m.anulado&&m.fecha===f).length,auto:SRV.marcas.filter(m=>m.key===a.p_key&&m.fecha===f&&/Salida automática/.test(m.motivo||'')).length}))}};},
+    ch_list_archivos:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(!['admin','supervisor'].includes(u.rol))return err('PERMISO','42501');
+      return{data:Object.keys(SRV.rows).filter(k=>k.startsWith(a.p_key+'_arch_')).sort().map(k=>{const v=JSON.parse(SRV.rows[k].value);return{mes:k.slice(-7),bytes:SRV.rows[k].value.length,version:SRV.rows[k].version,turnos:v.turnos,lineas:v.lineas};})};},
+    ch_get_archivo:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(!['admin','supervisor'].includes(u.rol))return err('PERMISO','42501');const r=SRV.rows[a.p_key+'_arch_'+a.p_mes];return{data:r?JSON.parse(r.value):null};},
+    ch_save_archivo:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(!['admin','supervisor'].includes(u.rol))return err('PERMISO','42501');if(!/^\d{4}-\d{2}$/.test(a.p_mes||''))return err('KEY');
+      JSON.parse(a.p_value);if(!Object.keys(SRV.rows).some(k=>k.startsWith(a.p_key+'_arch_'))){SRV.respaldos=SRV.respaldos||[];SRV.respaldos.push({key:a.p_key,version:SRV.rows[a.p_key].version,value:JSON.stringify(SRV.rows[a.p_key].value),motivo:'Antes del primer archivo mensual'});}
+      const k=a.p_key+'_arch_'+a.p_mes,r=SRV.rows[k];SRV.rows[k]={value:a.p_value,version:r?r.version+1:1};return{data:SRV.rows[k].version};},
     ch_check_pass:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');return{data:['admin','supervisor'].includes(u.rol)&&u.pass===a.p_pass};},
     ch_disable_user:a=>{const u=user(a.p_token);if(a.p_id===u.id)return err('ULTIMO_ADMIN');SRV.users.find(x=>x.id===a.p_id).activo=false;return{data:null};},
   };

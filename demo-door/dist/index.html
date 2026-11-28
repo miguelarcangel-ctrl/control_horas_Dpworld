@@ -2020,6 +2020,7 @@ function merge3(b,l,r){
 }
 function persistable(){
   const o={}; Object.keys(S).forEach(k=>{ if(k[0]!=='_'&&!RUNTIME_KEYS.includes(k)) o[k]=S[k]; });
+  ['turnosHistorial','lineas'].forEach(k=>{ if(Array.isArray(o[k])&&o[k].some(x=>x&&x._arch)) o[k]=o[k].filter(x=>!(x&&x._arch)); });   // E2: lo de meses archivados vive en su llave
   return JSON.parse(JSON.stringify(o));
 }
 function normalizeS(){
@@ -2035,7 +2036,66 @@ function normalizeS(){
 function applyRemote(value){
   const keep={}; Object.keys(S).forEach(k=>{ if(k[0]==='_'||RUNTIME_KEYS.includes(k)) keep[k]=S[k]; else delete S[k]; });
   Object.assign(S,{turno:null},JSON.parse(JSON.stringify(value||{})),keep); // copia: S nunca comparte memoria con _base
-  normalizeS();
+  normalizeS(); inyectarArchivos();
+}
+// ═══ ARCHIVO MENSUAL (E2) ═══
+// Turnos y líneas cerrados de meses anteriores viven en kv_store como <llave>_arch_AAAA-MM, comprimidos (gzip + base64).
+// Se cargan solo cuando un reporte o indicador pide esas fechas; en memoria llevan la marca _arch y nunca se guardan en la llave principal.
+let _archLista=null, _archCargando={};
+const mesDe=f=>(f||'').slice(0,7);
+async function gzEmpacar(obj){
+  const txt=JSON.stringify(obj); if(typeof CompressionStream==='undefined') return {fmt:'json',data:txt};
+  const buf=new Uint8Array(await new Response(new Blob([txt]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+  let bin=''; for(let i=0;i<buf.length;i+=0x8000) bin+=String.fromCharCode.apply(null,buf.subarray(i,i+0x8000)); return {fmt:'gz',data:btoa(bin)};
+}
+async function gzDesempacar(pk){
+  if(!pk) return null; if(pk.fmt==='json') return JSON.parse(pk.data);
+  const bin=atob(pk.data), u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i);
+  return JSON.parse(await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).text());
+}
+function inyectarArchivos(){
+  const A=S._arch||{}; Object.keys(A).forEach(mes=>{ ['turnosHistorial','lineas'].forEach(k=>{ const L=S[k]=S[k]||[], ids=new Set(L.map(x=>x.id));
+    (A[mes][k]||[]).forEach(x=>{ if(!ids.has(x.id)) L.push({...x,_arch:mes}); }); }); });
+  if(Object.keys(A).length) S.turnosHistorial.sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')||(a.inicio||0)-(b.inicio||0));
+}
+async function listarArchivos(){ try{ _archLista=await rpc('ch_list_archivos',{p_token:SESSION.token,p_key:STATE_KEY})||[]; }catch(e){ _archLista=_archLista||[]; } return _archLista; }
+async function leerArchivo(mes){ const r=await rpc('ch_get_archivo',{p_token:SESSION.token,p_key:STATE_KEY,p_mes:mes}); return r?await gzDesempacar(r):null; }
+// Meses archivados que hacen falta para un rango y aún no están en memoria
+function archivosFaltan(desde, hasta){
+  if(!_archLista||!desde) return []; const ya=S._arch||{};
+  return _archLista.map(a=>a.mes).filter(m=>m>=mesDe(desde)&&m<=mesDe(hasta||hoyStr())&&!ya[m]);
+}
+async function cargarArchivos(meses){
+  for(const m of meses){ if(_archCargando[m]) { await _archCargando[m]; continue; }
+    _archCargando[m]=(async()=>{ const d=await leerArchivo(m); S._arch=S._arch||{}; S._arch[m]={turnosHistorial:(d&&d.turnosHistorial)||[],lineas:(d&&d.lineas)||[]}; inyectarArchivos(); })();
+    try{ await _archCargando[m]; }catch(e){ showToast('No se pudo leer el mes archivado '+m+': '+e.message,'error'); } delete _archCargando[m]; }
+}
+// Qué se movería: turnos y líneas cerradas de meses anteriores al actual (lo vigente nunca se archiva)
+function candidatosArchivo(){
+  const mesAct=mesDe(hoyStr()), G={};
+  (S.turnosHistorial||[]).filter(t=>!t._arch&&t.fecha&&mesDe(t.fecha)<mesAct).forEach(t=>((G[mesDe(t.fecha)]=G[mesDe(t.fecha)]||{turnosHistorial:[],lineas:[]}).turnosHistorial.push(t)));
+  (S.lineas||[]).filter(l=>!l._arch&&l.estado==='cerrada'&&l.fecha&&mesDe(l.fecha)<mesAct).forEach(l=>((G[mesDe(l.fecha)]=G[mesDe(l.fecha)]||{turnosHistorial:[],lineas:[]}).lineas.push(l)));
+  return G;
+}
+async function archivarMeses(silencio){
+  if(!currentUser||!['admin','supervisor'].includes(currentUser.rol)) return null;
+  const G=candidatosArchivo(), meses=Object.keys(G).sort(); if(!meses.length){ if(!silencio) showToast('No hay meses anteriores por archivar','info'); return {meses:[]}; }
+  const hecho=[];
+  for(const m of meses){
+    const prev=await leerArchivo(m).catch(()=>null)||{turnosHistorial:[],lineas:[]}, une=(a,b)=>{ const ids=new Set(a.map(x=>x.id)); return [...a,...b.filter(x=>!ids.has(x.id)).map(x=>{ const y={...x}; delete y._arch; return y; })]; };
+    const datos={turnosHistorial:une(prev.turnosHistorial||[],G[m].turnosHistorial),lineas:une(prev.lineas||[],G[m].lineas)};
+    const pk=await gzEmpacar(datos);
+    await rpc('ch_save_archivo',{p_token:SESSION.token,p_key:STATE_KEY,p_mes:m,p_value:JSON.stringify({...pk,v:1,turnos:datos.turnosHistorial.length,lineas:datos.lineas.length})});
+    // Verificación: se lee de vuelta antes de quitarlo de la llave principal
+    const vuelta=await leerArchivo(m), ok=vuelta&&G[m].turnosHistorial.every(t=>vuelta.turnosHistorial.some(x=>x.id===t.id))&&G[m].lineas.every(l=>vuelta.lineas.some(x=>x.id===l.id));
+    if(!ok) throw new Error('El archivo de '+m+' no se pudo verificar; no se quitó nada');
+    S._arch=S._arch||{}; S._arch[m]={turnosHistorial:vuelta.turnosHistorial,lineas:vuelta.lineas};
+    G[m].turnosHistorial.forEach(t=>{ t._arch=m; }); G[m].lineas.forEach(l=>{ l._arch=m; });
+    hecho.push({mes:m,turnos:G[m].turnosHistorial.length,lineas:G[m].lineas.length});
+  }
+  await save(); await listarArchivos();
+  if(!silencio) showToast('Archivados: '+hecho.map(h=>h.mes+' ('+h.turnos+' turnos, '+h.lineas+' líneas)').join(' · '));
+  return {meses:hecho};
 }
 function setSync(st){ const el=document.getElementById('syncDot'); if(el){ el.className='sync-dot '+st; el.title=st==='ok'?'Sincronizado':st==='offline'?'Sin conexión — guardado local':'Sincronizando…'; } }
 async function loadState(){
@@ -2131,6 +2191,8 @@ async function doLogout(){
 async function startApp(){
   await loadState();
   setTimeout(()=>jornadaSinTurnoAuto().catch(()=>{}),4000);
+  if(['admin','supervisor'].includes(currentUser.rol)) setTimeout(async()=>{ await listarArchivos();
+    if(getConfig().archivoMensual&&Object.keys(candidatosArchivo()).length) archivarMeses(true).catch(e=>console.warn('Archivo mensual:',e.message)); },6000);
   if(hayBk()){ // cambios que quedaron sin subir la última vez (IndexedDB, o el formato viejo en localStorage)
     try{ const b=await bkGet(); if(b){ applyRemote(merge3(b.base,b.local,_base)); await save(); showToast('Cambios pendientes sincronizados'); } else await bkDel(); }catch(e){}
   }
@@ -5057,7 +5119,7 @@ async function resolverSolicitud(aprobado){
   const sol=S.solicitudes.find(x=>x.id===S.reabriendoId);if(!sol)return;
   if(aprobado&&S.turno){ alert('Hay un turno abierto ('+S.turno.fecha+' '+(S.turno.hora||'')+').\n\nCiérralo antes de aprobar la reapertura: aprobarla ahora lo reemplazaría y se perdería. La solicitud sigue pendiente.'); return; }
   sol.estado=aprobado?'aprobado':'rechazado';sol.comentario=document.getElementById('aprobComentario').value;sol.tsResolucion=Date.now();
-  if(aprobado){const t=S.turnosHistorial.find(x=>x.id===sol.turnoId);if(t){t.estado='reabierto';S.turno={...t};S.historial=[...(t.historial||[])];S.tareasActivas=[];S.turnosHistorial=S.turnosHistorial.filter(x=>x.id!==sol.turnoId);}}
+  if(aprobado){const t=S.turnosHistorial.find(x=>x.id===sol.turnoId);if(t){t.estado='reabierto';S.turno={...t};delete S.turno._arch;S.historial=[...(t.historial||[])];S.tareasActivas=[];S.turnosHistorial=S.turnosHistorial.filter(x=>x.id!==sol.turnoId);}}
   else{const t=S.turnosHistorial.find(x=>x.id===sol.turnoId);if(t)t.estado='cerrado';}
   await save();hideModal('modalAprobarReap');updateNotifBadge();renderInsights();if(aprobado){setNav('supervisor');renderAll();}
 }
@@ -5490,7 +5552,7 @@ var REPORTES=[
 var REP_LINEA=['produccion','prodLinea','resLinea','cuadLinea','lineas','cuadrilla','paros','insumos'];
 function nombreReporte(r){ return (currentUser&&currentUser.rol!=='admin'&&r.ts)||r.t; }
 function esAsis(id){ return ['asisGeneral','asisDetalle','marcajes'].includes(id); }
-var _rep={id:'asisGeneral',desde:'',hasta:''}, _repCarga=null;   // var: el menú se pinta antes de esta línea
+var _rep={id:'asisGeneral',desde:'',hasta:''}, _repCarga=null, _repArch=null;   // var: el menú se pinta antes de esta línea
 // Todas las tablas del rango (asistencia incluida, si ya está cargada)
 function tablasReporte(){
   const R=construirReportes(null,{desde:_rep.desde,hasta:_rep.hasta,tipo:_rep.tipo||''}), out={};
@@ -5501,8 +5563,10 @@ function tablasReporte(){
 function htmlReportes(){
   if(!_rep.desde){ _rep.hasta=hoyStr(); _rep.desde=fechaMenos(hoyStr(),14); }
   const def=REPORTES.find(r=>r.id===_rep.id)||REPORTES[0]; _rep.id=def.id;
-  const listo=!esAsis(def.id)||(_asist.desde===_rep.desde&&_asist.hasta===_rep.hasta&&_asist.marcas);
-  if(!listo&&!_repCarga) _repCarga=cargarAsistenciaRep();
+  const faltan=archivosFaltan(_rep.desde,_rep.hasta);
+  if(faltan.length&&!_repArch) _repArch=cargarArchivos(faltan).then(()=>{ _repArch=null; pintarReportes(); });
+  const listo=!faltan.length&&(!esAsis(def.id)||(_asist.desde===_rep.desde&&_asist.hasta===_rep.hasta&&_asist.marcas));
+  if(!faltan.length&&!listo&&!_repCarga) _repCarga=cargarAsistenciaRep();
   const T=listo?tablasReporte():{}, tab=T[def.id]||[[]], cab=tab[0]||[], filas=tab.slice(1), MAX=300;
   const celda=v=>typeof v==='number'?`<td class="num">${fmtN(v)}</td>`:`<td>${esc(v==null?'':String(v))}</td>`;
   return `<div class="rep-cab"><div class="rep-tit">${esc(nombreReporte(def))}</div>${def.d?`<div class="li-sub">${esc(def.d)}</div>`:''}</div>
@@ -5511,7 +5575,7 @@ function htmlReportes(){
       ${REP_LINEA.includes(def.id)&&(S.lineasTipo||[]).length?`<div class="field"><label>Tipo de línea</label><select id="repTipo" onchange="_rep.tipo=this.value;pintarReportes()"><option value="">Todas las líneas</option>${(S.lineasTipo||[]).map(t=>`<option value="${t.id}"${_rep.tipo===t.id?' selected':''}>${esc(t.nombre)}</option>`).join('')}</select></div>`:''}
       <div class="field"><label>Reporte</label><select onchange="irTab('rep:'+this.value)">${REPORTES.map(r=>`<option value="${r.id}"${r.id===def.id?' selected':''}>${esc(nombreReporte(r))}</option>`).join('')}</select></div>
       <div class="chip-wrap" style="align-self:flex-end">${[['Hoy',0],['7 días',6],['15 días',14],['30 días',29]].map(([t,d])=>`<div class="chip${_rep.desde===fechaMenos(hoyStr(),d)&&_rep.hasta===hoyStr()?' selected':''}" onclick="_rep.desde=fechaMenos(hoyStr(),${d});_rep.hasta=hoyStr();pintarReportes()">${t}</div>`).join('')}</div></div>
-    ${!listo?'<div class="empty-text">Cargando los marcajes del período…</div>':`<div class="rep-acc"><span>${filas.length} fila${filas.length===1?'':'s'} · ${etiquetaDia(_rep.desde)} a ${etiquetaDia(_rep.hasta).toLowerCase()}${REP_LINEA.includes(def.id)&&_rep.tipo&&tipoLinea(_rep.tipo)?' · '+esc(tipoLinea(_rep.tipo).nombre):''}</span>
+    ${!listo?`<div class="empty-text">${faltan.length?'Cargando meses archivados ('+faltan.join(', ')+')…':'Cargando los marcajes del período…'}</div>`:`<div class="rep-acc"><span>${filas.length} fila${filas.length===1?'':'s'} · ${etiquetaDia(_rep.desde)} a ${etiquetaDia(_rep.hasta).toLowerCase()}${REP_LINEA.includes(def.id)&&_rep.tipo&&tipoLinea(_rep.tipo)?' · '+esc(tipoLinea(_rep.tipo).nombre):''}</span>
       <span class="btn-row"><button class="btn btn-green btn-sm" onclick="descargarReporte('${def.id}')">Descargar este reporte</button><button class="btn btn-ghost btn-sm" onclick="descargarReporte('')">Descargar todos</button></span></div>
     ${filas.length&&def.id==='cuadLinea'?htmlCuadLinea(filas):filas.length?`<div class="rep-tabla"><table><thead><tr>${cab.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${filas.slice(0,MAX).map(f=>`<tr${f[0]==='TOTAL'?' class="rep-total"':f[1]==='Total del día'||(def.id==='cuadLinea'&&f[0]&&f[1]==='')?' class="rep-sub"':''}>${cab.map((_,k)=>celda(f[k])).join('')}</tr>`).join('')}</tbody></table></div>
       ${filas.length>MAX?`<div class="li-sub">Se muestran ${MAX} de ${filas.length} filas. El Excel trae todas.</div>`:''}`:'<div class="empty-text">Sin datos en estas fechas.</div>'}`}`;
@@ -7021,7 +7085,7 @@ function renderInsights(){
   corte(null);
   const sec=SECCIONES_INS[_insSec]?_insSec:'resumen';
   el.innerHTML=`<div class="ins-grid">${PZ[sec]||'<div class="empty"><div class="empty-text">Todavía no hay nada en esta sección.</div></div>'}</div>`;
-  if(sec==='uso') cargarUso();
+  if(sec==='uso'){ cargarUso(); if(!_archLista) listarArchivos().then(()=>{ if(_insSec==='uso') renderInsights(); }); }
   } catch(err) {
     console.error('renderInsights error:', err);
     el.innerHTML=`<div style="padding:20px;background:rgba(227,6,19,.1);border-radius:10px;color:var(--red-t);font-size:.85rem">
@@ -8962,6 +9026,13 @@ function htmlUso(){
       El respaldo sin conexión del equipo guarda una copia del estado; por eso conviene mantenerlo liviano.</div></div>
     <table class="rt-table"><tr><th>Qué pesa más</th><th>Tamaño</th><th>%</th></tr>${U.bloques.slice(0,8).map(x=>`<tr><td>${esc(NOMBRES_BLOQUE[x.k]||x.k)}</td><td>${kb(x.b)}</td><td>${Math.round(x.b/U.total*100)}%</td></tr>`).join('')}</table>
     ${U.turnos.length?`<table class="rt-table"><tr><th>Turnos más pesados</th><th>Personas</th><th>Tareas</th><th>Tamaño</th></tr>${U.turnos.slice(0,5).map(t=>`<tr><td>${etiquetaDia(t.fecha)}</td><td>${t.n}</td><td>${t.tareas}</td><td>${kb(t.b)}</td></tr>`).join('')}</table>`:''}`;
+  const C=candidatosArchivo(), nC=Object.values(C).reduce((a,g)=>a+g.turnosHistorial.length+g.lineas.length,0), auto=!!getConfig().archivoMensual;
+  h+=`<div class="asig-ttl">Archivo mensual</div>
+    <div class="li-sub">Los turnos y líneas cerrados de meses anteriores se guardan aparte, comprimidos, y se cargan solo al pedir esas fechas en reportes. La primera vez el servidor guarda un respaldo completo.</div>
+    ${(_archLista||[]).length?`<table class="rt-table"><tr><th>Mes archivado</th><th>Turnos</th><th>Líneas</th><th>Tamaño</th></tr>${_archLista.map(a=>`<tr><td>${esc(a.mes)}</td><td>${a.turnos??''}</td><td>${a.lineas??''}</td><td>${kb(a.bytes)}</td></tr>`).join('')}</table>`:'<div class="li-sub">Todavía no hay meses archivados.</div>'}
+    <div class="btn-row" style="margin-top:6px;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" ${nC?'':'disabled'} onclick="if(confirm('¿Archivar ${nC} turno(s) y línea(s) de meses anteriores?'))archivarMeses().then(()=>renderInsights()).catch(e=>showToast(e.message,'error'))">Archivar meses anteriores${nC?' ('+nC+')':''}</button>
+      <div class="chip${auto?' selected':''}" onclick="toggleArchivoAuto()">${auto?'Archivo automático: encendido':'Archivo automático: apagado'}</div></div>`;
   h+=`<div class="asig-ttl">Adopción · últimos ${_uso.dias} días</div>`;
   h+=_uso.err?`<div class="warn-box">${esc(_uso.err)}</div>`:!d?'<div class="li-sub">Cargando…</div>':`<table class="rt-table"><tr><th>Usuario</th><th>Último ingreso</th><th>Días activos</th><th>Guardados 7 d</th><th>Guardados ${_uso.dias} d</th><th>Equipo</th></tr>
     ${(d.usuarios||[]).map(x=>`<tr><td>${esc(x.nombre||x.usuario)} <span class="li-sub">${esc({admin:'Admin',supervisor:'Supervisor',responsable:'Responsable'}[x.rol]||x.rol||'')}</span></td><td>${fh(x.ultimoIngreso)}</td><td>${x.dias}</td><td>${x.g7}</td><td>${x.g}</td><td>${dev(x)}</td></tr>`).join('')}</table>
@@ -8973,6 +9044,8 @@ function htmlUso(){
     :'<div class="li-sub">Sin turnos cerrados en el período.</div>';
   return h;
 }
+async function toggleArchivoAuto(){ const c=getConfig(); if(!c.archivoMensual&&!confirm('Con el archivo automático, al empezar cada mes se mueven solos los turnos y líneas cerrados de los meses anteriores. ¿Encenderlo?')) return;
+  c.archivoMensual=!c.archivoMensual; S.config=c; await save(); renderInsights(); }
 async function descargarUso(){
   await cargarUso(true); const U=datosUso(), d=_uso.data||{}, wb=XLSX.utils.book_new(), add=(n,r)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(r),n);
   add('Espacio',[['Bloque','Bytes','%'],...U.bloques.map(x=>[NOMBRES_BLOQUE[x.k]||x.k,x.b,Math.round(x.b/U.total*100)]),['TOTAL',U.total,100]]);
