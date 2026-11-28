@@ -665,6 +665,30 @@ async function newPage(browser, opts = {}) {
   ok(tp.pendiente && tp.inicia, 'turno planificado: la tarea planificada no arranca sola; al iniciarla vienen seleccionados quienes la tenían');
   ok(tp.ofrece && tp.aLinea && tp.modalPos && tp.alTurno, 'posición del día: el supervisor pasa a la línea a quien marcó como operador (sale del tablero) y lo devuelve al turno; queda registrado');
   ok(tp.refTexto && tp.refTareas && tp.refGente && tp.vacio, 'planificar turno: toma de referencia el turno anterior (gente con su tarea principal y tareas con lo hecho); «Empezar vacío» lo limpia');
+  const op = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, H = 3600000, orig = { turno: S.turno, act: S.tareasActivas, hist: S.historial };
+    if (!SRV.personal.some(x => x.id === 'tmp_op1')) SRV.personal.push({ key: STATE_KEY, id: 'tmp_op1', nombre: 'Ope Uno', cedula: 'Xtmp_op1', puesto_def: 'operador', activo: true });
+    const c = { id: 'tmp_op1', nombre: 'Ope Uno', cargo: 'operador' }, tc = S.tareasCat.find(t => t.prod > 0) || S.tareasCat[0];
+    S.turno = { id: 'tOp', fecha: hoyStr(), hora: '08:00', inicio: Date.now() - 2 * H, equipo: [c, { id: 'tmp_sx', nombre: 'Sup X', cargo: 'supervisor' }], tareasDia: [], hpPorPersona: 8 };
+    S.tareasActivas = [{ id: 'taOp', tareaId: tc.id, tarea: tc.nombre, clienteId: '', cliente: 'Cliente Op', colaboradores: [c], inicio: Date.now() - H, cantAcum: 0, unidad: tc.unidad || 'pallet' }]; S.historial = [];
+    await save();
+    r.boton = !!document.getElementById('btnIngresarOperador');
+    await opInicio(); const ap = () => document.getElementById('opApp');
+    r.lista = !ap().classList.contains('hidden') && /Ope Uno/.test(ap().innerHTML) && !/Sup X/.test(ap().innerHTML);
+    _op.persona = _op.L.find(x => x.id === 'tmp_op1'); _op.paso = 'cedula'; renderOP();
+    document.getElementById('opCed').value = 'mala'; await opEntrar(); r.cedMal = /Cédula incorrecta/.test(ap().innerHTML) && !_op.ses;
+    document.getElementById('opCed').value = 'Xtmp_op1'; await opEntrar();
+    r.tarjeta = _op.paso === 'conteo' && new RegExp(tc.nombre).test(ap().innerHTML) && /Tiempo en la tarea/.test(ap().innerHTML) && /onclick="sumarOP\(10\)"/.test(ap().innerHTML);
+    await sumarOP(5); await sumarOP(10); await sumarOP(-1);
+    r.cuenta = SRV.rows[STATE_KEY].value.tareasActivas[0].cantAcum === 14 && _op.est.tarea.cant === 14;
+    await reload(); r.sync = S.tareasActivas[0].cantAcum === 14;
+    r.guarda = !!localStorage.getItem(OP_KEY);
+    // sin tarea: lo dice y espera
+    S.tareasActivas = []; await save(); await cargarEstadoOP(); r.sinTarea = /Sin tarea asignada/.test(ap().innerHTML);
+    await salirOP(); r.sale = ap().classList.contains('hidden') && !localStorage.getItem(OP_KEY);
+    S.turno = orig.turno; S.tareasActivas = orig.act; S.historial = orig.hist; await save(); SRV.personal = SRV.personal.filter(x => x.id !== 'tmp_op1'); return r; });
+  ok(op.boton && op.lista && op.cedMal && op.tarjeta, 'ingresar como operador: elige su nombre (solo operadores y ayudantes del turno), confirma con cédula y ve su tarea en curso');
+  ok(op.cuenta && op.sync && op.guarda && op.sinTarea && op.sale, 'ingresar como operador: +1/+5/+10 y − se guardan en su tarea (el supervisor lo ve); sin tarea lo indica; «Salir» cierra la sesión');
   ok(la.verde && la.amarillo && la.rojo && la.sinParos && la.arranque && la.meta && la.pinta, 'ingresar como línea: semáforo verde/amarillo/rojo según los pallets esperados a esta hora (sin paros ni almuerzo), con toda la pantalla del color');
   const semT = await page.evaluate(async () => {
     const H = 3600000, guard = S.lineas, t0 = Date.now() - 4 * H, mk = (k, nombre) => ({ ...nuevaLinea(S.lineasTipo[0], 16, 8, hoyStr()), nombre, estado: 'corriendo', inicio: t0, pallets: Array.from({ length: k }, (_, i) => t0 + i * 60000) });
