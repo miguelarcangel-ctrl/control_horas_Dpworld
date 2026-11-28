@@ -1623,6 +1623,7 @@ body.en-kiosco .door-demo-tag{display:none}
       <div class="field"><label>Productividad (pallets por persona por hora, de toda la cuadrilla)</label><input type="number" id="tlProd" min="0" step="0.01"></div>
     </div>
     <div class="field-row">
+      <div class="field"><label>Se cuenta en</label><select id="tlUnidad"><option value="pallet">Pallets</option><option value="unidad">Unidades</option></select></div>
       <div class="field"><label>Costo ($)</label><input type="number" id="tlCosto" min="0" step="0.01" placeholder="0.00"></div>
       <div class="field"><label>UdM del costo</label><select id="tlUdm" onchange="pintarTlCosto()"><option value="persona">Por persona (día)</option><option value="paleta">Por paleta</option><option value="caja">Por caja</option></select></div>
       <div class="field hidden" id="tlCajasField"><label>Cajas por paleta</label><input type="number" id="tlCajas" min="0" step="1"></div>
@@ -2240,13 +2241,13 @@ function iniciarRelojLA(){
   clearInterval(_la.tic); clearInterval(_la.poll);
   _la.tic=setInterval(()=>{ const e=_la.est||{}, a=document.getElementById('laT1'), b=document.getElementById('laT2'), P=e.pallets||[];
     if(a) a.textContent=fmtReloj(e.inicio?(e.fin||Date.now())-e.inicio:0);
-    if(b&&P.length) b.textContent=fmtReloj(Date.now()-P[P.length-1]).replace(/^00:/,'');
+    if(b&&P.length) b.textContent=fmtReloj(Date.now()-tsReg(P[P.length-1])).replace(/^00:/,'');
     if(++_la.n10%10===0&&!_la.ocupado&&_la.paso==='conteo') renderLA(); },1000);
   _la.poll=setInterval(()=>{ if(!_la.ocupado) cargarEstadoLA(); },15000);
 }
 // Semáforo de la línea: pallets contra lo esperado a esta hora (meta × horas trabajadas ÷ horas planificadas, sin paros ni almuerzo)
 function semaforoLA(e, now){
-  now=now||Date.now(); const P=e.pallets||[], n=P.length, meta=+e.meta||0, horas=+e.horas||8;
+  now=now||Date.now(); const P=e.pallets||[], n=sumaRegs(P), meta=+e.meta||0, horas=+e.horas||8;
   if(e.estado!=='corriendo'||!e.inicio||!meta) return {c:'neutro',t:e.estado==='cerrada'?'Línea cerrada':'Sin arrancar'};
   const fin=e.fin||now, dur=(x,act)=>Math.max(0,Math.min(fin,x.fin||fin)-x.inicio);
   const fuera=[...(e.almuerzos||[]),...(e.paros||[])].reduce((a,x)=>a+dur(x),0)+(e.almuerzo?dur(e.almuerzo):0)+(e.paro?dur(e.paro):0);
@@ -2257,39 +2258,42 @@ function semaforoLA(e, now){
   return r>=0.95?{c:'verde',t:'Vamos bien',ritmo,nec,hT}:r>=0.8?{c:'amarillo',t:'Un poco abajo',ritmo,nec,hT}:{c:'rojo',t:'Muy abajo',ritmo,nec,hT};
 }
 // Mismo semáforo para las tarjetas que ven supervisores, administrador y la TV
-function semaforoLinea(l, now){ return semaforoLA({...l,pallets:{length:totalPallets(l)},paro:l.paroActivo,almuerzo:l.almuerzoActivo},now); }
+function semaforoLinea(l, now){ return semaforoLA({...l,paro:l.paroActivo,almuerzo:l.almuerzoActivo},now); }
 const semClase=sm=>sm&&sm.c!=='neutro'?' sem sem-'+sm.c:'';
 function htmlConteoLA(){
-  const e=_la.est||{}, P=e.pallets||[], n=P.length, meta=+e.meta||0, pct=meta?Math.min(100,n/meta*100):0, ult=P[n-1];
+  const e=_la.est||{}, P=e.pallets||[], n=sumaRegs(P), meta=+e.meta||0, pct=meta?Math.min(100,n/meta*100):0, ult=tsReg(P[P.length-1]), uni=esUnidades(e), U=udL(e);
   if(e.existe===false) return `<div class="la-paso"><div class="la-h">La línea ya no existe</div><button class="btn btn-indigo btn-full" onclick="salirLA()">Salir</button></div>`;
   const corre=e.estado==='corriendo', bloq=!corre||!!e.almuerzo||_la.ocupado, sm=semaforoLA(e);
   return `<div class="la-card">
     <div class="la-top"><div><div class="la-tit">Línea ${esc((e.letra?e.letra+' · ':'')+(e.nombre||''))}</div>
       <div class="la-sub">${esc(e.cliente||'')}${e.personas?' · '+e.personas+' personas':''} · ${esc((_la.ses&&_la.ses.nombre)||'')}</div></div>
       <button class="btn btn-ghost btn-sm" onclick="salirLA()">Salir</button></div>
-    ${e.estado==='pendiente'?'<div class="la-estado alm">La línea aún no arranca. Cuando el supervisor la arranque, aquí cuentas los pallets.</div>':''}
+    ${e.estado==='pendiente'?'<div class="la-estado alm">La línea aún no arranca. Cuando el supervisor la arranque, aquí cuentas '+(uni?'las unidades':'los pallets')+'.</div>':''}
     ${e.paro?`<div class="la-estado paro">En paro · ${esc(e.paro.causa||'')}</div>`:''}
-    ${e.almuerzo?'<div class="la-estado alm">En almuerzo: los pallets se suman al volver</div>':''}
+    ${e.almuerzo?'<div class="la-estado alm">En almuerzo: '+(uni?'las unidades se suman':'los pallets se suman')+' al volver</div>':''}
     <div class="la-cuerpo">
       <div class="la-izq">
         <div class="la-sem s-${sm.c}">${sm.t}</div>
-        <div class="la-big"><b id="laN">${n}</b><span>de ${meta} pallets · ${Math.round(meta?n/meta*100:0)}%</span>
+        <div class="la-big"><b id="laN">${n}</b><span>de ${meta} ${U} · ${Math.round(meta?n/meta*100:0)}%</span>
           <div class="la-bar"><i style="width:${pct.toFixed(1)}%"></i></div></div>
       </div>
       <div class="la-der">
         <div class="la-timer"><span class="la-lbl">${corre?'Tiempo en marcha':'Tiempo de la línea'}</span><b id="laT1">${fmtReloj(e.inicio?(e.fin||Date.now())-e.inicio:0)}</b>
-          <span class="la-ult">${ult?`Último pallet ${horaHM(ult)} · hace <span id="laT2">${fmtReloj(Date.now()-ult).replace(/^00:/,'')}</span>`:'Sin pallets aún'}</span></div>
-        ${corre&&sm.hT>0?`<div class="la-ritmo">Ritmo <b>${fmtN(sm.ritmo)}</b> pallets/h${n<meta?` · para la meta <b>${fmtN(sm.nec)}</b>/h`:''}</div>`:''}
+          <span class="la-ult">${ult?`Último registro ${horaHM(ult)} · hace <span id="laT2">${fmtReloj(Date.now()-ult).replace(/^00:/,'')}</span>`:'Sin registros aún'}</span></div>
+        ${corre&&sm.hT>0?`<div class="la-ritmo">Ritmo <b>${fmtN(sm.ritmo)}</b> ${U}/h${n<meta?` · para la meta <b>${fmtN(sm.nec)}</b>/h`:''}</div>`:''}
         ${_la.err?`<div class="la-err" style="text-align:center">${esc(_la.err)}</div>`:''}
-        <div class="la-btns"><button class="btn btn-ghost" ${bloq||!n?'disabled':''} onclick="sumarLA(-1)" aria-label="Restar un pallet">−</button>
-          <button class="btn btn-green" ${bloq?'disabled':''} onclick="sumarLA(1)">+1</button><button class="btn btn-green" ${bloq?'disabled':''} onclick="sumarLA(5)">+5</button></div>
+        <div class="la-btns"><button class="btn btn-ghost" ${bloq||!n?'disabled':''} onclick="sumarLA(-1)" aria-label="${uni?'Deshacer el último registro':'Restar un pallet'}">−</button>
+          ${(uni?PASOS_UNID:[1,5]).map(k=>`<button class="btn btn-green" ${bloq?'disabled':''} onclick="sumarLA(${k})">+${k}</button>`).join('')}</div>
       </div>
     </div>
   </div>`;
 }
 async function sumarLA(d){
   if(!_la.ses||_la.ocupado) return; _la.ocupado=true;
-  const e=_la.est||{}; e.pallets=e.pallets||[]; if(d>0) for(let k=0;k<d;k++) e.pallets.push(Date.now()); else e.pallets.splice(Math.max(0,e.pallets.length+d)); renderLA();
+  const e=_la.est||{}; e.pallets=e.pallets||[];
+  if(esUnidades(e)){ if(d>0) e.pallets.push([Date.now(),d]); else e.pallets.pop(); }
+  else if(d>0) for(let k=0;k<d;k++) e.pallets.push(Date.now()); else e.pallets.splice(Math.max(0,e.pallets.length+d));
+  renderLA();
   try{ _la.est=await rpc('ch_linea_pallet',{p_token:_la.ses.token,p_delta:d}); _la.err=''; }
   catch(x){ const m=x.message||''; _la.err=/ALMUERZO/.test(m)?'La línea está en almuerzo':/LINEA_NO_CORRE/.test(m)?'La línea no está en marcha':/SESION/.test(m)?'':'No se guardó: '+m;
     if(/SESION/.test(m)){ _la.ocupado=false; salirLA(true); return; } await cargarEstadoLA(); }
@@ -2603,7 +2607,7 @@ function tarjetaLineaVigente(a){
   if(a.key.startsWith('lcierre|')) return a.key===claveLineaSinCerrar(l);
   return insumosPorAgotar(l).length>0;
 }
-const ultimoRegistro=l=>Math.max(l.inicio||0,...((l.pallets||[]).slice(-1)),l.paroActivo?0:Math.max(0,...(l.paros||[]).map(p=>p.fin||0)),l.almuerzoActivo?0:Math.max(0,...(l.almuerzos||[]).map(a=>a.fin||0)));
+const ultimoRegistro=l=>Math.max(l.inicio||0,...((l.pallets||[]).slice(-1).map(tsReg)),l.paroActivo?0:Math.max(0,...(l.paros||[]).map(p=>p.fin||0)),l.almuerzoActivo?0:Math.max(0,...(l.almuerzos||[]).map(a=>a.fin||0)));
 // Sin pallets registrados por más de N min (30 por omisión), con la línea en marcha y sin paro; se repite por tramo
 function claveSinRegistro(l, now){
   now=now||Date.now(); if(l.estado!=='corriendo'||l.paroActivo||l.almuerzoActivo||!l.inicio) return null;
@@ -3124,7 +3128,13 @@ function updateBanner(){
 // Las tareas de operadores del maestro (abastecimiento, montacargas) pueden marcarse como apoyo a una línea (t.lineaId).
 const tipoLinea=id=>(S.lineasTipo||[]).find(t=>t.id===id);
 // Los pallets se cuentan al total de la línea (l.pallets: hora de cada pallet). La cuadrilla es solo la lista de personas.
-const totalPallets=l=>(l.pallets||[]).length;
+// Unidad de conteo: pallets (lo normal) o unidades (p. ej. bandejas armadas). En las de unidades cada registro es [hora, cantidad].
+const tsReg=e=>Array.isArray(e)?e[0]:e, cantReg=e=>Array.isArray(e)?(+e[1]||0):1;
+const sumaRegs=P=>(P||[]).reduce((a,e)=>a+cantReg(e),0);
+const esUnidades=l=>!!l&&((l.unidad||((typeof tipoLinea==='function'&&tipoLinea(l.tipoId))||{}).unidad)==='unidad');
+const udL=(l,n)=>esUnidades(l)?(n===1?'unidad':'unidades'):(n===1?'pallet':'pallets');
+const PASOS_UNID=[10,50,100];
+const totalPallets=l=>sumaRegs(l.pallets);
 // Cuadrilla activa: quienes siguen en la línea (al quitar a alguien de una línea en marcha queda con «hasta»)
 const activosLinea=l=>(l.personas||[]).filter(p=>!p.hasta);
 const cuadrillaVista=l=>l.estado==='cerrada'?(l.personas||[]):activosLinea(l);
@@ -3151,7 +3161,7 @@ function cuadrilla(meta, prod, horas){
   const n=personasNecesarias(meta,prod,horas);
   return {pal:n,ap:0,total:n,texto:n?`<b>${n} persona${n===1?'':'s'}</b>`:''};
 }
-function datosDeTipo(t){ return {tipoId:t.id,nombre:t.nombre,costo:t.costo?{...t.costo}:null,clienteId:t.clienteId||null,cliente:(S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||'',prod:t.prod||0,apoyo:JSON.parse(JSON.stringify(t.apoyo||[])),
+function datosDeTipo(t){ return {tipoId:t.id,nombre:t.nombre,unidad:t.unidad==='unidad'?'unidad':'pallet',costo:t.costo?{...t.costo}:null,clienteId:t.clienteId||null,cliente:(S.clientes.find(c=>c.id===t.clienteId)||{}).nombre||'',prod:t.prod||0,apoyo:JSON.parse(JSON.stringify(t.apoyo||[])),
   insumos:(t.insumos||[]).map(i=>({id:uid(),nombre:i.nombre,unidad:i.unidad||'unid',porPallet:+i.porPallet||0,entregas:[],sobrante:null}))}; }
 function nuevaLinea(t, meta, horas, fecha){
   fecha=fecha||hoyStr();
@@ -3276,13 +3286,13 @@ function htmlBloques(L, vacio){
     const agota=insumosPorAgotar(l);
     const sub=l.estado==='pendiente'?`Meta ${l.meta} pallets · se necesitan ${c.total} personas`
       :l.paroActivo?`<b style="color:var(--red-t)">Paro: ${esc(l.paroActivo.causa)} · ${fmtH(paroDur(l.paroActivo))}</b>`
-      :l.estado==='corriendo'?`${fmtN(r.ritmo)} pallets/h · a este ritmo cierras en <b>${r.proy}</b> de ${l.meta}${agota.length?` · <b style="color:var(--amber)">por agotarse: ${agota.map(i=>esc(i.nombre.toLowerCase())).join(', ')}</b>`:''}`
+      :l.estado==='corriendo'?`${fmtN(r.ritmo)} ${udL(l)}/h · a este ritmo cierras en <b>${r.proy}</b> de ${l.meta}${agota.length?` · <b style="color:var(--amber)">por agotarse: ${agota.map(i=>esc(i.nombre.toLowerCase())).join(', ')}</b>`:''}`
       :`Cumplimiento ${l.meta?Math.round(r.tot/l.meta*100):0}%${r.paroH>0.01?' · paros '+fmtH(r.paroH):''}`;
     return `<div class="lb lb-${l.paroActivo?'paro':l.estado}${semClase(sm)}" onclick="abrirLinea('${l.id}')">
       <div class="lb-top"><span class="lb-name">Línea ${esc(lin(l))}</span><span class="badge ${l.paroActivo?'br':est[0]}">${l.paroActivo?'En paro':semClase(sm)?sm.t:est[1]}</span></div>
       <div class="lb-cli">${esc(l.cliente||'')}${l.bodega&&hayBodegas()?' · '+esc(l.bodega):''}${nP?` · ${nP} persona${nP===1?'':'s'}`:''}${l.fecha!==hoyStr()?' · desde '+etiquetaDia(l.fecha).toLowerCase():''}${l.responsable?' · '+esc(l.responsable):''}</div>
       ${nP?`<div class="lb-names">${nombresCortos(cuadrillaVista(l)).map(esc).join(' · ')}</div>`:''}
-      <div class="lb-num"><b>${r.tot}</b> / ${l.meta} pallets</div>
+      <div class="lb-num"><b>${r.tot}</b> / ${l.meta} ${udL(l)}</div>
       <div class="pbar-wrap"><div class="pbar-fill ${pct>=100||r.proy>=l.meta?'pg':'pa'}" style="width:${pct}%"></div></div>
       <div class="lb-sub">${sub}</div></div>`;
   }).join(''):`<div class="empty-text">${vacio}</div>`;
@@ -3290,16 +3300,18 @@ function htmlBloques(L, vacio){
 // Tarjeta de totales del día (encabezado de las líneas): para no tener que sumar a mano
 function htmlResumenLineas(L){
   const A=(L||[]).filter(l=>l.estado!=='pendiente'); if(!A.length) return '';
-  const R=A.map(l=>({l,r:ritmoLinea(l)})), corren=R.filter(x=>x.l.estado==='corriendo'), cerradas=R.length-corren.length;
-  const pal=R.reduce((a,x)=>a+x.r.tot,0), meta=A.reduce((a,l)=>a+(+l.meta||0),0), pct=meta?Math.round(pal/meta*100):0;
+  const R0=A.map(l=>({l,r:ritmoLinea(l)})), corren=R0.filter(x=>x.l.estado==='corriendo'), cerradas=R0.length-corren.length;
+  const R=R0.filter(x=>!esUnidades(x.l)), RU=R0.filter(x=>esUnidades(x.l));   // pallets y unidades no se suman entre sí
+  const pal=R.reduce((a,x)=>a+x.r.tot,0), meta=R.reduce((a,x)=>a+(+x.l.meta||0),0), pct=meta?Math.round(pal/meta*100):0;
   const proy=R.reduce((a,x)=>a+(x.l.estado==='corriendo'?x.r.proy:x.r.tot),0);
-  const ritmo=corren.reduce((a,x)=>a+x.r.ritmo,0);
+  const ritmo=R.filter(x=>x.l.estado==='corriendo').reduce((a,x)=>a+x.r.ritmo,0);
+  const uTot=RU.reduce((a,x)=>a+x.r.tot,0), uMeta=RU.reduce((a,x)=>a+(+x.l.meta||0),0);
   const pers=new Set(), persAct=new Set();
   A.forEach(l=>(l.personas||[]).forEach(p=>{ const k=p.personaId||'n:'+normTxt(p.nombre); pers.add(k); if(l.estado==='corriendo'&&!p.hasta) persAct.add(k); }));
   const hTot=R.reduce((a,x)=>a+x.r.hTot,0), paroH=R.reduce((a,x)=>a+x.r.paroH,0), enParo=A.filter(l=>l.paroActivo).length;
   const ok=proy>=meta;
   return `<div class="lb-resumen">
-    <div class="lbr-top"><span class="lbr-tit">Total del día</span><span class="li-sub">${corren.length} en marcha${cerradas?' · '+cerradas+' cerrada'+(cerradas===1?'':'s'):''}${enParo?' · <b style="color:var(--red-t)">'+enParo+' en paro</b>':''}</span></div>
+    <div class="lbr-top"><span class="lbr-tit">Total del día</span><span class="li-sub">${corren.length} en marcha${cerradas?' · '+cerradas+' cerrada'+(cerradas===1?'':'s'):''}${enParo?' · <b style="color:var(--red-t)">'+enParo+' en paro</b>':''}${RU.length?' · líneas por unidades: <b>'+uTot+'</b> de '+uMeta+' unidades':''}</span></div>
     <div class="stat-row lbr-stats">
       <div class="stat-card"><div class="stat-label">Pallets</div><div class="stat-val">${pal} <span style="font-size:.85rem;color:var(--t3)">/ ${meta}</span></div><div class="stat-sub">${pct}% de la meta</div></div>
       <div class="stat-card"><div class="stat-label">${corren.length?'Proyección':'Faltaron'}</div><div class="stat-val ${ok?'g':'a'}">${corren.length?proy:Math.max(0,meta-pal)}</div><div class="stat-sub">${corren.length?'al cierre'+(ok?' · llega':' · faltan '+(meta-proy)):'pallets para la meta'}</div></div>
@@ -3356,9 +3368,9 @@ function renderLineaModal(foco){
     ${l.fecha>hoyStr()?`<div class="warn-box">Planificada para ${etiquetaDia(l.fecha).toLowerCase()}: ese día la cuadrilla se arma con quienes marquen entrada en la tablet.</div>`:`<div id="lmArrancar">${htmlArrancar(l)}</div>`}
     <button class="btn btn-ghost btn-sm" style="align-self:center" onclick="eliminarLinea()">Quitar esta línea</button>`;
   } else {
-    const pct=l.meta?Math.round(r.tot/l.meta*100):0, corre=l.estado==='corriendo', ult=(l.pallets||[]).slice(-1)[0];
+    const pct=l.meta?Math.round(r.tot/l.meta*100):0, corre=l.estado==='corriendo', ult=tsReg((l.pallets||[]).slice(-1)[0]), uni=esUnidades(l), U=udL(l), Uc=U[0].toUpperCase()+U.slice(1);
     const smL=corre?semaforoLinea(l):null;
-    if(semClase(smL)) h+=`<div class="lm-sem${semClase(smL)}"><b>${smL.t}</b><span>${r.tot} de ${l.meta} pallets · ${fmtN(r.ritmo)}/h${r.tot<l.meta?' · para la meta '+fmtN(smL.nec)+'/h':''}</span></div>`;
+    if(semClase(smL)) h+=`<div class="lm-sem${semClase(smL)}"><b>${smL.t}</b><span>${r.tot} de ${l.meta} ${U} · ${fmtN(r.ritmo)}/h${r.tot<l.meta?' · para la meta '+fmtN(smL.nec)+'/h':''}</span></div>`;
     if(corre) h+=l.almuerzoActivo
       ?`<div class="paro-on alm-on"><div><b>En almuerzo</b> · toda la línea<small>desde ${horaHM(l.almuerzoActivo.inicio)} · ${fmtH(almDur(l.almuerzoActivo))}</small></div><button class="btn btn-green" onclick="terminarAlmuerzoLinea()">Terminar almuerzo</button></div>`
       :l.paroActivo
@@ -3369,15 +3381,15 @@ function renderLineaModal(foco){
     const agota=insumosPorAgotar(l);
     if(agota.length) h+=`<div class="warn-box">Por agotarse: ${agota.map(i=>esc(i.nombre)+' (alcanza para '+Math.max(0,estadoInsumo(i,l).alcanza)+' pallet'+(estadoInsumo(i,l).alcanza===1?'':'s')+')').join(' · ')}. Pide la entrega antes de que pare la línea.</div>`;
     h+=`<div class="stat-row">
-      <div class="stat-card"><div class="stat-label">Pallets</div><div class="stat-val">${r.tot} <span style="font-size:.9rem;color:var(--t3)">/ ${l.meta}</span></div><div class="stat-sub">${pct}% de la meta</div></div>
-      <div class="stat-card"><div class="stat-label">Ritmo</div><div class="stat-val">${fmtN(r.ritmo)}</div><div class="stat-sub">pallets/h · ${fmtH(r.h)}${r.paroH>0.01?' · '+Math.round(r.disponibilidad*100)+'% corriendo':''}</div></div>
+      <div class="stat-card"><div class="stat-label">${Uc}</div><div class="stat-val">${r.tot} <span style="font-size:.9rem;color:var(--t3)">/ ${l.meta}</span></div><div class="stat-sub">${pct}% de la meta</div></div>
+      <div class="stat-card"><div class="stat-label">Ritmo</div><div class="stat-val">${fmtN(r.ritmo)}</div><div class="stat-sub">${U}/h · ${fmtH(r.h)}${r.paroH>0.01?' · '+Math.round(r.disponibilidad*100)+'% corriendo':''}</div></div>
       <div class="stat-card"><div class="stat-label">${corre?'Proyección':'Cuadrilla'}</div><div class="stat-val ${corre?(r.proy>=l.meta?'g':'a'):''}">${corre?r.proy:n}</div><div class="stat-sub">${corre?'al cierre':'personas'}</div></div></div>
-    <div class="li-sub">${n} persona${n===1?'':'s'} · ${fmtN(r.porPersona)} pallets por persona-hora${l.prod?' (objetivo '+l.prod+')':''}${l.responsable?' · a cargo: '+esc(l.responsable):''}</div>
+    <div class="li-sub">${n} persona${n===1?'':'s'} · ${fmtN(r.porPersona)} ${U} por persona-hora${l.prod?' (objetivo '+l.prod+')':''}${l.responsable?' · a cargo: '+esc(l.responsable):''}</div>
     ${(()=>{ const op=apoyoOperadores(l.id); return op.total?`<div class="info-box">Apoyo de operadores: <b>${fmtN(op.total)} h-persona</b> · ${op.personas.map(o=>esc(o.nombre.split(' ')[0])+' '+fmtN(o.h)+' h ('+[...o.tareas].map(esc).join(', ')+')').join(' · ')}</div>`:''; })()}
-    <div class="lp-row lp-total"><div class="lp-name">Pallets<small>${ult?'último '+horaHM(ult):'sin pallets aún'}</small></div>
-      ${corre&&!l.almuerzoActivo?`<button class="btn btn-ghost" onclick="sumarPallet(-1)" aria-label="Restar un pallet">−</button>`:''}
+    <div class="lp-row lp-total"><div class="lp-name">${Uc}<small>${ult?'último registro '+horaHM(ult):'sin registros aún'}</small></div>
+      ${corre&&!l.almuerzoActivo?`<button class="btn btn-ghost" onclick="sumarPallet(-1)" aria-label="${uni?'Deshacer el último registro':'Restar un pallet'}">−</button>`:''}
       <span class="lp-cnt">${r.tot}</span>
-      ${corre&&!l.almuerzoActivo?`<button class="btn btn-green" onclick="sumarPallet(1)">+1</button><button class="btn btn-green" onclick="sumarPallet(5)">+5</button>`:''}</div>
+      ${corre&&!l.almuerzoActivo?(uni?PASOS_UNID.map(k=>`<button class="btn btn-green" onclick="sumarPallet(${k})">+${k}</button>`).join(''):`<button class="btn btn-green" onclick="sumarPallet(1)">+1</button><button class="btn btn-green" onclick="sumarPallet(5)">+5</button>`):''}</div>
     <div class="asig-ttl">Cuadrilla · ${n} persona${n===1?'':'s'}</div><div class="chip-wrap">${chips||'<span class="li-sub">Sin personas</span>'}</div>${_qp&&_qp.lid===l.id?htmlQuitarPersona(l):''}`;
     h+=htmlAlmLinea(l)+htmlInsumosLinea(l)+htmlParosLinea(l);
     if(corre) h+=`<div class="field"><label>Se suma alguien a la línea</label>${agregar}</div>
@@ -3516,7 +3528,8 @@ async function sumarPallet(n){
   const l=lineaDe(_lineaAbierta); if(!l||l.estado!=='corriendo') return;
   if(l.almuerzoActivo){ showToast('La línea está en almuerzo: termina el almuerzo para sumar pallets','error'); return; }
   l.pallets=l.pallets||[]; const t=Date.now();
-  if(n>0) for(let k=0;k<n;k++) l.pallets.push(t); else l.pallets.splice(Math.max(0,l.pallets.length+n));
+  if(esUnidades(l)){ if(n>0) l.pallets.push([t,n]); else l.pallets.pop(); }
+  else if(n>0) for(let k=0;k<n;k++) l.pallets.push(t); else l.pallets.splice(Math.max(0,l.pallets.length+n));
   renderLineaModal(); renderLineas(); await save(); revisarProduccion(l);
 }
 // Paros: la línea queda «en paro» con su causa hasta que se reanuda
@@ -3584,7 +3597,7 @@ function horaCierreLinea(l){
   const plan=l.inicio+((l.horas||0)+horasParo(l)+horasAlmLinea(l))*3600000;
   return Math.min(Date.now(),Math.max(plan,ultimoDeLinea(l)));
 }
-const ultimoDeLinea=l=>Math.max(l.inicio||0,...(l.pallets||[]),...(l.paros||[]).map(p=>p.fin||p.inicio||0),l.paroActivo?l.paroActivo.inicio:0,...(l.almuerzos||[]).map(a=>a.fin||0));
+const ultimoDeLinea=l=>Math.max(l.inicio||0,...(l.pallets||[]).map(tsReg),...(l.paros||[]).map(p=>p.fin||p.inicio||0),l.paroActivo?l.paroActivo.inicio:0,...(l.almuerzos||[]).map(a=>a.fin||0));
 function cuadrillaSinSalida(l){
   const otras=new Set((S.lineas||[]).filter(x=>x.id!==l.id&&x.estado==='corriendo').flatMap(x=>activosLinea(x).map(p=>p.personaId)));
   return activosLinea(l).filter(p=>p.personaId&&!otras.has(p.personaId)&&entradaAbiertaDel(p.personaId,l.fecha));
@@ -3752,6 +3765,7 @@ function openModalTipoLinea(id){
   document.getElementById('tlApoyo').innerHTML=''; (id?(t.apoyo||[]):APOYO_INICIAL).forEach(a=>addPuestoApoyo(a.nombre,a.cant));
   document.getElementById('tlInsumos').innerHTML=''; (id?(t.insumos||[]):INSUMOS_INICIAL).forEach(i=>addInsumoTipo(i.nombre,i.unidad,i.porPallet));
   renderTlExcel(t.excel);
+  document.getElementById('tlUnidad').value=t.unidad==='unidad'?'unidad':'pallet';
   const co=t.costo||{}; document.getElementById('tlCosto').value=co.monto??''; document.getElementById('tlUdm').value=co.udm||'paleta';
   document.getElementById('tlCajas').value=co.cajasPorPallet||((t.insumos||[]).find(i=>/^cajas?$/i.test(i.nombre))||{}).porPallet||''; pintarTlCosto();
   const v=t.venta||{}; document.getElementById('tlVentaField').classList.toggle('hidden',!facturacionOn());
@@ -3793,6 +3807,7 @@ async function guardarTipoLinea(){
   const monto=+document.getElementById('tlCosto').value||0, udm=document.getElementById('tlUdm').value, cajas=+document.getElementById('tlCajas').value||0;
   if(monto>0&&udm==='caja'&&!(cajas>0)){ showToast('Indica cuántas cajas trae cada paleta','error'); return; }
   d.costo=monto>0?{monto,udm,cajasPorPallet:udm==='caja'?cajas:0}:null;
+  d.unidad=document.getElementById('tlUnidad').value==='unidad'?'unidad':'pallet';
   if(facturacionOn()){ const u=document.getElementById('tlVUnidad').value, pr=+document.getElementById('tlVPrecio').value||0;
     d.venta={unidad:u,precio:pr,porPallet:u==='paleta'?1:(+document.getElementById('tlVPorPallet').value||0),costeo:document.getElementById('tlVCosteo').value,costoUnidad:+document.getElementById('tlVCosto').value||0};
     if(pr>0&&u!=='paleta'&&!(d.venta.porPallet>0)){ showToast('Indica cuántas unidades de cobro trae cada pallet','error'); return; }
@@ -3800,7 +3815,7 @@ async function guardarTipoLinea(){
   S.lineasTipo=S.lineasTipo||[];
   if(_tipoEdit) Object.assign(tipoLinea(_tipoEdit),d); else S.lineasTipo.push({id:uid(),...d});
   // el costo nuevo aplica a las líneas de este tipo que aún no cierran; las cerradas guardan el que tenían
-  if(_tipoEdit) (S.lineas||[]).filter(l=>l.tipoId===_tipoEdit&&l.estado!=='cerrada').forEach(l=>{ l.costo=d.costo?{...d.costo}:null; });
+  if(_tipoEdit) (S.lineas||[]).filter(l=>l.tipoId===_tipoEdit&&l.estado!=='cerrada').forEach(l=>{ l.costo=d.costo?{...d.costo}:null; if(!(l.pallets||[]).length) l.unidad=d.unidad; });
   hideModal('modalTipoLinea'); renderInsights(); renderAll(); await save(); showToast('Tipo de línea guardado');
 }
 function openModalCausas(){ document.getElementById('causasLista').innerHTML=''; causasParo().forEach(addCausa); showModal('modalCausas'); }
@@ -3828,7 +3843,7 @@ function buildLineasSection(modo){
         <div class="li-actions"><button class="btn btn-ghost btn-sm" onclick="openModalTipoLinea('${t.id}')">Editar</button><button class="btn btn-red btn-sm" onclick="eliminarTipoLinea('${t.id}')" aria-label="Eliminar línea del catálogo">×</button></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;width:100%">
-        ${caja('Prod. objetivo',t.prod,'var(--accent)','por persona-hora')}
+        ${caja('Prod. objetivo',t.prod,'var(--accent)',(t.unidad==='unidad'?'unidades':'pallets')+' por persona-hora')}
         ${caja('Prod. real',real!=null?fmtN(real):'Sin datos',real==null?'var(--mid)':real>=t.prod?'var(--green)':'var(--amber)',real!=null?'por persona-hora':'')}
         ${caja('Costo',co,tc?'var(--purple)':'var(--mid)',cs)}
       </div></div>`; });
@@ -5168,54 +5183,57 @@ function construirReportes(turnoId, rango){
   R.push({nombre:'Costos por Colaborador',filas:opRows});
 
   // Líneas de producción: control de cantidades
-  const linRows=[['Fecha','Línea','Cliente','Bodega','Actividad en Excel','Meta (pallets)','Pallets','Cumplimiento (%)','Personas','Horas línea','Pallets por persona-hora','Productividad objetivo','Horas operadores de apoyo','Minutos en paro','Disponibilidad (%)','Responsable','Inicio','Fin','Estado','UdM del costo','Cantidad (UdM)','Costo unitario ($)','Costo de la línea ($)']];
+  const linRows=[['Fecha','Línea','Cliente','Bodega','Actividad en Excel','Meta (pallets)','Pallets','Cumplimiento (%)','Personas','Horas línea','Pallets por persona-hora','Productividad objetivo','Horas operadores de apoyo','Minutos en paro','Disponibilidad (%)','Responsable','Inicio','Fin','Estado','UdM del costo','Cantidad (UdM)','Costo unitario ($)','Costo de la línea ($)','Se cuenta en']];
   const perRows=[['Fecha','Línea','Cliente','Persona','Desde','Horas en la línea (sin almuerzo)']];
   const fechasT=new Set(turnos.map(t=>t.fecha));
   (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))&&tipoOk(l)).forEach(l=>{ const t={fecha:l.fecha};
     const r=ritmoLinea(l), fin=l.fin||Date.now();
-    linRows.push([t.fecha,lin(l),l.cliente||'',l.bodega||'',(l.excel||{}).actividad||'',l.meta,r.tot,l.meta?Math.round(r.tot/l.meta*100):'',l.personas.length,r2(r.h),r.hTot?r2(r.porPersona):'',l.prod||'',r2(apoyoOperadores(l.id).total),Math.round(r.paroH*60),Math.round(r.disponibilidad*100),l.responsable||'',hora(l.inicio),l.fin?hora(l.fin):'En marcha',l.estado==='cerrada'?'Cerrada':'En marcha',...(cl=>cl?[UDM_COSTO[cl.udm][0],cl.cant,r2(cl.monto),r2(cl.total)]:['','','',''])(costoLinea(l))]);
+    linRows.push([t.fecha,lin(l),l.cliente||'',l.bodega||'',(l.excel||{}).actividad||'',l.meta,r.tot,l.meta?Math.round(r.tot/l.meta*100):'',l.personas.length,r2(r.h),r.hTot?r2(r.porPersona):'',l.prod||'',r2(apoyoOperadores(l.id).total),Math.round(r.paroH*60),Math.round(r.disponibilidad*100),l.responsable||'',hora(l.inicio),l.fin?hora(l.fin):'En marcha',l.estado==='cerrada'?'Cerrada':'En marcha',...(cl=>cl?[UDM_COSTO[cl.udm][0],cl.cant,r2(cl.monto),r2(cl.total)]:['','','',''])(costoLinea(l)),udL(l)]);
     l.personas.forEach(p=>perRows.push([t.fecha,lin(l),l.cliente||'',p.nombre,hora(p.desde||l.inicio),r2(horasEnLinea(p,l,fin))]));
   });
   R.push({nombre:'Líneas de producción',filas:linRows});
   // Producción diaria: fecha, lo realizado (todas las líneas sumadas) y la meta; al final el total del período
   const dia={};
   (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))&&tipoOk(l)).forEach(l=>{
-    const d=dia[l.fecha]||(dia[l.fecha]={meta:0,pal:0,costo:0}); d.meta+=+l.meta||0; d.pal+=totalPallets(l); d.costo+=(costoLinea(l)||{}).total||0; });
-  const prodRows=[['Fecha','Realizado (pallets)','Meta (pallets)','Costo de líneas ($)']], tt={meta:0,pal:0,costo:0};
-  Object.keys(dia).sort().reverse().forEach(f=>{ const d=dia[f]; prodRows.push([f,d.pal,d.meta,r2(d.costo)]); tt.meta+=d.meta; tt.pal+=d.pal; tt.costo+=d.costo; });
-  if(Object.keys(dia).length) prodRows.push(['TOTAL',tt.pal,tt.meta,r2(tt.costo)]);
+    const d=dia[l.fecha]||(dia[l.fecha]={meta:0,pal:0,uMeta:0,uni:0,costo:0}), u=esUnidades(l);
+    if(u){ d.uMeta+=+l.meta||0; d.uni+=totalPallets(l); } else { d.meta+=+l.meta||0; d.pal+=totalPallets(l); } d.costo+=(costoLinea(l)||{}).total||0; });
+  // las líneas que se cuentan en unidades van en sus propias columnas (no se suman a los pallets)
+  const hayU=Object.values(dia).some(d=>d.uMeta||d.uni), cu=d=>hayU?[d.uni,d.uMeta]:[];
+  const prodRows=[['Fecha','Realizado (pallets)','Meta (pallets)',...(hayU?['Realizado (unidades)','Meta (unidades)']:[]),'Costo de líneas ($)']], tt={meta:0,pal:0,uMeta:0,uni:0,costo:0};
+  Object.keys(dia).sort().reverse().forEach(f=>{ const d=dia[f]; prodRows.push([f,d.pal,d.meta,...cu(d),r2(d.costo)]); ['meta','pal','uMeta','uni','costo'].forEach(k=>tt[k]+=d[k]); });
+  if(Object.keys(dia).length) prodRows.push(['TOTAL',tt.pal,tt.meta,...cu(tt),r2(tt.costo)]);
   R.push({nombre:'Producción diaria',filas:prodRows});
   // Producción diaria por línea: una fila por línea y día, el total de cada día y el del período
-  const plRows=[['Fecha','Línea','Realizado','Meta','%','Cliente','Costo ($)']], pc=(a,b)=>b?Math.round(a/b*100):'';
+  const plRows=[['Fecha','Línea','Realizado','Meta','%','Cliente','UdM','Costo ($)']], pc=(a,b)=>b?Math.round(a/b*100):'';
   const porDia={}; (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))&&tipoOk(l)).forEach(l=>(porDia[l.fecha]=porDia[l.fecha]||[]).push(l));
   const tp={pal:0,meta:0,costo:0};
   Object.keys(porDia).sort().reverse().forEach(f=>{ const td={pal:0,meta:0,costo:0}, L=porDia[f].sort((a,b)=>(a.letra||'').localeCompare(b.letra||'',undefined,{numeric:true})||a.nombre.localeCompare(b.nombre));
-    L.forEach(l=>{ const pal=totalPallets(l), meta=+l.meta||0, co=(costoLinea(l)||{}).total||0; plRows.push([f,lin(l),pal,meta,pc(pal,meta),l.cliente||'',r2(co)]); td.pal+=pal; td.meta+=meta; td.costo+=co; });
-    plRows.push([f,'Total del día',td.pal,td.meta,pc(td.pal,td.meta),'',r2(td.costo)]); tp.pal+=td.pal; tp.meta+=td.meta; tp.costo+=td.costo; });
-  if(Object.keys(porDia).length) plRows.push(['TOTAL','',tp.pal,tp.meta,pc(tp.pal,tp.meta),'',r2(tp.costo)]);
+    L.forEach(l=>{ const pal=totalPallets(l), meta=+l.meta||0, co=(costoLinea(l)||{}).total||0, u=esUnidades(l); plRows.push([f,lin(l),pal,meta,pc(pal,meta),l.cliente||'',udL(l),r2(co)]); if(!u){ td.pal+=pal; td.meta+=meta; } td.costo+=co; });
+    plRows.push([f,'Total del día',td.pal,td.meta,pc(td.pal,td.meta),'','pallets',r2(td.costo)]); tp.pal+=td.pal; tp.meta+=td.meta; tp.costo+=td.costo; });
+  if(Object.keys(porDia).length) plRows.push(['TOTAL','',tp.pal,tp.meta,pc(tp.pal,tp.meta),'','pallets',r2(tp.costo)]);
   R.push({nombre:'Producción por línea',filas:plRows});
   // Resumen de producción por línea: el total de cada línea (por su tipo) en todo el rango, sin detalle por día
   const rl={};
   (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))&&tipoOk(l)).forEach(l=>{
-    const k=l.tipoId||l.nombre, o=rl[k]||(rl[k]={nombre:l.nombre,cliente:l.cliente||'',dias:new Set(),n:0,pal:0,meta:0,costo:0});
+    const k=(l.tipoId||l.nombre)+(esUnidades(l)?'|u':''), o=rl[k]||(rl[k]={nombre:l.nombre,cliente:l.cliente||'',ud:udL(l),dias:new Set(),n:0,pal:0,meta:0,costo:0});
     o.dias.add(l.fecha); o.n++; o.pal+=totalPallets(l); o.meta+=+l.meta||0; o.costo+=(costoLinea(l)||{}).total||0; });
-  const rlRows=[['Línea','Realizado','Meta','%','Días','Líneas armadas','Cliente','Costo ($)']], rt={pal:0,meta:0,n:0,costo:0,dias:new Set()};
-  Object.values(rl).sort((a,b)=>b.pal-a.pal).forEach(o=>{ rlRows.push([o.nombre,o.pal,o.meta,pc(o.pal,o.meta),o.dias.size,o.n,o.cliente,r2(o.costo)]);
-    rt.pal+=o.pal; rt.meta+=o.meta; rt.n+=o.n; rt.costo+=o.costo; o.dias.forEach(d=>rt.dias.add(d)); });
-  if(Object.keys(rl).length) rlRows.push(['TOTAL',rt.pal,rt.meta,pc(rt.pal,rt.meta),rt.dias.size,rt.n,'',r2(rt.costo)]);
+  const rlRows=[['Línea','Realizado','Meta','%','Días','Líneas armadas','Cliente','UdM','Costo ($)']], rt={pal:0,meta:0,n:0,costo:0,dias:new Set()};
+  Object.values(rl).sort((a,b)=>(a.ud==='unidades')-(b.ud==='unidades')||b.pal-a.pal).forEach(o=>{ rlRows.push([o.nombre,o.pal,o.meta,pc(o.pal,o.meta),o.dias.size,o.n,o.cliente,o.ud,r2(o.costo)]);
+    if(o.ud!=='unidades'){ rt.pal+=o.pal; rt.meta+=o.meta; } rt.n+=o.n; rt.costo+=o.costo; o.dias.forEach(d=>rt.dias.add(d)); });
+  if(Object.keys(rl).length) rlRows.push(['TOTAL',rt.pal,rt.meta,pc(rt.pal,rt.meta),rt.dias.size,rt.n,'','pallets',r2(rt.costo)]);
   R.push({nombre:'Resumen por línea',filas:rlRows});
   // Producción por línea y cuadrilla: por letra de línea (A, B, C…) el total del rango y debajo quién estuvo en ella
   const cq={};
   (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))&&tipoOk(l)).forEach(l=>{
-    const k=l.letra||l.nombre, o=cq[k]||(cq[k]={k,nombres:new Set(),dias:new Set(),pal:0,meta:0,hp:0,per:{}}); const fin=l.fin||Date.now();
+    const u=esUnidades(l), k=(l.letra||l.nombre)+(u?' ':''), o=cq[k]||(cq[k]={k,ud:udL(l),nombres:new Set(),dias:new Set(),pal:0,meta:0,hp:0,per:{}}); const fin=l.fin||Date.now();
     o.nombres.add(l.nombre); o.dias.add(l.fecha); o.pal+=totalPallets(l); o.meta+=+l.meta||0;
     (l.personas||[]).forEach(p=>{ const id=p.personaId||p.nombre, h=horasEnLinea(p,l,fin), q=o.per[id]||(o.per[id]={nombre:p.nombre,dias:new Set(),h:0}); q.dias.add(l.fecha); q.h+=h; o.hp+=h; }); });
-  const cqRows=[['Línea','Persona','Pallets','Meta','%','Días','Horas en la línea']], ct={pal:0,meta:0,hp:0,dias:new Set()};
+  const cqRows=[['Línea','Persona','Cantidad','Meta','%','Días','Horas en la línea','UdM']], ct={pal:0,meta:0,hp:0,dias:new Set()};
   Object.values(cq).sort((a,b)=>a.k.length-b.k.length||a.k.localeCompare(b.k)).forEach(o=>{
-    cqRows.push([(/^[A-Z]{1,2}$/.test(o.k)?'Línea '+o.k+' · ':'')+[...o.nombres].join(' / '),'',o.pal,o.meta,pc(o.pal,o.meta),o.dias.size,r2(o.hp)]);
-    Object.values(o.per).sort((a,b)=>a.nombre.localeCompare(b.nombre)).forEach(q=>cqRows.push(['',q.nombre,'','','',q.dias.size,r2(q.h)]));
-    ct.pal+=o.pal; ct.meta+=o.meta; ct.hp+=o.hp; o.dias.forEach(d=>ct.dias.add(d)); });
-  if(Object.keys(cq).length) cqRows.push(['TOTAL','',ct.pal,ct.meta,pc(ct.pal,ct.meta),ct.dias.size,r2(ct.hp)]);
+    cqRows.push([(/^[A-Z]{1,2}$/.test(o.k.trim())?'Línea '+o.k.trim()+' · ':'')+[...o.nombres].join(' / '),'',o.pal,o.meta,pc(o.pal,o.meta),o.dias.size,r2(o.hp),o.ud]);
+    Object.values(o.per).sort((a,b)=>a.nombre.localeCompare(b.nombre)).forEach(q=>cqRows.push(['',q.nombre,'','','',q.dias.size,r2(q.h),'']));
+    if(o.ud!=='unidades'){ ct.pal+=o.pal; ct.meta+=o.meta; } ct.hp+=o.hp; o.dias.forEach(d=>ct.dias.add(d)); });
+  if(Object.keys(cq).length) cqRows.push(['TOTAL','',ct.pal,ct.meta,pc(ct.pal,ct.meta),ct.dias.size,r2(ct.hp),'pallets']);
   R.push({nombre:'Línea y cuadrilla',filas:cqRows});
   const parRows=[['Fecha','Línea','Causa','Inicio','Fin','Minutos','Nota','Registrado por']];
   const insRows=[['Fecha','Línea','Insumo','Unidad','Consumo por pallet','Pallets','Esperado','Entregado','Sobrante','Consumo real','Diferencia','Diferencia (%)']];
@@ -5281,7 +5299,7 @@ function htmlCuadLinea(F){
     if(f[0]==='TOTAL'){ if(abierto) h+='</div>'; abierto=false;
       h+=`<div class="cq-total"><span>Total del período</span><b>${f[2]} pallets</b><small>meta ${f[3]}${f[4]!==''?' · '+f[4]+'%':''}</small></div>`; return; }
     if(f[0]){ if(abierto) h+='</div>'; abierto=true;
-      h+=`<div class="cq-linea"><div class="cq-hdr"><span>${esc(f[0])}</span><b>${f[2]} pallets</b></div><div class="cq-meta">Meta ${f[3]}${f[4]!==''?' · '+f[4]+'% de cumplimiento':''} · ${f[5]} día${f[5]===1?'':'s'}</div>`; return; }
+      h+=`<div class="cq-linea"><div class="cq-hdr"><span>${esc(f[0])}</span><b>${f[2]} ${f[7]||'pallets'}</b></div><div class="cq-meta">Meta ${f[3]}${f[4]!==''?' · '+f[4]+'% de cumplimiento':''} · ${f[5]} día${f[5]===1?'':'s'}</div>`; return; }
     h+=`<div class="cq-per"><span>${esc(f[1])}</span><small>${f[5]} día${f[5]===1?'':'s'} · ${fmtN(f[6])} h</small></div>`;
   });
   return h+(abierto?'</div>':'')+'</div>';
@@ -6854,28 +6872,28 @@ function tvLineasBody(){
     const r=ritmoLinea(l,now), pct=l.meta?Math.min(100,r.tot/l.meta*100):0, nP=cuadrillaVista(l).length;
     const esperado=l.estado==='corriendo'&&l.horas?Math.min(100,r.h/l.horas*100):null;
     const restanH=Math.max(0,l.horas-r.h), necesario=l.estado==='corriendo'&&restanH>0?Math.max(0,l.meta-r.tot)/restanH:null;
-    const ultimo=(l.pallets||[]).slice(-1)[0]||0;
+    const ultimo=tsReg((l.pallets||[]).slice(-1)[0])||0;
     const vaBien=r.proy>=l.meta, sm=semaforoLinea(l,now);
     const estado=l.paroActivo?['tv-br','En paro']:{pendiente:['tv-ba','Por arrancar'],corriendo:[vaBien?'tv-bg':'tv-ba',semClase(sm)?sm.t:'Arrancando'],cerrada:['tv-bgy','Cerrada']}[l.estado];
     const agota=insumosPorAgotar(l);
     if(l.estado==='pendiente'){ const c=cuadrilla(l.meta,l.prod,l.horas);
       return `<div class="tvl"><div class="tvl-top"><div><div class="tvl-name">Línea ${esc(lin(l))}</div><div class="tvl-cli">${esc(l.cliente||'')}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
-        <div class="tvl-big"><b>0</b><span>/ ${l.meta} pallets</span></div><div class="tvl-sub">Meta del día ${l.meta} pallets · cuadrilla de ${c.total} personas</div></div>`; }
+        <div class="tvl-big"><b>0</b><span>/ ${l.meta} ${udL(l)}</span></div><div class="tvl-sub">Meta del día ${l.meta} ${udL(l)} · cuadrilla de ${c.total} personas</div></div>`; }
     return `<div class="tvl tvl-${l.estado}${semClase(sm)}${l.paroActivo||agota.length?' con-alerta':''}">
       <div class="tvl-top"><div><div class="tvl-name">Línea ${esc(lin(l))}</div><div class="tvl-cli">${esc(l.cliente||'')}${l.bodega&&hayBodegas()?' · '+esc(l.bodega):''} · ${nP} persona${nP===1?'':'s'}${l.responsable?' · '+esc(l.responsable):''}</div></div><span class="tv-badge ${estado[0]}">${estado[1]}</span></div>
       ${l.paroActivo?`<div class="tvl-paro">EN PARO · ${esc(l.paroActivo.causa)}<span>${fmtH(paroDur(l.paroActivo,now))}</span></div>`:''}
       ${agota.length?`<div class="tvl-agota">Por agotarse: ${agota.map(i=>esc(i.nombre)+' (alcanza para '+Math.max(0,estadoInsumo(i,l).alcanza)+')').join(' · ')}</div>`:''}
-      <div class="tvl-big"><b>${r.tot}</b><span>/ ${l.meta} pallets</span><em>${Math.round(pct)}%</em></div>
+      <div class="tvl-big"><b>${r.tot}</b><span>/ ${l.meta} ${udL(l)}</span><em>${Math.round(pct)}%</em></div>
       <div class="tvl-bar"><div class="tvl-fill" style="width:${pct}%;background:${vaBien||l.estado==='cerrada'?'var(--green)':'var(--amber)'}"></div>${esperado!=null?`<div class="tvl-mark" style="left:${esperado}%" title="Dónde debería ir a esta hora"></div>`:''}</div>
       <div class="tvl-stats">
-        <div><span>Ritmo</span><b>${fmtN(r.ritmo)}</b><small>pallets/h</small></div>
+        <div><span>Ritmo</span><b>${fmtN(r.ritmo)}</b><small>${udL(l)}/h</small></div>
         ${l.estado==='corriendo'?`<div><span>Necesario</span><b class="${necesario!=null&&r.ritmo<necesario?'a':'g'}">${necesario!=null?fmtN(necesario):'—'}</b><small>para la meta</small></div>
         <div><span>Cierre</span><b class="${vaBien?'g':'a'}">${r.proy}</b><small>proyectado</small></div>
         <div class="tvl-opc"><span>Último</span><b>${ultimo?fmtH(msH(now-ultimo)).replace(' min','′'):'—'}</b><small>${ultimo?'atrás':''}</small></div>
         <div class="tvl-opc"><span>Paro hoy</span><b class="${r.paroH>0.25?'a':''}">${Math.round(r.paroH*60)}′</b><small>${Math.round(r.disponibilidad*100)}% activa</small></div>`
         :`<div><span>Duración</span><b>${fmtH(r.h)}</b><small></small></div><div><span>Por persona</span><b>${fmtN(r.porPersona)}</b><small>pallets/h</small></div>`}
       </div>
-      ${l.estado==='corriendo'&&l.prod?`<div class="tvl-sub">${fmtN(r.porPersona)} pallets por persona-hora · objetivo ${l.prod}</div>`:''}
+      ${l.estado==='corriendo'&&l.prod?`<div class="tvl-sub">${fmtN(r.porPersona)} ${udL(l)} por persona-hora · objetivo ${l.prod}</div>`:''}
     </div>`;
   }).join('');
   // Reparte las líneas para que todas quepan en la pantalla con tarjetas de forma parecida (≈ 1.3 de ancho por 1 de alto)
