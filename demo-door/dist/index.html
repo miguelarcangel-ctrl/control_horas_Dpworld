@@ -1814,6 +1814,34 @@ const IS_TV=QS.get('tv')==='1';
 // Datos de prueba: ?datos=prueba, o al abrir la app en local
 const STATE_KEY='ctrl_horas';
 const SESS_KEY='ch_sesion_'+STATE_KEY, BK_KEY='ch_backup_'+STATE_KEY;
+// ── Respaldo sin conexión (E1): en IndexedDB, sin el tope de ~5 MB de localStorage. Una sola copia completa (lo local) más
+// la versión y, de lo que había en el servidor, solo las partes que cambiaron: con eso se rearma la base exacta para integrar.
+// Si el navegador no tiene IndexedDB, cae a localStorage. Una marca liviana en localStorage dice si hay respaldo pendiente.
+const BK_FLAG=BK_KEY+'_pend';
+let _idb=null;
+function idbAbrir(){ if(_idb) return _idb; _idb=new Promise((ok,mal)=>{ try{ const r=indexedDB.open('ch_respaldo',1); r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>ok(r.result); r.onerror=()=>mal(r.error); }catch(e){ mal(e); } }); _idb.catch(()=>{ _idb=null; }); return _idb; }
+async function idbOp(modo, fn){ const db=await idbAbrir(); return new Promise((ok,mal)=>{ const tx=db.transaction('kv',modo), st=tx.objectStore('kv'), r=fn(st); tx.oncomplete=()=>ok(r&&r.result); tx.onerror=()=>mal(tx.error); tx.onabort=()=>mal(tx.error); }); }
+function bkEmpacar(ver, base, local){
+  const cambios={}, nuevos=[]; base=base||{};
+  Object.keys(base).forEach(k=>{ if(!(k in local)||!eqJ(base[k],local[k])) cambios[k]=base[k]; });
+  Object.keys(local).forEach(k=>{ if(!(k in base)) nuevos.push(k); });
+  return {v:2, ver, local, cambios, nuevos, ts:Date.now()};
+}
+function bkDesempacar(b){ if(!b) return null; if(b.v!==2) return b;   // formato viejo {ver, base, local}
+  const base={...b.local,...b.cambios}; (b.nuevos||[]).forEach(k=>{ delete base[k]; }); return {ver:b.ver, base, local:b.local}; }
+async function bkSet(ver, base, local){
+  const pk=bkEmpacar(ver, base, local);
+  try{ await idbOp('readwrite', st=>st.put(pk, BK_KEY)); localStorage.setItem(BK_FLAG,'idb'); localStorage.removeItem(BK_KEY); return true; }
+  catch(e){ try{ localStorage.setItem(BK_KEY, JSON.stringify(pk)); localStorage.setItem(BK_FLAG,'ls'); return true; }catch(_){ return false; } }
+}
+async function bkGet(){
+  const f=localStorage.getItem(BK_FLAG), viejo=localStorage.getItem(BK_KEY);
+  if(!f&&!viejo) return null;
+  if(f==='idb'){ try{ return bkDesempacar(await idbOp('readonly', st=>st.get(BK_KEY))); }catch(e){ return null; } }
+  try{ return bkDesempacar(JSON.parse(viejo)); }catch(e){ return null; }
+}
+async function bkDel(){ localStorage.removeItem(BK_FLAG); localStorage.removeItem(BK_KEY); try{ await idbOp('readwrite', st=>st.delete(BK_KEY)); }catch(e){} }
+const hayBk=()=>!!(localStorage.getItem(BK_FLAG)||localStorage.getItem(BK_KEY));
 const RUNTIME_KEYS=['cerrandoId','reabriendoId','editingId','usuarios'];
 
 const DEFAULT_CONFIG={horaInicio:'08:00',horaFin:'17:00',horasAlmuerzo:1,multSobretiempo:1.5,horasSabado:4,multSabado:1.0,horasDomingo:0,multDomingo:2.0,
@@ -2022,7 +2050,7 @@ async function save(){
       const local=persistable();
       try{
         _ver=await rpc('ch_save_state',{p_token:SESSION.token,p_value:local,p_version:_ver,p_key:STATE_KEY});
-        _base=local; localStorage.removeItem(BK_KEY); setSync('ok'); checkTamañoS(); return;
+        _base=local; if(hayBk()) await bkDel(); setSync('ok'); checkTamañoS(); return;
       }catch(e){
         if(esConflicto(e)){ // otro usuario guardó primero: se integran ambos cambios y se reintenta
           const r=await rpc('ch_get_state',{p_token:SESSION.token,p_key:STATE_KEY});
@@ -2030,12 +2058,12 @@ async function save(){
           showToast('Cambios de otro usuario integrados','info'); continue;
         }
         if(esSesionVencida(e)){ sesionVencida(); return; }
-        try{ localStorage.setItem(BK_KEY,JSON.stringify({ver:_ver,base:_base,local})); }catch(_){}
+        await bkSet(_ver,_base,local);
         setSync('offline'); showToast('Sin conexión — guardado en este equipo; se sincroniza solo','error'); return;
       }
     }
     // No se pudo tras 4 intentos (muchos guardando a la vez): queda guardado en este equipo y se reintenta solo
-    try{ localStorage.setItem(BK_KEY,JSON.stringify({ver:_ver,base:_base,local:persistable()})); }catch(_){}
+    await bkSet(_ver,_base,persistable());
     setSync('offline'); showToast('Muchos cambios a la vez: lo tuyo quedó guardado aquí y se sube en unos segundos','info');
     clearTimeout(_reintento); _reintento=setTimeout(()=>reload().catch(()=>{}),4000+Math.random()*4000);
   };
@@ -2045,7 +2073,7 @@ async function save(){
 async function reload(){
   if(!SESSION) return false;
   await _saving.catch(()=>{});
-  const pend=localStorage.getItem(BK_KEY);
+  const pend=hayBk();
   let v; try{ v=await rpc('ch_version',{p_token:SESSION.token,p_key:STATE_KEY}); }
   catch(e){ if(esSesionVencida(e)) sesionVencida(); else setSync('offline'); return false; }
   if(v===_ver&&!pend) return false;
@@ -2103,8 +2131,8 @@ async function doLogout(){
 async function startApp(){
   await loadState();
   setTimeout(()=>jornadaSinTurnoAuto().catch(()=>{}),4000);
-  if(localStorage.getItem(BK_KEY)){ // cambios que quedaron sin subir la última vez
-    try{ const b=JSON.parse(localStorage.getItem(BK_KEY)); applyRemote(merge3(b.base,b.local,_base)); await save(); showToast('Cambios pendientes sincronizados'); }catch(e){}
+  if(hayBk()){ // cambios que quedaron sin subir la última vez (IndexedDB, o el formato viejo en localStorage)
+    try{ const b=await bkGet(); if(b){ applyRemote(merge3(b.base,b.local,_base)); await save(); showToast('Cambios pendientes sincronizados'); } else await bkDel(); }catch(e){}
   }
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appScreen').classList.remove('hidden');
