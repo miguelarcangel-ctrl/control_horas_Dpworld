@@ -136,6 +136,24 @@ async function newPage(browser, opts = {}) {
   ok(rp.uno && rp.todos && rp.rango, 'reportes: se descarga solo el que se ve o todos juntos; el rango de fechas filtra');
   ok(rp.asisG && rp.asisD, 'reportes: asistencia general (por persona, con total) y detallada (día por día) por rango de fechas');
 
+  // T1 · Uso de la app (solo administrador)
+  const uso = await page.evaluate(async () => {
+    const r = {}; pintarMenu();
+    r.menu = tabsDe(CATS.find(c => c.id === 'config')).some(x => x[0] === 'ins:uso');
+    irTab('ins:uso'); await new Promise(res => setTimeout(res, 150));
+    const box = document.getElementById('usoBox').innerHTML;
+    r.bloques = /Espacio/.test(box) && /de 4 MB/.test(box) && /Qué pesa más/.test(box) && /Adopción/.test(box) && /Admin Prueba/.test(box) && /Calidad del registro/.test(box);
+    r.sinCostos = !/\$\d/.test(box);
+    await descargarUso(); r.excel = window.__xlsx.w.s.map(x => x[0]).join() === 'Espacio,Crecimiento,Adopción,Marcajes,Calidad';
+    // el supervisor no la ve ni puede pedir los datos
+    const SRV = window.__SRV, sup = SRV.users.find(x => x.rol === 'supervisor'), u = currentUser;
+    SRV.sessions[SESSION.token] = sup.id; currentUser = { id: sup.id, nombre: sup.nombre, username: sup.username, rol: 'supervisor' };
+    r.supMenu = !tabsDe(CATS.find(c => c.id === 'config')).some(x => x[0] === 'ins:uso');
+    r.supRpc = await rpc('ch_uso', { p_token: SESSION.token, p_key: STATE_KEY, p_dias: 7 }).then(() => false, e => /PERMISO/.test(e.message));
+    SRV.sessions[SESSION.token] = u.id; currentUser = u; pintarMenu(); setNav('supervisor'); return r; });
+  ok(uso.menu && uso.bloques && uso.sinCostos && uso.excel, 'T1 · Uso de la app: espacio frente a 4 MB (qué pesa más y crecimiento), adopción por usuario, calidad del registro y Excel, sin costos');
+  ok(uso.supMenu && uso.supRpc, 'T1 · Uso de la app: solo el administrador la ve y puede pedir los datos');
+
   // 9) Configuración con tarifas
   await irA(page, 'Horario y recargos'); await page.evaluate(() => openConfig()); await page.waitForTimeout(200);
   ok(await page.evaluate(() => !document.getElementById('cfgTarOp') && /Ir a Cargos/.test(document.getElementById('modalConfig').innerHTML)), 'configuración: las tarifas se movieron a «Cargos»');
