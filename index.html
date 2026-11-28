@@ -848,6 +848,7 @@ body.con-sel .toast{bottom:96px}
     <button class="btn btn-green" onclick="abrirAsignar()">Asignar tarea</button>
     <button class="btn btn-amber" onclick="abrirPausa()">Pausa</button>
     <button class="btn btn-ghost" id="tbTerminar" onclick="liberarSel()">Terminar tarea</button>
+    <button class="btn btn-ghost" onclick="abrirPosicion([..._sel])">Posición</button>
     <button class="btn btn-ghost btn-sm" onclick="limpiarSel()" aria-label="Quitar selección">×</button>
   </div>
 </div>
@@ -952,7 +953,7 @@ body.con-sel .toast{bottom:96px}
       <div class="sec tp-equipo">
         <div class="sec-hdr">
           <div class="sec-hdr-left"><div class="sec-accent"></div><span class="sec-title">Equipo</span></div>
-          <div class="sec-hdr-actions"><button class="btn btn-ghost btn-sm" onclick="selLibres()">Seleccionar libres</button></div>
+          <div class="sec-hdr-actions"><button class="btn btn-ghost btn-sm" onclick="abrirPosicion([])">Cambiar posición</button><button class="btn btn-ghost btn-sm" onclick="selLibres()">Seleccionar libres</button></div>
         </div>
         <div class="sec-body">
           <div id="bodegaFiltro"></div>
@@ -1370,6 +1371,7 @@ body.con-sel .toast{bottom:96px}
     <div class="info-box" id="dimResumen">Agrega tareas para ver el dimensionamiento</div>
     <hr>
     <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mid)">Personal planificado</div>
+    <div class="info-box hidden" id="dimRef"></div>
     <div class="li-sub">Elige a cada persona por su nombre. Cuando marque entrada en la tablet entra sola al turno (el turno se abre con la primera). Si le pones una tarea, queda lista para que la inicies.</div>
     <div class="chip-wrap" id="dimCargoChips"></div>
     <input type="text" id="dimBuscar" placeholder="Buscar por nombre" oninput="pintarDimPersonal()">
@@ -1605,6 +1607,18 @@ body.con-sel .toast{bottom:96px}
     <div class="chip-wrap" id="rzCargo"></div>
     <input type="text" id="rzBuscar" placeholder="Buscar por nombre" oninput="pintarReemplazo()">
     <div class="chip-wrap" id="rzLista"></div>
+  </div>
+</div>
+<div class="overlay hidden" id="modalPosicion">
+  <div class="modal">
+    <div class="modal-hdr"><span class="modal-title">Cambiar posición de hoy</span><span class="modal-close" onclick="hideModal('modalPosicion')">×</span></div>
+    <div class="li-sub">Para quien marcó con una posición que no es (por ejemplo, marcó como operador y va a la línea). Cambia sus marcas de hoy y queda registrado quién lo cambió.</div>
+    <div class="asig-ttl">Personas que marcaron hoy</div>
+    <div class="chip-wrap" id="psPersonas"></div>
+    <div class="asig-ttl">Nueva posición</div>
+    <div class="chip-wrap" id="psPuestos"></div>
+    <input type="text" id="psMotivo" placeholder="Motivo (opcional)">
+    <button class="btn btn-green btn-full" onclick="guardarPosicion()">Cambiar posición</button>
   </div>
 </div>
 <div class="overlay hidden" id="modalTipoLinea">
@@ -2798,8 +2812,8 @@ function initDimensionador(){
   document.getElementById('dimFecha').value=fechaManana();
   document.getElementById('dimHora').value='08:00';
   document.getElementById('dimTareasList').innerHTML='';
-  _dimPers=new Map(); _dimCargo='operador'; document.getElementById('dimBuscar').value='';
-  cargarPersonal().then(pintarDimPersonal); pintarDimPersonal();
+  _dimPers=new Map(); _dimCargo='operador'; document.getElementById('dimBuscar').value=''; document.getElementById('dimRef').classList.add('hidden');
+  pintarDimPersonal(); cargarPersonal().then(()=>{ copiarTurnoAnterior(); pintarDimPersonal(); });
   document.getElementById('dimResumen').textContent='Agrega tareas para ver el dimensionamiento';
   document.getElementById('dimColabWarn').classList.add('hidden');
   // Reset jornada
@@ -3406,12 +3420,41 @@ function disponiblesLinea(){
   const ocupados=new Set((S.lineas||[]).filter(x=>x.estado!=='cerrada'&&(x.fecha===hoyStr()||x.estado==='corriendo')).flatMap(x=>x.personas.filter(p=>!p.hasta).map(p=>p.personaId||'n:'+normTxt(p.nombre))));
   return presentes(['linea']).filter(p=>!ocupados.has(p.id)&&!ocupados.has('n:'+normTxt(p.nombre)));
 }
+let _pos={sel:new Set(),puesto:''};
+function abrirPosicion(pids){ _pos={sel:new Set(pids||[]),puesto:''}; document.getElementById('psMotivo').value=''; pintarPosicion(); showModal('modalPosicion'); cargarMarcas().then(pintarPosicion); }
+function pintarPosicion(){
+  const P=presentes().sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  document.getElementById('psPersonas').innerHTML=P.map(p=>`<div class="chip${_pos.sel.has(p.id)?' selected':''}" onclick="_pos.sel.has('${p.id}')?_pos.sel.delete('${p.id}'):_pos.sel.add('${p.id}');pintarPosicion()">${esc(p.nombre)} · ${esc(PUESTOS[estadoMarca(p.id).puesto]||'')}</div>`).join('')||'<span class="li-sub">Nadie ha marcado entrada hoy.</span>';
+  document.getElementById('psPuestos').innerHTML=Object.entries(PUESTOS).map(([k,v])=>`<div class="chip${_pos.puesto===k?' selected':''}" onclick="_pos.puesto='${k}';pintarPosicion()">${esc(v)}</div>`).join('');
+}
+async function guardarPosicion(){
+  if(!_pos.sel.size){ showToast('Elige a la persona','error'); return; } if(!_pos.puesto){ showToast('Elige la nueva posición','error'); return; }
+  const n=await cambiarPuestoPersonas([..._pos.sel],_pos.puesto,document.getElementById('psMotivo').value.trim());
+  if(n!==null){ hideModal('modalPosicion'); showToast(_pos.sel.size===1?'Posición cambiada':'Posición cambiada a '+_pos.sel.size+' personas'); }
+}
+// Cambia la posición de hoy en el servidor y acomoda el turno: sale del tablero si va a la línea, entra si viene de la línea
+async function cambiarPuestoPersonas(pids, puesto, motivo){
+  const hoy=hoyStr(), alTurno=!!CARGO_DE[puesto];
+  try{ for(const pid of pids) await rpc('ch_cambiar_puesto',{p_token:SESSION.token,p_key:STATE_KEY,p_persona:pid,p_fecha:hoy,p_puesto:puesto,p_motivo:motivo||null}); }
+  catch(e){ showToast('No se pudo cambiar: '+e.message,'error'); return null; }
+  const T=S.turno, now=Date.now();
+  pids.forEach(pid=>{
+    if(T&&!alTurno&&T.equipo.some(c=>c.id===pid)){ if(actDe(pid)) cerrarActividad([pid],now); T.equipo=T.equipo.filter(c=>c.id!==pid); _sel.delete(pid); }
+    if(T&&alTurno){ const c=T.equipo.find(x=>x.id===pid); if(c) c.cargo=CARGO_DE[puesto]; else _marcas.filter(m=>m.persona_id===pid).forEach(m=>{ if(T.marcasAplicadas) delete T.marcasAplicadas[m.id]; }); }
+    if(alTurno) (S.lineas||[]).filter(l=>l.estado==='corriendo').forEach(l=>(l.personas||[]).forEach(p=>{ if(p.personaId===pid&&!p.hasta){ p.hasta=now; p.motivoSalida='Pasó al turno ('+(PUESTOS[puesto]||puesto)+')'; } }));
+  });
+  await cargarMarcas(); aplicarMarcasAlTurno(); await save(); renderAll(); return pids.length;
+}
+// En la línea: quien marcó como operador o ayudante y en realidad va a la línea se pasa desde aquí
+async function pasarALinea(pid){ const l=lineaDe(_lineaAbierta); if(!l) return;
+  if(await cambiarPuestoPersonas([pid],'linea','Pasó a la línea '+lin(l))===null) return; await agregarMarcadoLinea(pid); }
 function htmlCuadrillaMarcada(l){
   if(l.estado==='cerrada') return '';
-  const D=disponiblesLinea();
-  if(!D.length) return `<div class="li-sub" style="margin-top:6px">${_marcasCargadas?'Nadie disponible. El personal de la línea marca su entrada en la tablet con la posición «Línea de producción» y aparece aquí.':'Leyendo el marcaje…'}</div>`;
+  const D=disponiblesLinea(), OT=l.estado==='corriendo'||l.fecha<=hoyStr()?presentes(['operador','ag']).filter(p=>!actDe(p.id)):[];
+  const otros=OT.length?`<div class="li-sub" style="margin-top:6px">Marcaron como operador o ayudante (toca para pasarlos a la línea):</div><div class="chip-wrap">${OT.map(p=>`<div class="chip" onclick="pasarALinea('${p.id}')">${esc(p.nombre)} · ${esc(PUESTOS[estadoMarca(p.id).puesto]||'')}</div>`).join('')}</div>`:'';
+  if(!D.length) return otros+`<div class="li-sub" style="margin-top:6px">${_marcasCargadas?'Nadie disponible. El personal de la línea marca su entrada en la tablet con la posición «Línea de producción» y aparece aquí.':'Leyendo el marcaje…'}</div>`;
   const bdE=p=>{ const e=estadoMarca(p.id); return (e.entrada&&e.entrada.bodega)||''; };
-  return `<div class="li-sub" style="margin-top:6px">Marcaron para la línea (toca para agregar):</div><div class="chip-wrap">${D.map(p=>`<div class="chip" onclick="agregarMarcadoLinea('${p.id}')">${esc(p.nombre)}${hayBodegas()&&bdE(p)&&bdE(p)!==l.bodega?' · '+esc(bdE(p)):''}</div>`).join('')}</div>`;
+  return otros+`<div class="li-sub" style="margin-top:6px">Marcaron para la línea (toca para agregar):</div><div class="chip-wrap">${D.map(p=>`<div class="chip" onclick="agregarMarcadoLinea('${p.id}')">${esc(p.nombre)}${hayBodegas()&&bdE(p)&&bdE(p)!==l.bodega?' · '+esc(bdE(p)):''}</div>`).join('')}</div>`;
 }
 // Estado de una persona de la línea según su marcaje: en almuerzo o con salida no se le suman pallets
 function estadoEnLinea(p){
@@ -7942,6 +7985,27 @@ function pintarDimPersonal(){
   const w=document.getElementById('dimColabWarn'), n=_dimPers.size;
   if(_dimNec&&n<_dimNec){ w.textContent=`Planificaste ${n} persona(s) y las tareas necesitan ${_dimNec}.`; w.classList.remove('hidden'); } else w.classList.add('hidden');
 }
+// Referencia: el turno anterior a la fecha que se planifica (sus tareas, con lo que se hizo, y su gente con la tarea en que más estuvo)
+function turnoReferencia(fecha){
+  const T=[...(S.turnosHistorial||[]),...(S.turno?[{...S.turno,historial:[...(S.historial||[]),...(S.tareasActivas||[])]}]:[])].filter(t=>t.fecha&&t.fecha<fecha);
+  return T.sort((a,b)=>a.fecha.localeCompare(b.fecha)||(a.inicio||0)-(b.inicio||0)).pop()||null;
+}
+function copiarTurnoAnterior(){
+  const fecha=document.getElementById('dimFecha').value||fechaManana(), T=turnoReferencia(fecha), ref=document.getElementById('dimRef'); if(!T) return;
+  const regs=(T.historial||[]).filter(h=>h.tareaId&&!h.isEspecial&&!esAlmuerzo(h)), tareas={}, horasP={};
+  regs.forEach(h=>{ const k=h.tareaId+'|'+(h.clienteId||''); const o=tareas[k]||(tareas[k]={tareaId:h.tareaId,clienteId:h.clienteId||'',cant:0}); o.cant+=+h.cant||0;
+    (h.colaboradores||[]).forEach(c=>{ const m=horasP[c.id]||(horasP[c.id]={}); m[k]=(m[k]||0)+horasTarea(h); }); });
+  document.getElementById('dimTareasList').innerHTML=''; const rowDe={};
+  Object.entries(tareas).forEach(([k,t])=>{ if(!S.tareasCat.some(x=>x.id===t.tareaId)) return; addDimTarea(); const row=[...document.querySelectorAll('#dimTareasList > div')].pop(), sel=row.querySelectorAll('select');
+    sel[0].value=t.tareaId; if(sel[1]) sel[1].value=t.clienteId; const inp=row.querySelector('input[type=number]'); if(inp&&t.cant) inp.value=t.cant; rowDe[k]=row.id; });
+  updateDimResumen(); _dimPers=new Map(); const P=personalTurno();
+  (T.equipo||[]).forEach(c=>{ const p=P.find(x=>x.id===c.id); if(!p) return; const m=horasP[c.id]||{}, k=Object.keys(m).sort((a,b)=>m[b]-m[a])[0];
+    _dimPers.set(p.id,{pid:p.id,nombre:p.nombre,cargo:c.cargo||CARGO_DE[p.puesto_def]||'operador',tareaRow:(k&&rowDe[k])||''}); });
+  const et=etiquetaDia(T.fecha).toLowerCase();
+  ref.innerHTML=`Tomé de referencia el turno ${/^(hoy|ayer)$/.test(et)?'de':'del'} <b>${et}</b>: ${_dimPers.size} persona${_dimPers.size===1?'':'s'} y ${Object.keys(rowDe).length} tarea${Object.keys(rowDe).length===1?'':'s'} (con lo que se hizo). Ajusta lo que cambie. <button class="btn btn-ghost btn-sm" onclick="vaciarPlan()">Empezar vacío</button>`;
+  ref.classList.remove('hidden'); pintarDimPersonal();
+}
+function vaciarPlan(){ document.getElementById('dimTareasList').innerHTML=''; _dimPers=new Map(); document.getElementById('dimRef').classList.add('hidden'); updateDimResumen(); pintarDimPersonal(); }
 function agregarDimPersona(pid){ const p=(_personal||[]).find(x=>x.id===pid); if(!p) return;
   _dimPers.set(pid,{pid,nombre:p.nombre,cargo:CARGO_DE[p.puesto_def]||'operador',tareaRow:''}); pintarDimPersonal(); }
 

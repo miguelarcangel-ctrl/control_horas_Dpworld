@@ -106,6 +106,8 @@
       const m=SRV.marcas.find(x=>x.id===a.p_id&&x.key===a.p_key);if(!m)return{data:null};
       if(a.p_ts)m.ts=new Date(a.p_ts).toISOString();if(a.p_tipo)m.tipo=a.p_tipo;if(a.p_puesto)m.puesto=a.p_puesto;if(a.p_anulado!=null)m.anulado=a.p_anulado;
       Object.assign(m,{motivo:a.p_motivo,corregido_por:u.username,corregido_en:new Date().toISOString()});return{data:m.id};},
+    ch_cambiar_puesto:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');if(!['admin','supervisor'].includes(u.rol))return err('PERMISO','42501');if(!/^[a-z][a-z0-9_]{0,29}$/.test(a.p_puesto||''))return err('PUESTO');
+      let n=0;SRV.marcas.filter(m=>m.key===a.p_key&&m.persona_id===a.p_persona&&m.fecha===a.p_fecha&&!m.anulado&&m.puesto!==a.p_puesto).forEach(m=>{m.puesto=a.p_puesto;m.corregido_por=u.username;m.corregido_en=new Date().toISOString();m.motivo=(m.motivo?m.motivo+' · ':'')+(a.p_motivo||('Posición cambiada a '+a.p_puesto+' por '+u.username));n++;});return{data:n};},
     ch_check_pass:a=>{const u=user(a.p_token);if(!u)return err('SESION','28000');return{data:['admin','supervisor'].includes(u.rol)&&u.pass===a.p_pass};},
     ch_disable_user:a=>{const u=user(a.p_token);if(a.p_id===u.id)return err('ULTIMO_ADMIN');SRV.users.find(x=>x.id===a.p_id).activo=false;return{data:null};},
   };
