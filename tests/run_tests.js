@@ -572,6 +572,32 @@ async function newPage(browser, opts = {}) {
   ok(la.boton && la.lineas && la.nombres, 'ingresar como línea: desde el login elige su línea y su nombre (solo la cuadrilla de esa línea)');
   ok(la.cedMal && la.tarjeta, 'ingresar como línea: confirma con la cédula y queda en la tarjeta de conteo con el temporizador');
   ok(la.cuenta && la.sync && la.guarda && la.sale, 'ingresar como línea: −/+1/+5 se guardan en el servidor, el supervisor los ve, y «Salir» cierra la sesión del equipo');
+  const lu = await page.evaluate(async () => {
+    const r = {}, SRV = window.__SRV, H = 3600000, guard = S.lineas;
+    mkTmp('tmp_lu1', 'Uni Uno', 'linea', 'entrada', H); await cargarPersonal(); await cargarMarcas();
+    const t = { ...S.lineasTipo[0], id: 'tipoUni', nombre: 'Armado bandeja', unidad: 'unidad' }; const gt = S.lineasTipo; S.lineasTipo = [...gt, t];
+    const l = { ...nuevaLinea(t, 4000, 8, hoyStr()), estado: 'corriendo', inicio: Date.now() - H, pallets: [], personas: [{ id: 'u1', nombre: 'Uni Uno', personaId: 'tmp_lu1', desde: Date.now() - H }] };
+    r.copia = l.unidad === 'unidad'; S.lineas = [...guard, l]; asignarLetras(); await save();
+    // supervisor: +50, +100 y deshacer
+    abrirLinea(l.id); r.botones = /onclick="sumarPallet\(50\)"/.test(document.getElementById('modalLinea').innerHTML) && /Unidades/.test(document.getElementById('modalLinea').innerHTML);
+    await sumarPallet(50); await sumarPallet(100); await sumarPallet(-1); hideModal('modalLinea');
+    r.cuenta = totalPallets(lineaDe(l.id)) === 50 && lineaDe(l.id).pallets.length === 1 && Array.isArray(lineaDe(l.id).pallets[0]);
+    // la tarjeta de «Ingresar como línea» también cuenta en unidades
+    await lineaInicio(); _la.linea = _la.L.find(x => x.id === l.id); _la.persona = _la.linea.personas[0]; _la.paso = 'cedula'; renderLA();
+    document.getElementById('laCed').value = 'Xtmp_lu1'; await lineaEntrar();
+    const ap = document.getElementById('lineaApp');
+    r.tarjeta = /de 4000 unidades/.test(ap.innerHTML) && /onclick="sumarLA\(100\)"/.test(ap.innerHTML);
+    await sumarLA(100); r.la = _la.est.pallets.length === 2 && sumaRegs(_la.est.pallets) === 150;
+    await reload(); r.sync = totalPallets(lineaDe(l.id)) === 150;
+    await salirLA();
+    // no se mezcla con los pallets en el total del día ni en la producción diaria
+    r.resumen = /líneas por unidades: <b>150<\/b> de 4000 unidades/.test(htmlResumenLineas([lineaDe(l.id)]));
+    _rep = { id: 'produccion', desde: hoyStr(), hasta: hoyStr(), tipo: '' }; const P = tablasReporte().produccion, c = n => P[0].indexOf(n);
+    r.reporte = c('Realizado (unidades)') > 0 && P[1][c('Realizado (unidades)')] === 150;
+    S.lineas = guard; S.lineasTipo = gt; _rep = { id: 'asisGeneral', desde: '', hasta: '' }; await save(); await limpiarTmp(); return r; });
+  ok(lu.copia && lu.botones && lu.cuenta, 'línea por unidades: el tipo se cuenta en unidades (+10/+50/+100, «−» deshace el último registro) y se guarda compacto');
+  ok(lu.tarjeta && lu.la && lu.sync, 'línea por unidades: la tarjeta de «Ingresar como línea» cuenta en unidades y el supervisor lo ve');
+  ok(lu.resumen && lu.reporte, 'línea por unidades: no se mezcla con los pallets (total del día y Producción diaria con columnas de unidades)');
   ok(la.verde && la.amarillo && la.rojo && la.sinParos && la.arranque && la.meta && la.pinta, 'ingresar como línea: semáforo verde/amarillo/rojo según los pallets esperados a esta hora (sin paros ni almuerzo), con toda la pantalla del color');
   const semT = await page.evaluate(async () => {
     const H = 3600000, guard = S.lineas, t0 = Date.now() - 4 * H, mk = (k, nombre) => ({ ...nuevaLinea(S.lineasTipo[0], 16, 8, hoyStr()), nombre, estado: 'corriendo', inicio: t0, pallets: Array.from({ length: k }, (_, i) => t0 + i * 60000) });
@@ -628,7 +654,7 @@ async function newPage(browser, opts = {}) {
     _rep = { id: 'cuadLinea', desde: fechaMenos(hoyStr(), 3), hasta: ay }; irTab('rep:cuadLinea');
     const CQ = tablasReporte().cuadLinea, hA = CQ.findIndex(x => /^Línea A · /.test(x[0])), hB = CQ.findIndex(x => /^Línea B · /.test(x[0]));
     const debajoA = CQ.slice(hA + 1, hB).map(x => x[1]);
-    r.cuadrilla = CQ[0].slice(0, 3).join() === 'Línea,Persona,Pallets' && CQ[hA][2] === 16 && CQ[hA][5] === 2 && debajoA.join() === 'p1,p2,p3,p9'
+    r.cuadrilla = CQ[0].slice(0, 3).join() === 'Línea,Persona,Cantidad' && CQ[hA][2] === 16 && CQ[hA][5] === 2 && debajoA.join() === 'p1,p2,p3,p9'
       && CQ.slice(hA + 1, hB).find(x => x[1] === 'p1')[5] === 2 && CQ[hB][2] === 4 && CQ[CQ.length - 1][0] === 'TOTAL' && CQ[CQ.length - 1][2] === 20
       && document.querySelectorAll('#repBox .cq-linea').length === 2 && /16 pallets/.test(document.querySelector('#repBox .cq-linea .cq-hdr').textContent) && document.querySelectorAll('#repBox .cq-linea')[0].querySelectorAll('.cq-per').length === 4;
     _rep = { id: 'cuadLinea', desde: ay, hasta: ay }; r.rango = tablasReporte().cuadLinea.find(x => /^Línea A · /.test(x[0]))[2] === 10;
