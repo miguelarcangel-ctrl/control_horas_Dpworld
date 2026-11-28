@@ -14,3 +14,6 @@ Horario base: 8:00 a 17:00 (Configuración). Lo marcado antes de la hora de inic
 ## Comunicación con el dueño
 - Escribir siempre en **español**.
 - Las capturas de pantalla que se le muestran son de la app **Control de Horas de DP World** (logo y colores de DP World), con datos de prueba; no las del prototipo de Door Logistic, salvo que lo pida.
+
+## Planes pendientes
+- **Plan Adecuación Door** (`demo-door/PLAN_ADECUACION_DOOR.md`): unificar lo de DP World y Door sin duplicidades y agregar el comprobante de pago del empleado. **No se ejecuta hasta que el dueño diga «ejecutar Plan Adecuación Door»** (o una fase). Antes de la fase 2, preguntar cómo se reparten las paletas compartidas.
