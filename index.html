@@ -5106,6 +5106,7 @@ async function aplicarImportMaestro(){
 // Reportería: cada reporte es una tabla (encabezado + filas). Se ven en pantalla y se descargan uno a uno o todos juntos.
 function construirReportes(turnoId, rango){
   const R=[], enRango=f=>!rango||((!rango.desde||f>=rango.desde)&&(!rango.hasta||f<=rango.hasta));
+  const tipoOk=l=>!rango||!rango.tipo||l.tipoId===rango.tipo;   // filtro «Tipo de línea» de la Reportería
   let turnos=turnoId?S.turnosHistorial.filter(t=>t.id===turnoId):S.turnosHistorial.filter(t=>enRango(t.fecha));
   if(S.turno&&!turnoId&&enRango(S.turno.fecha))turnos=[...turnos,{...S.turno,historial:[...S.historial],fin:null,estado:'activo'}];
   const engOf=t=>t.fin?engTurnoCerrado(t):calcTurno(t,t.historial||[],[],Date.now());
@@ -5144,7 +5145,7 @@ function construirReportes(turnoId, rango){
   const linRows=[['Fecha','Línea','Cliente','Bodega','Actividad en Excel','Meta (pallets)','Pallets','Cumplimiento (%)','Personas','Horas línea','Pallets por persona-hora','Productividad objetivo','Horas operadores de apoyo','Minutos en paro','Disponibilidad (%)','Responsable','Inicio','Fin','Estado','UdM del costo','Cantidad (UdM)','Costo unitario ($)','Costo de la línea ($)']];
   const perRows=[['Fecha','Línea','Cliente','Persona','Desde','Horas en la línea (sin almuerzo)']];
   const fechasT=new Set(turnos.map(t=>t.fecha));
-  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))).forEach(l=>{ const t={fecha:l.fecha};
+  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))&&tipoOk(l)).forEach(l=>{ const t={fecha:l.fecha};
     const r=ritmoLinea(l), fin=l.fin||Date.now();
     linRows.push([t.fecha,lin(l),l.cliente||'',l.bodega||'',(l.excel||{}).actividad||'',l.meta,r.tot,l.meta?Math.round(r.tot/l.meta*100):'',l.personas.length,r2(r.h),r.hTot?r2(r.porPersona):'',l.prod||'',r2(apoyoOperadores(l.id).total),Math.round(r.paroH*60),Math.round(r.disponibilidad*100),l.responsable||'',hora(l.inicio),l.fin?hora(l.fin):'En marcha',l.estado==='cerrada'?'Cerrada':'En marcha',...(cl=>cl?[UDM_COSTO[cl.udm][0],cl.cant,r2(cl.monto),r2(cl.total)]:['','','',''])(costoLinea(l))]);
     l.personas.forEach(p=>perRows.push([t.fecha,lin(l),l.cliente||'',p.nombre,hora(p.desde||l.inicio),r2(horasEnLinea(p,l,fin))]));
@@ -5152,7 +5153,7 @@ function construirReportes(turnoId, rango){
   R.push({nombre:'Líneas de producción',filas:linRows});
   // Producción diaria: fecha, lo realizado (todas las líneas sumadas) y la meta; al final el total del período
   const dia={};
-  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))).forEach(l=>{
+  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))&&tipoOk(l)).forEach(l=>{
     const d=dia[l.fecha]||(dia[l.fecha]={meta:0,pal:0,costo:0}); d.meta+=+l.meta||0; d.pal+=totalPallets(l); d.costo+=(costoLinea(l)||{}).total||0; });
   const prodRows=[['Fecha','Realizado (pallets)','Meta (pallets)','Costo de líneas ($)']], tt={meta:0,pal:0,costo:0};
   Object.keys(dia).sort().reverse().forEach(f=>{ const d=dia[f]; prodRows.push([f,d.pal,d.meta,r2(d.costo)]); tt.meta+=d.meta; tt.pal+=d.pal; tt.costo+=d.costo; });
@@ -5160,7 +5161,7 @@ function construirReportes(turnoId, rango){
   R.push({nombre:'Producción diaria',filas:prodRows});
   // Producción diaria por línea: una fila por línea y día, el total de cada día y el del período
   const plRows=[['Fecha','Línea','Realizado','Meta','%','Cliente','Costo ($)']], pc=(a,b)=>b?Math.round(a/b*100):'';
-  const porDia={}; (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))).forEach(l=>(porDia[l.fecha]=porDia[l.fecha]||[]).push(l));
+  const porDia={}; (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))&&tipoOk(l)).forEach(l=>(porDia[l.fecha]=porDia[l.fecha]||[]).push(l));
   const tp={pal:0,meta:0,costo:0};
   Object.keys(porDia).sort().reverse().forEach(f=>{ const td={pal:0,meta:0,costo:0}, L=porDia[f].sort((a,b)=>(a.letra||'').localeCompare(b.letra||'',undefined,{numeric:true})||a.nombre.localeCompare(b.nombre));
     L.forEach(l=>{ const pal=totalPallets(l), meta=+l.meta||0, co=(costoLinea(l)||{}).total||0; plRows.push([f,lin(l),pal,meta,pc(pal,meta),l.cliente||'',r2(co)]); td.pal+=pal; td.meta+=meta; td.costo+=co; });
@@ -5169,7 +5170,7 @@ function construirReportes(turnoId, rango){
   R.push({nombre:'Producción por línea',filas:plRows});
   // Resumen de producción por línea: el total de cada línea (por su tipo) en todo el rango, sin detalle por día
   const rl={};
-  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))).forEach(l=>{
+  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))&&tipoOk(l)).forEach(l=>{
     const k=l.tipoId||l.nombre, o=rl[k]||(rl[k]={nombre:l.nombre,cliente:l.cliente||'',dias:new Set(),n:0,pal:0,meta:0,costo:0});
     o.dias.add(l.fecha); o.n++; o.pal+=totalPallets(l); o.meta+=+l.meta||0; o.costo+=(costoLinea(l)||{}).total||0; });
   const rlRows=[['Línea','Realizado','Meta','%','Días','Líneas armadas','Cliente','Costo ($)']], rt={pal:0,meta:0,n:0,costo:0,dias:new Set()};
@@ -5179,7 +5180,7 @@ function construirReportes(turnoId, rango){
   R.push({nombre:'Resumen por línea',filas:rlRows});
   // Producción por línea y cuadrilla: por letra de línea (A, B, C…) el total del rango y debajo quién estuvo en ella
   const cq={};
-  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))).forEach(l=>{
+  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))&&tipoOk(l)).forEach(l=>{
     const k=l.letra||l.nombre, o=cq[k]||(cq[k]={k,nombres:new Set(),dias:new Set(),pal:0,meta:0,hp:0,per:{}}); const fin=l.fin||Date.now();
     o.nombres.add(l.nombre); o.dias.add(l.fecha); o.pal+=totalPallets(l); o.meta+=+l.meta||0;
     (l.personas||[]).forEach(p=>{ const id=p.personaId||p.nombre, h=horasEnLinea(p,l,fin), q=o.per[id]||(o.per[id]={nombre:p.nombre,dias:new Set(),h:0}); q.dias.add(l.fecha); q.h+=h; o.hp+=h; }); });
@@ -5192,7 +5193,7 @@ function construirReportes(turnoId, rango){
   R.push({nombre:'Línea y cuadrilla',filas:cqRows});
   const parRows=[['Fecha','Línea','Causa','Inicio','Fin','Minutos','Nota','Registrado por']];
   const insRows=[['Fecha','Línea','Insumo','Unidad','Consumo por pallet','Pallets','Esperado','Entregado','Sobrante','Consumo real','Diferencia','Diferencia (%)']];
-  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))).forEach(l=>{
+  (S.lineas||[]).filter(l=>l.estado!=='pendiente'&&(turnoId?fechasT.has(l.fecha):enRango(l.fecha))&&tipoOk(l)).forEach(l=>{
     [...(l.paros||[]),...(l.paroActivo?[l.paroActivo]:[])].forEach(p=>parRows.push([l.fecha,lin(l),p.causa,hora(p.inicio),p.fin?hora(p.fin):'En curso',Math.round(paroDur(p)*60),p.nota||'',p.por||'']));
     (l.insumos||[]).forEach(i=>{ const e=estadoInsumo(i,l); insRows.push([l.fecha,l.nombre,i.nombre,i.unidad,i.porPallet,totalPallets(l),r2(e.esp),r2(e.ent),e.sob??'',e.real==null?'':r2(e.real),e.dif==null?'':r2(e.dif),e.difPct==null?'':Math.round(e.difPct)]); });
   });
@@ -5215,14 +5216,16 @@ var REPORTES=[
   {id:'marcajes',t:'Marcajes',d:'Cada marca de la tablet, con correcciones'},
   {id:'tareas',t:'Detalle de tareas'},{id:'turnos',t:'Resumen de turnos'},
   {id:'clientes',t:'Costos por cliente',ts:'Horas por cliente'},{id:'colaboradores',t:'Costos por colaborador',ts:'Horas por colaborador'},
-  {id:'eficiencia',t:'Eficiencia por tarea'},{id:'produccion',t:'Producción diaria',d:'Lo realizado en el día (todas las líneas) y la meta'},{id:'cuadLinea',t:'Producción por línea y cuadrilla',d:'Cada línea (A, B, C…) con el total de pallets del rango y debajo las personas que estuvieron en ella'},{id:'resLinea',t:'Resumen de producción por línea',d:'Total de cada línea en el rango de fechas: lo realizado y la meta'},{id:'prodLinea',t:'Producción diaria por línea',d:'Cada línea de cada día: lo realizado y la meta, con el total del día y del período'},{id:'lineas',t:'Líneas de producción'},{id:'cuadrilla',t:'Cuadrilla de línea'},
+  {id:'eficiencia',t:'Eficiencia por tarea'},{id:'produccion',t:'Producción diaria',d:'Lo realizado en el día y la meta: todas las líneas o solo el tipo que elijas'},{id:'cuadLinea',t:'Producción por línea y cuadrilla',d:'Cada línea (A, B, C…) con el total de pallets del rango y debajo las personas que estuvieron en ella'},{id:'resLinea',t:'Resumen de producción por línea',d:'Total de cada línea en el rango de fechas: lo realizado y la meta'},{id:'prodLinea',t:'Producción diaria por línea',d:'Cada línea de cada día: lo realizado y la meta, con el total del día y del período'},{id:'lineas',t:'Líneas de producción'},{id:'cuadrilla',t:'Cuadrilla de línea'},
   {id:'paros',t:'Paros de línea'},{id:'insumos',t:'Insumos de línea'}];
+// Reportes de líneas: llevan el filtro «Tipo de línea»
+var REP_LINEA=['produccion','prodLinea','resLinea','cuadLinea','lineas','cuadrilla','paros','insumos'];
 function nombreReporte(r){ return (currentUser&&currentUser.rol!=='admin'&&r.ts)||r.t; }
 function esAsis(id){ return ['asisGeneral','asisDetalle','marcajes'].includes(id); }
 var _rep={id:'asisGeneral',desde:'',hasta:''}, _repCarga=null;   // var: el menú se pinta antes de esta línea
 // Todas las tablas del rango (asistencia incluida, si ya está cargada)
 function tablasReporte(){
-  const R=construirReportes(null,{desde:_rep.desde,hasta:_rep.hasta}), out={};
+  const R=construirReportes(null,{desde:_rep.desde,hasta:_rep.hasta,tipo:_rep.tipo||''}), out={};
   R.forEach(x=>out[x.id]=x.filas);
   if(_asist.desde===_rep.desde&&_asist.hasta===_rep.hasta&&_asist.marcas){ const a=tablasAsistencia(); out.asisGeneral=a.res; out.asisDetalle=a.dia; out.marcajes=a.raw; }
   return out;
@@ -5237,9 +5240,10 @@ function htmlReportes(){
   return `<div class="rep-cab"><div class="rep-tit">${esc(nombreReporte(def))}</div>${def.d?`<div class="li-sub">${esc(def.d)}</div>`:''}</div>
     <div class="rep-filtros"><div class="field"><label>Desde</label><input type="date" value="${_rep.desde}" onchange="_rep.desde=this.value;pintarReportes()"></div>
       <div class="field"><label>Hasta</label><input type="date" value="${_rep.hasta}" onchange="_rep.hasta=this.value;pintarReportes()"></div>
+      ${REP_LINEA.includes(def.id)&&(S.lineasTipo||[]).length?`<div class="field"><label>Tipo de línea</label><select id="repTipo" onchange="_rep.tipo=this.value;pintarReportes()"><option value="">Todas las líneas</option>${(S.lineasTipo||[]).map(t=>`<option value="${t.id}"${_rep.tipo===t.id?' selected':''}>${esc(t.nombre)}</option>`).join('')}</select></div>`:''}
       <div class="field"><label>Reporte</label><select onchange="irTab('rep:'+this.value)">${REPORTES.map(r=>`<option value="${r.id}"${r.id===def.id?' selected':''}>${esc(nombreReporte(r))}</option>`).join('')}</select></div>
       <div class="chip-wrap" style="align-self:flex-end">${[['Hoy',0],['7 días',6],['15 días',14],['30 días',29]].map(([t,d])=>`<div class="chip${_rep.desde===fechaMenos(hoyStr(),d)&&_rep.hasta===hoyStr()?' selected':''}" onclick="_rep.desde=fechaMenos(hoyStr(),${d});_rep.hasta=hoyStr();pintarReportes()">${t}</div>`).join('')}</div></div>
-    ${!listo?'<div class="empty-text">Cargando los marcajes del período…</div>':`<div class="rep-acc"><span>${filas.length} fila${filas.length===1?'':'s'} · ${etiquetaDia(_rep.desde)} a ${etiquetaDia(_rep.hasta).toLowerCase()}</span>
+    ${!listo?'<div class="empty-text">Cargando los marcajes del período…</div>':`<div class="rep-acc"><span>${filas.length} fila${filas.length===1?'':'s'} · ${etiquetaDia(_rep.desde)} a ${etiquetaDia(_rep.hasta).toLowerCase()}${REP_LINEA.includes(def.id)&&_rep.tipo&&tipoLinea(_rep.tipo)?' · '+esc(tipoLinea(_rep.tipo).nombre):''}</span>
       <span class="btn-row"><button class="btn btn-green btn-sm" onclick="descargarReporte('${def.id}')">Descargar este reporte</button><button class="btn btn-ghost btn-sm" onclick="descargarReporte('')">Descargar todos</button></span></div>
     ${filas.length&&def.id==='cuadLinea'?htmlCuadLinea(filas):filas.length?`<div class="rep-tabla"><table><thead><tr>${cab.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${filas.slice(0,MAX).map(f=>`<tr${f[0]==='TOTAL'?' class="rep-total"':f[1]==='Total del día'||(def.id==='cuadLinea'&&f[0]&&f[1]==='')?' class="rep-sub"':''}>${cab.map((_,k)=>celda(f[k])).join('')}</tr>`).join('')}</tbody></table></div>
       ${filas.length>MAX?`<div class="li-sub">Se muestran ${MAX} de ${filas.length} filas. El Excel trae todas.</div>`:''}`:'<div class="empty-text">Sin datos en estas fechas.</div>'}`}`;
@@ -5267,7 +5271,8 @@ async function descargarReporte(id){
   if(_asist.desde!==_rep.desde||_asist.hasta!==_rep.hasta||!_asist.marcas) await cargarAsistenciaRep();
   const T=tablasReporte(), sel=REPORTES.filter(r=>(!id||r.id===id)&&T[r.id]);
   const wb=XLSX.utils.book_new(); sel.forEach(r=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(T[r.id]),nombreReporte(r).slice(0,31)));
-  XLSX.writeFile(wb,`${id?nombreReporte(sel[0]).replace(/\W+/g,'_'):'Reportes'}_${_rep.desde}_a_${_rep.hasta}.xlsx`);
+  const tl=_rep.tipo&&tipoLinea(_rep.tipo)&&(!id||REP_LINEA.includes(id))?'_'+tipoLinea(_rep.tipo).nombre.replace(/\W+/g,'_'):'';
+  XLSX.writeFile(wb,`${id?nombreReporte(sel[0]).replace(/\W+/g,'_'):'Reportes'}${tl}_${_rep.desde}_a_${_rep.hasta}.xlsx`);
 }
 var REP_IDS={'Detalle Tareas':'tareas','Resumen Turnos':'turnos','Costos por Cliente':'clientes','Eficiencia por Tarea':'eficiencia','Costos por Colaborador':'colaboradores',
   'Producción diaria':'produccion','Producción por línea':'prodLinea','Resumen por línea':'resLinea','Línea y cuadrilla':'cuadLinea','Líneas de producción':'lineas','Cuadrilla de línea':'cuadrilla','Paros de línea':'paros','Insumos de línea':'insumos'};
