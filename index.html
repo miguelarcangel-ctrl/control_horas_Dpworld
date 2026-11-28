@@ -519,6 +519,7 @@ body.con-sel .avisos-app{bottom:90px}
 .la-btns.la-btns-4 button{font-size:1.7rem!important}
 .la-btns button{display:flex;align-items:center;justify-content:center;height:88px;font-size:2rem!important;border-radius:18px!important;font-family:'Barlow Condensed',sans-serif;font-weight:800}
 .la-estado{text-align:center;padding:10px;border-radius:12px;font-weight:700}
+.la-estado.op-nueva{background:#fff;color:var(--t);border:2px solid currentColor}
 .la-estado.paro{background:rgba(232,0,61,.1);color:var(--red-t)}.la-estado.alm{background:rgba(245,162,11,.12);color:var(--amber)}
 /* Horizontal: el anillo a la izquierda; tiempo, ritmo y botones a la derecha */
 @media (orientation:landscape) and (max-height:620px){
@@ -2330,7 +2331,7 @@ async function sumarLA(d){
 // Semáforo: lo que lleva contra lo esperado (productividad de la tarea × horas en ella × personas en la tarea).
 const OP_KEY='ch_operador_sesion_'+STATE_KEY;
 let _op={paso:'nombre',L:[],persona:null,ses:null,est:null,err:'',ocupado:false,tic:null,poll:null,n10:0};
-const PASOS_OP=[1,5,10];
+const PASOS_OP=[1,5];
 function mostrarOP(v){ document.getElementById('opApp').classList.toggle('hidden',!v); if(!v){ clearInterval(_op.tic); clearInterval(_op.poll); } }
 async function opInicio(){
   _op={..._op,paso:'nombre',L:[],persona:null,err:''}; mostrarOP(true); renderOP();
@@ -2375,8 +2376,12 @@ async function opEntrar(){
 }
 async function cargarEstadoOP(){
   if(!_op.ses) return;
+  const antes=_op.est&&_op.est.tarea&&_op.est.tarea.id;
   try{ _op.est=await rpc('ch_operador_estado',{p_token:_op.ses.token}); _op.err=''; }
   catch(e){ if(/SESION/.test(e.message)){ salirOP(true); return; } _op.err='Sin conexión: el conteo se actualiza al volver'; }
+  const ahora=_op.est&&_op.est.tarea&&!_op.est.tarea.especial&&_op.est.tarea.id;
+  if(ahora&&ahora!==antes&&_op.tareaVista!==undefined) _op.nueva=Date.now();   // el supervisor le asignó otra tarea
+  if(ahora) _op.tareaVista=ahora;
   if(_op.paso==='conteo') renderOP();
 }
 function iniciarRelojOP(){
@@ -2393,9 +2398,10 @@ function htmlConteoOP(){
   if(!t) return `<div class="la-card">${top('Sin tarea asignada',quien)}<div class="la-estado alm">Avísale al supervisor para que te asigne una tarea. Esta pantalla se actualiza sola cuando te la asigne.</div>${_op.err?`<div class="la-err" style="text-align:center">${esc(_op.err)}</div>`:''}</div>`;
   if(t.especial) return `<div class="la-card">${top(esc(t.tarea||'En pausa'),quien)}<div class="la-estado alm">Estás en ${esc((t.tarea||'pausa').toLowerCase())}. El conteo sigue cuando vuelvas a tu tarea.</div>
     <div class="la-timer"><span class="la-lbl">Tiempo en pausa</span><b id="opT1">${fmtReloj(Date.now()-t.inicio)}</b></div></div>`;
-  const sm=semaforoOP(t), u=(t.unidad||'unidad')+'s', bloq=_op.ocupado;
+  const sm=semaforoOP(t), u=(t.unidad||'unidad')+'s', bloq=_op.ocupado, nueva=_op.nueva&&Date.now()-_op.nueva<60000;
   return `<div class="la-card">
     ${top(esc(t.tarea),`${esc(t.cliente||'')}${t.personas>1?' · '+t.personas+' personas en la tarea':''} · ${quien}`)}
+    ${nueva?'<div class="la-estado op-nueva">Nueva tarea asignada: el conteo empieza en 0</div>':''}
     <div class="la-cuerpo">
       <div class="la-izq">
         ${sm.t?`<div class="la-sem s-${sm.c}">${sm.t}</div>`:''}
@@ -2406,7 +2412,7 @@ function htmlConteoOP(){
           <span class="la-ult">${t.cantTs?`Último movimiento ${horaHM(t.cantTs)} · hace <span id="opT2">${fmtReloj(Date.now()-t.cantTs).replace(/^00:/,'')}</span>`:'Sin movimientos aún'}</span></div>
         ${sm.ritmo!=null&&!t.sinProd&&+t.prod>0?`<div class="la-ritmo">Ritmo <b>${fmtN(sm.ritmo)}</b> ${esc(u)}/h · objetivo <b>${fmtN((+t.prod)*((+t.efic||100)/100)*Math.max(1,t.personas||1))}</b>/h</div>`:''}
         ${_op.err?`<div class="la-err" style="text-align:center">${esc(_op.err)}</div>`:''}
-        <div class="la-btns la-btns-4"><button class="btn btn-ghost" ${bloq||!t.cant?'disabled':''} onclick="sumarOP(-1)" aria-label="Restar uno">−</button>
+        <div class="la-btns"><button class="btn btn-ghost" ${bloq||!t.cant?'disabled':''} onclick="sumarOP(-1)" aria-label="Restar uno">−</button>
           ${PASOS_OP.map(k=>`<button class="btn btn-green" ${bloq?'disabled':''} onclick="sumarOP(${k})">+${k}</button>`).join('')}</div>
       </div>
     </div></div>`;
