@@ -508,6 +508,8 @@ body.con-sel .avisos-app{bottom:90px}
 .la-ult{color:var(--t3);font-size:.85rem}
 .la-ritmo{text-align:center;color:var(--t2);font-size:.92rem}
 .la-btns{display:grid;grid-template-columns:1fr 1.4fr 1.4fr;gap:10px;margin-top:auto}
+.la-btns.la-btns-4{grid-template-columns:.8fr 1fr 1fr 1fr;gap:8px}
+.la-btns.la-btns-4 button{font-size:1.7rem!important}
 .la-btns button{display:flex;align-items:center;justify-content:center;height:88px;font-size:2rem!important;border-radius:18px!important;font-family:'Barlow Condensed',sans-serif;font-weight:800}
 .la-estado{text-align:center;padding:10px;border-radius:12px;font-weight:700}
 .la-estado.paro{background:rgba(232,0,61,.1);color:var(--red-t)}.la-estado.alm{background:rgba(245,162,11,.12);color:var(--amber)}
@@ -2256,7 +2258,7 @@ function htmlConteoLA(){
           <span class="la-ult">${ult?`Último registro ${horaHM(ult)} · hace <span id="laT2">${fmtReloj(Date.now()-ult).replace(/^00:/,'')}</span>`:'Sin registros aún'}</span></div>
         ${corre&&sm.hT>0?`<div class="la-ritmo">Ritmo <b>${fmtN(sm.ritmo)}</b> ${U}/h${n<meta?` · para la meta <b>${fmtN(sm.nec)}</b>/h`:''}</div>`:''}
         ${_la.err?`<div class="la-err" style="text-align:center">${esc(_la.err)}</div>`:''}
-        <div class="la-btns"><button class="btn btn-ghost" ${bloq||!n?'disabled':''} onclick="sumarLA(-1)" aria-label="${uni?'Deshacer el último registro':'Restar un pallet'}">−</button>
+        <div class="la-btns${uni?' la-btns-4':''}"><button class="btn btn-ghost" ${bloq||!n?'disabled':''} onclick="sumarLA(-1)" aria-label="${uni?'Deshacer el último registro':'Restar un pallet'}">−</button>
           ${(uni?PASOS_UNID:[1,5]).map(k=>`<button class="btn btn-green" ${bloq?'disabled':''} onclick="sumarLA(${k})">+${k}</button>`).join('')}</div>
       </div>
     </div>
